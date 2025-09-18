@@ -1,0 +1,49 @@
+cabal-version:      3.0
+name:               remora-interpreter
+version:            0.1.0.0
+-- synopsis:
+-- description:
+license:            ISC
+license-file:       LICENSE
+author:             zfnmxt
+maintainer:         zfnmxt@zfnmxt.com
+-- copyright:
+category:           Language
+build-type:         Simple
+extra-doc-files:    CHANGELOG.md
+-- extra-source-files:
+
+common warnings
+    ghc-options: -Wall
+
+library
+    import:           warnings
+    exposed-modules:
+    -- other-modules:
+    -- other-extensions:
+    build-depends:    base ^>=4.19.2.0
+    hs-source-dirs:   src
+    default-language: GHC2021
+
+executable remora-interpreter
+    import:           warnings
+    main-is:          src/Main.hs
+    -- other-modules:
+    -- other-extensions:
+    build-depends:
+        base ^>=4.19.2.0,
+        remora-interpreter
+
+    default-language: GHC2021
+
+test-suite remora-interpreter-test
+    import:           warnings
+    default-language: GHC2021
+    -- other-modules:
+    -- other-extensions:
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Main.hs
+    build-depends:
+        base ^>=4.19.2.0,
+        remora-interpreter
