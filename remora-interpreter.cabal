@@ -19,6 +19,7 @@ common warnings
 library
     import:           warnings
     exposed-modules:
+      Syntax
     -- other-modules:
     -- other-extensions:
     build-depends:    base ^>=4.19.2.0
