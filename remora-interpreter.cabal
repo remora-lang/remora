@@ -30,7 +30,7 @@ library
       base ^>=4.19.2.0,
       megaparsec,
       text,
-      srcloc
+      prettyprinter
 
     hs-source-dirs:   src
 
