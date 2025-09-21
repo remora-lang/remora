@@ -117,6 +117,7 @@ data Exp f v
   | TApp (Exp f v) [Type v] SourcePos
   | IApp (Exp f v) [Idx v] SourcePos
   | Unbox [v] (Exp f v) (Exp f v) SourcePos
+  | Atom (Atom f v)
 
 deriving instance (Show v) => Show (Exp Proxy v)
 
@@ -142,3 +143,4 @@ instance (Show v, Pretty v) => Pretty (Exp Proxy v) where
     parens $ "i-app" <+> pretty e <+> hsep (map pretty is)
   pretty (Unbox vs e b _) =
     parens $ "unbox" <+> (parens (hsep (map pretty vs ++ [pretty e]))) <+> pretty b
+  pretty (Atom a) = pretty a

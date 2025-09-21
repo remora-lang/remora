@@ -1,7 +1,7 @@
 module Parser (parse) where
 
 import Control.Monad (void)
-import Data.Char (isAlphaNum, isSpace)
+import Data.Char (isAlpha, isAlphaNum, isSpace)
 import Data.Proxy
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -22,6 +22,7 @@ import Text.Megaparsec
     satisfy,
     some,
     try,
+    (<|>),
   )
 import Text.Megaparsec qualified
 import Text.Megaparsec.Char
@@ -93,14 +94,16 @@ withSrcPos p = do
 
 lId :: Parser Text
 lId = lexeme $ try $ do
-  x <- T.pack <$> many (satisfy $ not . isDisallowed)
+  c <- satisfy isAlpha
+  cs <- many (satisfy $ not . isDisallowed)
+  let x = T.pack $ c : cs
   if x `elem` keywords
     then fail $ "unexpected keyword: " <> T.unpack x
     else pure x
   where
     isDisallowed c =
       isSpace c
-        || c `elem` ['(', '[', ']', '{', '}', '"', ',', '\'', '`', ';', '#', '|', '\\']
+        || c `elem` ['(', ')', '[', ']', '{', '}', '"', ',', '\'', '`', ';', '#', '|', '\\']
 
 pDecimal :: Parser Int
 pDecimal = lexeme L.decimal
@@ -127,9 +130,13 @@ pAtom =
     choice
       [ pBool,
         pNum,
-        pLambda,
-        pILambda,
-        pBox
+        try $ -- fix
+          parens $
+            choice
+              [ pLambda,
+                pILambda,
+                pBox
+              ]
       ]
   where
     pBool =
@@ -145,39 +152,36 @@ pAtom =
         ]
     pLambda =
       let pArg = parens $ (,) <$> lId <*> optional pType
-       in parens $
-            Lambda <$> (symbol "\\" >> (parens $ many pArg)) <*> pExp
+       in Lambda <$> (symbol "\\" >> (parens $ many pArg)) <*> pExp
     pILambda =
       let pArg = parens $ (,) <$> lId <*> optional pSort
-       in parens $
-            ILambda <$> (symbol "\\" >> (parens $ many pArg)) <*> pExp
+       in ILambda <$> (symbol "I\\" >> (parens $ many pArg)) <*> pExp
     pBox =
-      parens $
-        Box <$> (many pIdx) <*> pExp <*> optional pType
+      Box <$> (many pIdx) <*> pExp <*> optional pType
 
 pExp :: Parser Exp
 pExp =
-  withSrcPos $
-    choice
-      [ Var <$> lId,
-        parens $
-          Array <$> (lKeyword "array" >> pShapeLit) <*> some pAtom,
-        parens $
-          Frame <$> (lKeyword "frame" >> pShapeLit) <*> some pExp,
-        parens $
-          App <$> ((:) <$> pExp <*> some pExp),
-        parens $
-          IApp <$> pExp <*> (some pIdx),
-        pUnbox
-      ]
+  withSrcPos
+    ( choice
+        [ Var <$> lId,
+          parens $
+            choice
+              [ Array <$> (lKeyword "array" >> pShapeLit) <*> some pAtom,
+                Frame <$> (lKeyword "frame" >> pShapeLit) <*> some pExp,
+                App <$> ((:) <$> pExp <*> some pExp),
+                IApp <$> pExp <*> (some pIdx),
+                pUnbox
+              ]
+        ]
+    )
+    <|> (Syntax.Atom <$> pAtom)
   where
     pShapeLit = parens $ many pDecimal
     pUnbox =
-      parens $
-        Unbox
-          <$> (symbol "(" >> (many (lId <* notFollowedBy (symbol ")"))))
-          <*> (pExp <* symbol ")")
-          <*> pExp
+      Unbox
+        <$> (symbol "(" >> (many (lId <* notFollowedBy (symbol ")"))))
+        <*> (pExp <* symbol ")")
+        <*> pExp
 
 pIdx :: Parser Idx
 pIdx =
