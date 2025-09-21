@@ -13,21 +13,29 @@ build-type:         Simple
 extra-doc-files:    CHANGELOG.md
 -- extra-source-files:
 
-common warnings
+common common
     ghc-options: -Wall
-
-library
-    import:           warnings
-    exposed-modules:
-      Syntax
-    -- other-modules:
-    -- other-extensions:
-    build-depends:    base ^>=4.19.2.0
-    hs-source-dirs:   src
+    default-extensions:
+      OverloadedStrings
     default-language: GHC2021
 
+library
+    import:           common
+    exposed-modules:
+      Syntax
+      Parser
+    -- other-modules:
+    -- other-extensions:
+    build-depends:
+      base ^>=4.19.2.0,
+      megaparsec,
+      text,
+      srcloc
+
+    hs-source-dirs:   src
+
 executable remora-interpreter
-    import:           warnings
+    import:           common
     main-is:          src/Main.hs
     -- other-modules:
     -- other-extensions:
@@ -35,11 +43,8 @@ executable remora-interpreter
         base ^>=4.19.2.0,
         remora-interpreter
 
-    default-language: GHC2021
-
 test-suite remora-interpreter-test
-    import:           warnings
-    default-language: GHC2021
+    import:           common
     -- other-modules:
     -- other-extensions:
     type:             exitcode-stdio-1.0
