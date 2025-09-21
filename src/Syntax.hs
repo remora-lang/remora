@@ -21,17 +21,18 @@ data Sort
 
 data Atom f v
   = BoolVal Bool SourcePos
-  | IntegerVal Int SourcePos
+  | IntVal Int SourcePos
   | FloatVal Float SourcePos
-  | Lambda [(v, f (Type v))] (Exp f v) SourcePos
-  | TLambda [(v, Kind)] (Exp f v) SourcePos
-  | ILambda [(v, Sort)] (Exp f v) SourcePos
-  | Box [Idx v] (Exp f v) (f (Type v)) SourcePos
+  | Lambda [(v, Maybe (Type v))] (Exp f v) SourcePos
+  | TLambda [(v, Maybe Kind)] (Exp f v) SourcePos
+  | ILambda [(v, Maybe Sort)] (Exp f v) SourcePos
+  | Box [Idx v] (Exp f v) (Maybe (Type v)) SourcePos
 
 data Type v
   = TVar v
   | Bool
-  | Integer
+  | Int
+  | Float
 
 data Exp f v
   = Var v SourcePos
