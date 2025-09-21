@@ -3,11 +3,11 @@ module Syntax where
 import Text.Megaparsec.Pos (SourcePos)
 
 data Idx v
-  = IdxVar v
-  | Dim Int
-  | Shape [Idx v]
-  | (:+) (Idx v) (Idx v)
-  | (:++) (Idx v) (Idx v)
+  = IdxVar v SourcePos
+  | Dim Int SourcePos
+  | Shape [Idx v] SourcePos
+  | Add [Idx v] SourcePos
+  | Concat [Idx v] SourcePos
 
 data Kind
   = KindArray
