@@ -1,28 +1,48 @@
 module Interpreter where
 
+import Control.Monad.Error.Class
 import Control.Monad.Reader
+import Control.Monad.Trans.Except
 import Data.Map (Map)
 import Data.Map qualified as M
-import Data.Proxy
 import Data.Text
-import Syntax
+import Syntax hiding (Atom, Exp, Idx, Type)
+import Syntax qualified
+import VName
 
-data Env f v = Env
-  { envMap :: Map Text (Exp f v)
+type Exp = Syntax.Exp VName
+
+type Atom = Syntax.Atom VName
+
+type Idx = Syntax.Idx VName
+
+type Type = Syntax.Type VName
+
+data Env = Env
+  { envMap :: Map Text Exp
   }
 
-type InterpM f v = Reader (Env f v)
+type Error = Text
 
-data Val f v
+newtype InterpM a = InterpM {runInterpM :: ExceptT Error (Reader Env) a}
+  deriving
+    ( Functor,
+      Applicative,
+      Monad,
+      MonadReader Env,
+      MonadError Error
+    )
+
+data Val
   = ValVar Text
-  | ValArray [Int] (AtVal f v)
+  | ValArray [Int] AtVal
 
-data AtVal f v
+data AtVal
   = ValBase Base
-  | ValLambda [(v, Maybe (Type v))] (Exp f v)
-  | ValTLambda [(v, Maybe Kind)] (Exp f v)
-  | ValILambda [(v, Maybe Sort)] (Exp f v)
-  | ValBox [Idx v] (Exp f v) (Maybe (Type v))
+  | ValLambda [(VName, Type)] Exp
+  | ValTLambda [(VName, Kind)] Exp
+  | ValILambda [(VName, Sort)] Exp
+  | ValBox [Idx] Exp Type
 
-int :: Exp f v -> InterpM f v (AtVal f v)
+int :: Exp -> InterpM AtVal
 int = undefined
