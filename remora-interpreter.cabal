@@ -24,13 +24,16 @@ library
     exposed-modules:
       Syntax
       Parser
+      Interpreter
     -- other-modules:
     -- other-extensions:
     build-depends:
       base ^>=4.19.2.0,
       megaparsec,
       text,
-      prettyprinter
+      prettyprinter,
+      mtl,
+      containers
 
     hs-source-dirs:   src
 

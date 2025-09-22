@@ -124,20 +124,12 @@ pSort =
       symbol "Dim" >> pure SortDim
     ]
 
-pAtom :: Parser Atom
-pAtom =
-  withSrcPos $
-    choice
-      [ pBool,
-        pNum,
-        try $ -- fix
-          parens $
-            choice
-              [ pLambda,
-                pILambda,
-                pBox
-              ]
-      ]
+pBase :: Parser Base
+pBase =
+  choice
+    [ pBool,
+      pNum
+    ]
   where
     pBool =
       BoolVal
@@ -150,6 +142,21 @@ pAtom =
         [ try $ IntVal <$> pDecimal,
           FloatVal <$> lexeme L.float
         ]
+
+pAtom :: Parser Atom
+pAtom =
+  withSrcPos $
+    choice
+      [ Base <$> pBase,
+        try $ -- fix
+          parens $
+            choice
+              [ pLambda,
+                pILambda,
+                pBox
+              ]
+      ]
+  where
     pLambda =
       let pArg = parens $ (,) <$> lId <*> optional pType
        in Lambda <$> (symbol "\\" >> (parens $ many pArg)) <*> pExp

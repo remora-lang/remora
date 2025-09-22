@@ -38,10 +38,20 @@ instance Pretty Sort where
   pretty SortShape = "Shape"
   pretty SortDim = "Dim"
 
+data Base
+  = BoolVal Bool
+  | IntVal Int
+  | FloatVal Float
+  deriving (Show, Eq, Ord)
+
+instance Pretty Base where
+  pretty (BoolVal True) = "#t"
+  pretty (BoolVal False) = "#f"
+  pretty (IntVal i) = pretty i
+  pretty (FloatVal f) = pretty f
+
 data Atom f v
-  = BoolVal Bool SourcePos
-  | IntVal Int SourcePos
-  | FloatVal Float SourcePos
+  = Base Base SourcePos
   | Lambda [(v, Maybe (Type v))] (Exp f v) SourcePos
   | TLambda [(v, Maybe Kind)] (Exp f v) SourcePos
   | ILambda [(v, Maybe Sort)] (Exp f v) SourcePos
@@ -50,10 +60,7 @@ data Atom f v
 deriving instance (Show v) => Show (Atom Proxy v)
 
 instance (Show v, Pretty v) => Pretty (Atom Proxy v) where
-  pretty (BoolVal True _) = "#t"
-  pretty (BoolVal False _) = "#f"
-  pretty (IntVal i _) = pretty i
-  pretty (FloatVal f _) = pretty f
+  pretty (Base b _) = pretty b
   pretty (Lambda args e _) =
     let pArgs =
           parens $
