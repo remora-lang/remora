@@ -2,7 +2,6 @@ module Parser (parse) where
 
 import Control.Monad (void)
 import Data.Char (isAlpha, isAlphaNum, isSpace)
-import Data.Proxy
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Void
@@ -37,9 +36,9 @@ import Text.Megaparsec.Pos
 
 type Parser = Parsec Void Text
 
-type Exp = Syntax.Exp Proxy Text
+type Exp = Syntax.Exp Text
 
-type Atom = Syntax.Atom Proxy Text
+type Atom = Syntax.Atom Text
 
 type Idx = Syntax.Idx Text
 
@@ -158,13 +157,13 @@ pAtom =
       ]
   where
     pLambda =
-      let pArg = parens $ (,) <$> lId <*> optional pType
+      let pArg = parens $ (,) <$> lId <*> pType
        in Lambda <$> (symbol "\\" >> (parens $ many pArg)) <*> pExp
     pILambda =
-      let pArg = parens $ (,) <$> lId <*> optional pSort
+      let pArg = parens $ (,) <$> lId <*> pSort
        in ILambda <$> (symbol "I\\" >> (parens $ many pArg)) <*> pExp
     pBox =
-      Box <$> (many pIdx) <*> pExp <*> optional pType
+      Box <$> (many pIdx) <*> pExp <*> pType
 
 pExp :: Parser Exp
 pExp =

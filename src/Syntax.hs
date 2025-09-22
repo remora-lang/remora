@@ -1,6 +1,5 @@
 module Syntax where
 
-import Data.Proxy
 import Prettyprinter
 import Text.Megaparsec.Pos (SourcePos)
 
@@ -50,26 +49,24 @@ instance Pretty Base where
   pretty (IntVal i) = pretty i
   pretty (FloatVal f) = pretty f
 
-data Atom f v
+data Atom v
   = Base Base SourcePos
-  | Lambda [(v, Maybe (Type v))] (Exp f v) SourcePos
-  | TLambda [(v, Maybe Kind)] (Exp f v) SourcePos
-  | ILambda [(v, Maybe Sort)] (Exp f v) SourcePos
-  | Box [Idx v] (Exp f v) (Maybe (Type v)) SourcePos
+  | Lambda [(v, Type v)] (Exp v) SourcePos
+  | TLambda [(v, Kind)] (Exp v) SourcePos
+  | ILambda [(v, Sort)] (Exp v) SourcePos
+  | Box [Idx v] (Exp v) (Type v) SourcePos
 
-deriving instance (Show v) => Show (Atom Proxy v)
+deriving instance (Show v) => Show (Atom v)
 
-instance (Show v, Pretty v) => Pretty (Atom Proxy v) where
+instance (Show v, Pretty v) => Pretty (Atom v) where
   pretty (Base b _) = pretty b
   pretty (Lambda args e _) =
     let pArgs =
           parens $
             hsep $
               map
-                ( \(v, mt) ->
-                    case mt of
-                      Nothing -> pretty v
-                      Just t -> tupled $ [pretty v, pretty t]
+                ( \(v, t) ->
+                    tupled $ [pretty v, pretty t]
                 )
                 args
      in parens $ "λ" <+> pArgs <+> pretty e
@@ -78,10 +75,8 @@ instance (Show v, Pretty v) => Pretty (Atom Proxy v) where
           parens $
             hsep $
               map
-                ( \(v, mk) ->
-                    case mk of
-                      Nothing -> pretty v
-                      Just k -> tupled $ [pretty v, pretty k]
+                ( \(v, k) ->
+                    tupled $ [pretty v, pretty k]
                 )
                 args
      in parens $ "Tλ" <+> pArgs <+> pretty e
@@ -90,15 +85,13 @@ instance (Show v, Pretty v) => Pretty (Atom Proxy v) where
           parens $
             hsep $
               map
-                ( \(v, ms) ->
-                    case ms of
-                      Nothing -> pretty v
-                      Just s -> tupled $ [pretty v, pretty s]
+                ( \(v, s) ->
+                    tupled $ [pretty v, pretty s]
                 )
                 args
      in parens $ "Iλ" <+> pArgs <+> pretty e
-  pretty (Box is e mt _) =
-    parens $ "box" <+> hsep (map pretty is) <+> pretty e <+> maybe "" pretty mt
+  pretty (Box is e t _) =
+    parens $ "box" <+> hsep (map pretty is) <+> pretty e <+> pretty t
 
 data Type v
   = TVar v
@@ -114,21 +107,21 @@ instance (Show v, Pretty v) => Pretty (Type v) where
   pretty Int = "Int"
   pretty Float = "Float"
 
-data Exp f v
+data Exp v
   = Var v SourcePos
-  | Array [Int] [Atom f v] SourcePos
-  | EmptyArray [Int] (f (Type v)) SourcePos
-  | Frame [Int] [Exp f v] SourcePos
-  | EmptyFrame [Int] (f (Type v)) SourcePos
-  | App [Exp f v] SourcePos
-  | TApp (Exp f v) [Type v] SourcePos
-  | IApp (Exp f v) [Idx v] SourcePos
-  | Unbox [v] (Exp f v) (Exp f v) SourcePos
-  | Atom (Atom f v)
+  | Array [Int] [Atom v] SourcePos
+  | EmptyArray [Int] (Type v) SourcePos
+  | Frame [Int] [Exp v] SourcePos
+  | EmptyFrame [Int] (Type v) SourcePos
+  | App [Exp v] SourcePos
+  | TApp (Exp v) [Type v] SourcePos
+  | IApp (Exp v) [Idx v] SourcePos
+  | Unbox [v] (Exp v) (Exp v) SourcePos
+  | Atom (Atom v)
 
-deriving instance (Show v) => Show (Exp Proxy v)
+deriving instance (Show v) => Show (Exp v)
 
-instance (Show v, Pretty v) => Pretty (Exp Proxy v) where
+instance (Show v, Pretty v) => Pretty (Exp v) where
   pretty (Var v _) = pretty v
   pretty (Array shape as _) =
     group $
