@@ -25,6 +25,8 @@ library
       Syntax
       Parser
       Interpreter
+      TypeCheck
+      VName
     -- other-modules:
     -- other-extensions:
     build-depends:
@@ -33,7 +35,8 @@ library
       text,
       prettyprinter,
       mtl,
-      containers
+      containers,
+      transformers
 
     hs-source-dirs:   src
 
