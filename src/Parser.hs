@@ -17,7 +17,6 @@ import Text.Megaparsec
     getSourcePos,
     many,
     notFollowedBy,
-    optional,
     satisfy,
     some,
     try,
@@ -36,9 +35,9 @@ import Text.Megaparsec.Pos
 
 type Parser = Parsec Void Text
 
-type Exp = Syntax.Exp Text
+type Exp = Syntax.Exp Unchecked Text
 
-type Atom = Syntax.Atom Text
+type Atom = Syntax.Atom Unchecked Text
 
 type Idx = Syntax.Idx Text
 
@@ -90,6 +89,9 @@ withSrcPos :: Parser (SourcePos -> a) -> Parser a
 withSrcPos p = do
   pos <- getSourcePos
   ($ pos) <$> p
+
+withUnchecked :: Parser (Unchecked (Syntax.Type Text) -> a) -> Parser a
+withUnchecked = fmap ($ Unchecked)
 
 lId :: Parser Text
 lId = lexeme $ try $ do
@@ -146,7 +148,7 @@ pAtom :: Parser Atom
 pAtom =
   withSrcPos $
     choice
-      [ Base <$> pBase,
+      [ withUnchecked $ Base <$> pBase,
         try $ -- fix
           parens $
             choice
@@ -158,27 +160,35 @@ pAtom =
   where
     pLambda =
       let pArg = parens $ (,) <$> lId <*> pType
-       in Lambda <$> (symbol "\\" >> (parens $ many pArg)) <*> pExp
+       in withUnchecked $
+            Lambda
+              <$> (symbol "\\" >> (parens $ many pArg))
+              <*> pExp
     pILambda =
       let pArg = parens $ (,) <$> lId <*> pSort
-       in ILambda <$> (symbol "I\\" >> (parens $ many pArg)) <*> pExp
+       in withUnchecked $
+            ILambda
+              <$> (symbol "I\\" >> (parens $ many pArg))
+              <*> pExp
     pBox =
       Box <$> (many pIdx) <*> pExp <*> pType
 
 pExp :: Parser Exp
 pExp =
   withSrcPos
-    ( choice
-        [ Var <$> lId,
-          parens $
-            choice
-              [ Array <$> (lKeyword "array" >> pShapeLit) <*> some pAtom,
-                Frame <$> (lKeyword "frame" >> pShapeLit) <*> some pExp,
-                App <$> ((:) <$> pExp <*> some pExp),
-                IApp <$> pExp <*> (some pIdx),
-                pUnbox
-              ]
-        ]
+    ( withUnchecked
+        ( choice
+            [ Var <$> lId,
+              parens $
+                choice
+                  [ Array <$> (lKeyword "array" >> pShapeLit) <*> some pAtom,
+                    Frame <$> (lKeyword "frame" >> pShapeLit) <*> some pExp,
+                    App <$> ((:) <$> pExp <*> some pExp),
+                    IApp <$> pExp <*> (some pIdx),
+                    pUnbox
+                  ]
+            ]
+        )
     )
     <|> (Syntax.Atom <$> pAtom)
   where

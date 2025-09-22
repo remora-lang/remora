@@ -1,7 +1,21 @@
+{-# LANGUAGE UndecidableInstances #-}
+
 module Syntax where
 
 import Prettyprinter
 import Text.Megaparsec.Pos (SourcePos)
+
+data Unchecked a = Unchecked
+  deriving (Show, Eq, Functor)
+
+instance Pretty (Unchecked a) where
+  pretty Unchecked {} = ""
+
+newtype Typed a = Typed a
+  deriving (Show, Eq, Functor)
+
+instance (Pretty a) => Pretty (Typed a) where
+  pretty (Typed a) = pretty a
 
 data Idx v
   = IdxVar v SourcePos
@@ -49,18 +63,20 @@ instance Pretty Base where
   pretty (IntVal i) = pretty i
   pretty (FloatVal f) = pretty f
 
-data Atom v
-  = Base Base SourcePos
-  | Lambda [(v, Type v)] (Exp v) SourcePos
-  | TLambda [(v, Kind)] (Exp v) SourcePos
-  | ILambda [(v, Sort)] (Exp v) SourcePos
-  | Box [Idx v] (Exp v) (Type v) SourcePos
+data Atom f v
+  = Base Base (f (Type v)) SourcePos
+  | Lambda [(v, Type v)] (Exp f v) (f (Type v)) SourcePos
+  | TLambda [(v, Kind)] (Exp f v) (f (Type v)) SourcePos
+  | ILambda [(v, Sort)] (Exp f v) (f (Type v)) SourcePos
+  | Box [Idx v] (Exp f v) (Type v) SourcePos
 
-deriving instance (Show v) => Show (Atom v)
+deriving instance (Show v) => Show (Atom Unchecked v)
 
-instance (Show v, Pretty v) => Pretty (Atom v) where
-  pretty (Base b _) = pretty b
-  pretty (Lambda args e _) =
+deriving instance (Show v) => Show (Atom Typed v)
+
+instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Atom f v) where
+  pretty (Base b _ _) = pretty b
+  pretty (Lambda args e _ _) =
     let pArgs =
           parens $
             hsep $
@@ -70,7 +86,7 @@ instance (Show v, Pretty v) => Pretty (Atom v) where
                 )
                 args
      in parens $ "λ" <+> pArgs <+> pretty e
-  pretty (TLambda args e _) =
+  pretty (TLambda args e _ _) =
     let pArgs =
           parens $
             hsep $
@@ -80,7 +96,7 @@ instance (Show v, Pretty v) => Pretty (Atom v) where
                 )
                 args
      in parens $ "Tλ" <+> pArgs <+> pretty e
-  pretty (ILambda args e _) =
+  pretty (ILambda args e _ _) =
     let pArgs =
           parens $
             hsep $
@@ -128,40 +144,42 @@ instance (Show v, Pretty v) => Pretty (Type v) where
         <+> parens (hsep (map (\(x, s) -> pretty x <+> pretty s) xs))
         <+> pretty t
 
-data Exp v
-  = Var v SourcePos
-  | Array [Int] [Atom v] SourcePos
-  | EmptyArray [Int] (Type v) SourcePos
-  | Frame [Int] [Exp v] SourcePos
-  | EmptyFrame [Int] (Type v) SourcePos
-  | App [Exp v] SourcePos
-  | TApp (Exp v) [Type v] SourcePos
-  | IApp (Exp v) [Idx v] SourcePos
-  | Unbox [v] (Exp v) (Exp v) SourcePos
-  | Atom (Atom v)
+data Exp f v
+  = Var v (f (Type v)) SourcePos
+  | Array [Int] [Atom f v] (f (Type v)) SourcePos
+  | EmptyArray [Int] (Type v) (f (Type v)) SourcePos
+  | Frame [Int] [Exp f v] (f (Type v)) SourcePos
+  | EmptyFrame [Int] (Type v) (f (Type v)) SourcePos
+  | App [Exp f v] (f (Type v)) SourcePos
+  | TApp (Exp f v) [Type v] (f (Type v)) SourcePos
+  | IApp (Exp f v) [Idx v] (f (Type v)) SourcePos
+  | Unbox [v] (Exp f v) (Exp f v) (f (Type v)) SourcePos
+  | Atom (Atom f v)
 
-deriving instance (Show v) => Show (Exp v)
+deriving instance (Show v) => Show (Exp Unchecked v)
 
-instance (Show v, Pretty v) => Pretty (Exp v) where
-  pretty (Var v _) = pretty v
-  pretty (Array shape as _) =
+deriving instance (Show v) => Show (Exp Typed v)
+
+instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Exp f v) where
+  pretty (Var v _ _) = pretty v
+  pretty (Array shape as _ _) =
     group $
       parens $
         "Array"
           <+> (parens $ hsep (map pretty shape))
           <+> (group $ encloseSep "[" "]" ("," <> line) (map pretty as))
-  pretty (Frame shape es _) =
+  pretty (Frame shape es _ _) =
     group $
       parens $
         "Array"
           <+> (parens $ hsep (map pretty shape))
           <+> (group $ encloseSep "[" "]" ("," <> line) (map pretty es))
-  pretty (App es _) =
+  pretty (App es _ _) =
     parens $ hsep $ map pretty es
-  pretty (TApp e ts _) =
+  pretty (TApp e ts _ _) =
     parens $ "t-app" <+> pretty e <+> hsep (map pretty ts)
-  pretty (IApp e is _) =
+  pretty (IApp e is _ _) =
     parens $ "i-app" <+> pretty e <+> hsep (map pretty is)
-  pretty (Unbox vs e b _) =
+  pretty (Unbox vs e b _ _) =
     parens $ "unbox" <+> (parens (hsep (map pretty vs ++ [pretty e]))) <+> pretty b
   pretty (Atom a) = pretty a
