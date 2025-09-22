@@ -19,7 +19,7 @@ type Idx = Syntax.Idx VName
 type Type = Syntax.Type VName
 
 data Env = Env
-  { envMap :: Map Text Exp
+  { envMap :: Map VName Exp
   }
 
 type Error = Text
@@ -46,3 +46,6 @@ data AtVal
 
 int :: Exp -> InterpM AtVal
 int = undefined
+
+intAtom :: Atom -> InterpM AtVal
+intAtom (Base b _) = pure $ ValBase b

@@ -27,6 +27,8 @@ library
       Interpreter
       TypeCheck
       VName
+      SymTable
+      Prop
     -- other-modules:
     -- other-extensions:
     build-depends:

@@ -98,6 +98,10 @@ data Type v
   | Bool
   | Int
   | Float
+  | (:->) [Type v] (Type v)
+  | Forall [(v, Kind)] (Type v)
+  | DProd [(v, Sort)] (Type v)
+  | DSum [(v, Sort)] (Type v)
 
 deriving instance (Show v) => Show (Type v)
 
@@ -106,6 +110,23 @@ instance (Show v, Pretty v) => Pretty (Type v) where
   pretty Bool = "Bool"
   pretty Int = "Int"
   pretty Float = "Float"
+  pretty (ts :-> t) =
+    parens $ "->" <+> parens (hsep (map pretty ts)) <+> pretty t
+  pretty (Forall xs t) =
+    parens $
+      "∀"
+        <+> parens (hsep (map (\(x, k) -> pretty x <+> pretty k) xs))
+        <+> pretty t
+  pretty (DProd xs t) =
+    parens $
+      "Π"
+        <+> parens (hsep (map (\(x, s) -> pretty x <+> pretty s) xs))
+        <+> pretty t
+  pretty (DSum xs t) =
+    parens $
+      "Σ"
+        <+> parens (hsep (map (\(x, s) -> pretty x <+> pretty s) xs))
+        <+> pretty t
 
 data Exp v
   = Var v SourcePos
