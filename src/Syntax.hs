@@ -114,6 +114,7 @@ data Type v
   | Bool
   | Int
   | Float
+  | TArr (Type v) (Idx v)
   | (:->) [Type v] (Type v)
   | Forall [(v, Kind)] (Type v)
   | DProd [(v, Sort)] (Type v)
@@ -126,6 +127,8 @@ instance (Show v, Pretty v) => Pretty (Type v) where
   pretty Bool = "Bool"
   pretty Int = "Int"
   pretty Float = "Float"
+  pretty (TArr t i) =
+    parens $ "A" <+> pretty t <+> pretty i
   pretty (ts :-> t) =
     parens $ "->" <+> parens (hsep (map pretty ts)) <+> pretty t
   pretty (Forall xs t) =
@@ -183,3 +186,56 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Exp f v) where
   pretty (Unbox vs e b _ _) =
     parens $ "unbox" <+> (parens (hsep (map pretty vs ++ [pretty e]))) <+> pretty b
   pretty (Atom a) = pretty a
+
+class HasType v x where
+  typeOf :: x -> Type v
+
+instance HasType v Base where
+  typeOf BoolVal {} = Bool
+  typeOf IntVal {} = Int
+  typeOf FloatVal {} = Float
+
+instance HasType v (Atom Typed v) where
+  typeOf (Base _ (Typed t) _) = t
+  typeOf (Lambda _ _ (Typed t) _) = t
+  typeOf (TLambda _ _ (Typed t) _) = t
+  typeOf (ILambda _ _ (Typed t) _) = t
+  typeOf (Box _ _ t _) = t
+
+instance HasType v (Exp Typed v) where
+  typeOf (Var _ (Typed t) _) = t
+  typeOf (Array _ _ (Typed t) _) = t
+  typeOf (EmptyArray _ _ (Typed t) _) = t
+  typeOf (Frame _ _ (Typed t) _) = t
+  typeOf (EmptyFrame _ _ (Typed t) _) = t
+  typeOf (App _ (Typed t) _) = t
+  typeOf (TApp _ _ (Typed t) _) = t
+  typeOf (IApp _ _ (Typed t) _) = t
+  typeOf (Unbox _ _ _ (Typed t) _) = t
+  typeOf (Atom a) = typeOf a
+
+class HasPos x where
+  posOf :: x -> SourcePos
+
+instance HasPos (Atom f v) where
+  posOf (Base _ _ pos) = pos
+  posOf (Lambda _ _ _ pos) = pos
+  posOf (TLambda _ _ _ pos) = pos
+  posOf (ILambda _ _ _ pos) = pos
+  posOf (Box _ _ _ pos) = pos
+
+instance HasPos (Exp f v) where
+  posOf (Var _ _ pos) = pos
+  posOf (Array _ _ _ pos) = pos
+  posOf (EmptyArray _ _ _ pos) = pos
+  posOf (Frame _ _ _ pos) = pos
+  posOf (EmptyFrame _ _ _ pos) = pos
+  posOf (App _ _ pos) = pos
+  posOf (TApp _ _ _ pos) = pos
+  posOf (IApp _ _ _ pos) = pos
+  posOf (Unbox _ _ _ _ pos) = pos
+  posOf (Atom a) = posOf a
+
+isFunctionType :: Type v -> Bool
+isFunctionType ((:->) _ _) = True
+isFunctionType _ = False
