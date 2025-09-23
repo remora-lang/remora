@@ -4,6 +4,7 @@ module Syntax where
 
 import Prettyprinter
 import Text.Megaparsec.Pos (SourcePos)
+import VName
 
 data Unchecked a = Unchecked
   deriving (Show, Eq, Functor)
@@ -18,20 +19,22 @@ instance (Pretty a) => Pretty (Typed a) where
   pretty (Typed a) = pretty a
 
 data Idx v
-  = IdxVar v SourcePos
-  | Dim Int SourcePos
-  | Shape [Idx v] SourcePos
-  | Add [Idx v] SourcePos
-  | Concat [Idx v] SourcePos
+  = IdxVar v
+  | Dim Int
+  | Shape [Idx v]
+  | Add [Idx v]
+  | Concat [Idx v]
 
 deriving instance (Show v) => Show (Idx v)
 
+deriving instance (Eq v) => Eq (Idx v)
+
 instance (Show v, Pretty v) => Pretty (Idx v) where
-  pretty (IdxVar v _) = pretty v
-  pretty (Dim d _) = pretty d
-  pretty (Shape is _) = parens $ hsep ("shape" : map pretty is)
-  pretty (Add is _) = parens $ hsep ("+" : map pretty is)
-  pretty (Concat is _) = parens $ hsep ("++" : map pretty is)
+  pretty (IdxVar v) = pretty v
+  pretty (Dim d) = pretty d
+  pretty (Shape is) = parens $ hsep ("shape" : map pretty is)
+  pretty (Add is) = parens $ hsep ("+" : map pretty is)
+  pretty (Concat is) = parens $ hsep ("++" : map pretty is)
 
 data Kind
   = KindArray
@@ -122,6 +125,8 @@ data Type v
 
 deriving instance (Show v) => Show (Type v)
 
+deriving instance (Eq v) => Eq (Type v)
+
 instance (Show v, Pretty v) => Pretty (Type v) where
   pretty (TVar v) = pretty v
   pretty Bool = "Bool"
@@ -187,22 +192,22 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Exp f v) where
     parens $ "unbox" <+> (parens (hsep (map pretty vs ++ [pretty e]))) <+> pretty b
   pretty (Atom a) = pretty a
 
-class HasType v x where
-  typeOf :: x -> Type v
+class HasType x where
+  typeOf :: x -> Type VName
 
-instance HasType v Base where
+instance HasType Base where
   typeOf BoolVal {} = Bool
   typeOf IntVal {} = Int
   typeOf FloatVal {} = Float
 
-instance HasType v (Atom Typed v) where
+instance HasType (Atom Typed VName) where
   typeOf (Base _ (Typed t) _) = t
   typeOf (Lambda _ _ (Typed t) _) = t
   typeOf (TLambda _ _ (Typed t) _) = t
   typeOf (ILambda _ _ (Typed t) _) = t
   typeOf (Box _ _ t _) = t
 
-instance HasType v (Exp Typed v) where
+instance HasType (Exp Typed VName) where
   typeOf (Var _ (Typed t) _) = t
   typeOf (Array _ _ (Typed t) _) = t
   typeOf (EmptyArray _ _ (Typed t) _) = t
@@ -239,3 +244,6 @@ instance HasPos (Exp f v) where
 isFunctionType :: Type v -> Bool
 isFunctionType ((:->) _ _) = True
 isFunctionType _ = False
+
+idxFromDims :: [Int] -> Idx v
+idxFromDims ds = Shape $ map Dim ds

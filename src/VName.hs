@@ -6,9 +6,13 @@ import Control.Monad.State
 import Data.Map (Map)
 import Data.Map qualified as M
 import Data.Text (Text)
+import Prettyprinter
 
 newtype Tag = Tag {getTag :: Int}
   deriving (Show, Eq, Ord)
+
+instance Pretty Tag where
+  pretty (Tag x) = pretty x
 
 initTag :: Tag
 initTag = Tag 0
@@ -21,6 +25,9 @@ data VName = VName
     varTag :: Tag
   }
   deriving (Show, Ord)
+
+instance Pretty VName where
+  pretty (VName v tag) = pretty v <> "_" <> pretty tag
 
 instance Eq VName where
   VName _ tag1 == VName _ tag2 = tag1 == tag2

@@ -201,13 +201,12 @@ pExp =
 
 pIdx :: Parser Idx
 pIdx =
-  withSrcPos $
-    choice
-      [ IdxVar <$> lId,
-        Dim <$> pDecimal,
-        Shape <$> many pIdx,
-        parens $
-          Add <$> many pIdx,
-        parens $
-          Concat <$> many pIdx
-      ]
+  choice
+    [ IdxVar <$> lId,
+      Dim <$> pDecimal,
+      Shape <$> many pIdx,
+      parens $
+        Add <$> many pIdx,
+      parens $
+        Concat <$> many pIdx
+    ]

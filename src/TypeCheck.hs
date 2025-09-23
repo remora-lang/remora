@@ -12,6 +12,7 @@ import Prettyprinter
 import SymTable
 import Syntax
 import Text.Megaparsec.Pos (SourcePos)
+import Util
 import VName
 
 data Env = Env
@@ -19,8 +20,8 @@ data Env = Env
     envTable :: SymTable VName (Type VName)
   }
 
-withPos :: SourcePos -> Text -> Text
-withPos pos = (<> (" at " <> T.pack (show pos)))
+withPos :: (Pretty x) => SourcePos -> x -> Text
+withPos pos x = prettyText x <> (" at " <> prettyText (show pos))
 
 initEnv :: Env
 initEnv = Env mempty mempty
@@ -39,16 +40,17 @@ lookupType v = do
     Nothing -> throwError $ "unknown type for var: " <> T.pack (show v)
     Just t -> pure t
 
-bindVName :: Text -> CheckM a -> CheckM a
-bindVName v m = do
+bindVName :: Text -> Type VName -> CheckM a -> CheckM a
+bindVName v t m = do
   envm <- asks envMap
   vname <-
     case envm M.!? v of
       Nothing -> newVName v
       Just vname -> pure vname
-  local (\env -> env {envMap = M.insert v vname $ envMap env}) m
+  local (\env -> env {envMap = M.insert v vname $ envMap env}) $
+    insertSym vname t m
 
-bindVNames :: [Text] -> CheckM a -> CheckM a
+bindVNames :: [(Text, Type VName)] -> CheckM a -> CheckM a
 bindVNames [] m = m
 bindVNames (v : vs) m =
   bindVName v $ bindVNames vs m
@@ -80,80 +82,74 @@ checkExp (Var v _ pos) = do
   t <- lookupType vname
   pure $ Var vname (Typed t) pos
 checkExp e@(Array _ [] _ pos) =
-  throwError $ withPos pos $ "Empty array constructed without type:" <+> pretty e
-checkExp e@(Array shape (a : as) _ pos) = do
-  a' : as' <- mapM checkAtom (a : as)
-  unless (all (== typeOf a') as') $
-    throwError $
-      withPos pos $
-        "Atoms in array have different types:" <+> pretty (a' : as')
-  shape' <- checkIdx shape
-  -- TODO: check that the # of elements matches the shape
-  Array shape (a' : as') (TArr (typeOf a') shape') pos
-checkExp (EmptyArray shape t _ pos) = do
-  t' <- checkType t
-  shape' <- checkIdx shape
-  pure $ EmptyArray shape t' (TArr t' shape') pos
-checkExp e@(Frame _ [] _ pos) =
-  throwError $ withPos pos $ "Empty frame constructed without type:" <+> pretty e
-checkExp (Frame shape (e : es) _ pos) = do
-  e' : es' <- mapM checkAtom (e : es)
-  unless (all (== typeOf e') es') $
-    throwError $
-      withPos pos $
-        "Expressions in frame have different types:" <+> pretty (e' : es')
-  shape' <- checkIdx shape
-  -- TODO: check that the # of elements matches the shape
-  Frame shape (e' : es') (TArr (typeOf e') shape') pos
-checkExp (EmptyFrame shape t _ pos) = do
-  t' <- checkType t
-  shape' <- checkIdx shape
-  pure $ EmptyFrame shape t' (TArr t' shape') pos
-checkExp app@(App (f : e : es) _ pos) = do
-  (f' : e' : es') <- mapM checkExp (f : e : es)
-  case typeOf f' of
-    pts :-> ret -> do
-      let argts = mapM typeOf (e' : es')
-      unless (and $ zipWith (==) pts argts) $ -- this will have to be relaxed
+  throwError $ withPos pos $ "Empty array constructed without type: " <> prettyText e
+checkExp e@(Array shape as _ pos) = do
+  as' <- mapM checkAtom as
+  case as' of
+    [] -> error "impossible"
+    (a' : as'') -> do
+      unless (all (\a'' -> typeOf a'' == typeOf a') as'') $
         throwError $
           withPos pos $
-            "Parameter and argument types don't match:" <+> pretty app
-      pure $ App (f' : e' : es') (Typed ret) pos
-    _ ->
-      throwError $
-        withPos pos $
-          "Expected a function type in application:" <+> pretty e
+            "Atoms in array have different types: " <> prettyText as'
+      -- TODO: check that the # of elements matches the shape
+      pure $ Array shape as' (Typed $ TArr (typeOf a') (idxFromDims shape)) pos
+checkExp (EmptyArray shape t _ pos) = do
+  t' <- checkType t
+  pure $ EmptyArray shape t' (Typed $ TArr t' (idxFromDims shape)) pos
+checkExp e@(Frame _ [] _ pos) =
+  throwError $ withPos pos $ "Empty frame constructed without type: " <> prettyText e
+checkExp (Frame shape es _ pos) = do
+  es' <- mapM checkExp es
+  case es' of
+    [] -> error "impossible"
+    (e' : es'') -> do
+      unless (all (\e'' -> typeOf e'' == typeOf e') es'') $
+        throwError $
+          withPos pos $
+            "Expressions in frame have different types: " <> prettyText es'
+      -- TODO: check that the # of elements matches the shape
+      pure $ Frame shape es' (Typed $ TArr (typeOf e') (idxFromDims shape)) pos
+checkExp (EmptyFrame shape t _ pos) = do
+  t' <- checkType t
+  pure $ EmptyFrame shape t' (Typed $ TArr t' (idxFromDims shape)) pos
+checkExp app@(App fes@(f : e : _) _ pos) = do
+  fes' <- mapM checkExp fes
+  case fes' of
+    (f' : es') ->
+      case typeOf f' of
+        pts :-> ret -> do
+          let argts = map typeOf es'
+          unless (and $ zipWith (==) pts argts) $ -- this will have to be relaxed
+            throwError $
+              withPos pos $
+                "Parameter and argument types don't match: " <> prettyText app
+          pure $ App (f' : es') (Typed ret) pos
+        _ ->
+          throwError $
+            withPos pos $
+              "Expected a function type in application: " <> prettyText e
+    _ -> error "impossible"
 checkExp e@(App _ _ pos) =
   throwError $
     withPos pos $
-      "Applications require at least a function an an argument:" <+> pretty e
-checkExp (TApp e ts pos) = undefined
-checkExp (IApp e is pos) = undefined
-checkExp (Unbox vs e b _ pos) = do
-  e' <- checkExp e
-  bindVNames vs $
-    Unbox <$> mapM lookupVName vs <*> pure e' <*> checkExp b <*> pure pos
+      "Applications require at least a function and an argument: " <> prettyText e
+checkExp (TApp e ts _ pos) = undefined
+checkExp (IApp e is _ pos) = undefined
+checkExp (Unbox vs e b _ pos) = undefined
 checkExp (Atom a) = Atom <$> checkAtom a
 
 checkAtom :: Atom Unchecked Text -> CheckM (Atom Typed VName)
-checkAtom (Base b pos) = pure $ Base b pos
-checkAtom (Lambda ps e pos) =
+checkAtom (Base b _ pos) =
+  pure $ Base b (Typed $ typeOf b) pos
+checkAtom (Lambda ps e _ pos) = do
   Lambda
     <$> mapM (\(v, t) -> (,) <$> lookupVName v <*> checkType t) ps
     <*> bindVNames (map fst ps) (checkExp e)
     <*> pure pos
-checkAtom (TLambda ps e pos) =
-  TLambda
-    <$> mapM (\(v, k) -> (,) <$> lookupVName v <*> pure k) ps
-    <*> bindVNames (map fst ps) (checkExp e)
-    <*> pure pos
-checkAtom (ILambda ps e pos) =
-  ILambda
-    <$> mapM (\(v, s) -> (,) <$> lookupVName v <*> pure s) ps
-    <*> bindVNames (map fst ps) (checkExp e)
-    <*> pure pos
-checkAtom (Box is e t pos) =
-  Box <$> mapM checkIdx is <*> checkExp e <*> checkType t <*> pure pos
+checkAtom (TLambda ps e pos) = undefined
+checkAtom (ILambda ps e pos) = undefined
+checkAtom (Box is e t pos) = undefined
 
 checkType :: Type Text -> CheckM (Type VName)
 checkType (TVar v) = TVar <$> lookupVName v
