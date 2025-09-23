@@ -10,9 +10,9 @@ import Syntax hiding (Atom, Exp, Idx, Type)
 import Syntax qualified
 import VName
 
-type Exp = Syntax.Exp VName
+type Exp = Syntax.Exp Typed VName
 
-type Atom = Syntax.Atom VName
+type Atom = Syntax.Atom Typed VName
 
 type Idx = Syntax.Idx VName
 
@@ -48,4 +48,4 @@ int :: Exp -> InterpM AtVal
 int = undefined
 
 intAtom :: Atom -> InterpM AtVal
-intAtom (Base b _) = pure $ ValBase b
+intAtom (Base b _ _) = pure $ ValBase b

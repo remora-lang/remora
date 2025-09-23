@@ -52,8 +52,8 @@ bindVName v t m = do
 
 bindVNames :: [(Text, Type VName)] -> CheckM a -> CheckM a
 bindVNames [] m = m
-bindVNames (v : vs) m =
-  bindVName v $ bindVNames vs m
+bindVNames ((v, t) : vs) m =
+  bindVName v t $ bindVNames vs m
 
 type Error = Text
 
@@ -143,12 +143,14 @@ checkAtom :: Atom Unchecked Text -> CheckM (Atom Typed VName)
 checkAtom (Base b _ pos) =
   pure $ Base b (Typed $ typeOf b) pos
 checkAtom (Lambda ps e _ pos) = do
-  Lambda
-    <$> mapM (\(v, t) -> (,) <$> lookupVName v <*> checkType t) ps
-    <*> bindVNames (map fst ps) (checkExp e)
-    <*> pure pos
-checkAtom (TLambda ps e pos) = undefined
-checkAtom (ILambda ps e pos) = undefined
+  let (xs, pts) = unzip ps
+  pts' <- mapM checkType pts
+  bindVNames (zip xs pts') $ do
+    xs' <- mapM lookupVName xs
+    e' <- checkExp e
+    pure $ Lambda (zip xs' pts') e' (Typed $ pts' :-> typeOf e') pos
+checkAtom (TLambda ps e _ pos) = undefined
+checkAtom (ILambda ps e _ pos) = undefined
 checkAtom (Box is e t pos) = undefined
 
 checkType :: Type Text -> CheckM (Type VName)
@@ -158,8 +160,8 @@ checkType Int = pure Int
 checkType Float = pure Float
 
 checkIdx :: Idx Text -> CheckM (Idx VName)
-checkIdx (IdxVar v pos) = IdxVar <$> lookupVName v <*> pure pos
-checkIdx (Dim d pos) = pure $ Dim d pos
-checkIdx (Shape is pos) = Shape <$> mapM checkIdx is <*> pure pos
-checkIdx (Add is pos) = Add <$> mapM checkIdx is <*> pure pos
-checkIdx (Concat is pos) = Concat <$> mapM checkIdx is <*> pure pos
+checkIdx (IdxVar v) = IdxVar <$> lookupVName v
+checkIdx (Dim d) = pure $ Dim d
+checkIdx (Shape is) = Shape <$> mapM checkIdx is
+checkIdx (Add is) = Add <$> mapM checkIdx is
+checkIdx (Concat is) = Concat <$> mapM checkIdx is
