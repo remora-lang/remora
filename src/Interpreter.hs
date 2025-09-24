@@ -99,3 +99,26 @@ intAtom (TLambda ps e _ _) = pure $ ValTLambda ps e
 intAtom (ILambda ps e _ _) = pure $ ValILambda ps e
 intAtom (Box is e t _) =
   ValBox is <$> int e <*> pure t -- fix
+
+prelude :: [(Text, Syntax.Type Text, Val)]
+prelude =
+  [ ( "head",
+      Forall
+        [("t", KindAtom)]
+        ( DProd
+            [("d", SortDim)]
+            ( DProd
+                [("s", SortShape)]
+                ( [TArr (TVar "t") (Shape [Add [Dim 1, IdxVar "d"], IdxVar "s"])]
+                    :-> TArr (TVar "t") (IdxVar "s")
+                )
+            )
+        ),
+      ValFun $ \xs ->
+        case xs of
+          [ValArray shape (_ : vs)] ->
+            -- TODO: shape must be decremented
+            pure $ ValArray shape vs
+          _ -> error $ "head: " <> show xs
+    )
+  ]
