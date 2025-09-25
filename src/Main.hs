@@ -1,4 +1,6 @@
 module Main where
 
+import CLI qualified
+
 main :: IO ()
-main = pure ()
+main = CLI.main

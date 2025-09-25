@@ -30,6 +30,8 @@ library
       SymTable
       Prop
       Util
+      CLI
+      CLI.REPL
     -- other-modules:
     -- other-extensions:
     build-depends:
@@ -39,17 +41,21 @@ library
       prettyprinter,
       mtl,
       containers,
-      transformers
+      transformers,
+      cmdargs,
+      haskeline
 
     hs-source-dirs:   src
 
-executable remora-interpreter
+executable remora
     import:           common
     main-is:          src/Main.hs
     -- other-modules:
     -- other-extensions:
     build-depends:
         base ^>=4.19.2.0,
+        cmdargs,
+        haskeline,
         remora-interpreter
 
 test-suite remora-interpreter-test

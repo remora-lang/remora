@@ -22,8 +22,12 @@ type Idx = Syntax.Idx VName
 type Type = Syntax.Type VName
 
 data Env = Env
-  { envMap :: Map VName Val
+  { envMap :: Map VName Val,
+    envTMap :: Map VName Type
   }
+
+initEnv :: Env
+initEnv = Env mempty mempty
 
 type Error = Text
 
@@ -45,6 +49,7 @@ data Val
   | ValILambda [(VName, Sort)] Exp
   | ValBox [Idx] Val Type
   | ValFun ([Val] -> InterpM Val)
+  | ValTFun ([Type] -> InterpM Val)
 
 instance Show Val
 
@@ -57,20 +62,34 @@ lookupVal v = do
     Nothing -> throwError $ "lookupVal: unknown vname " <> T.pack (show v)
     Just val -> pure val
 
-int :: Exp -> InterpM Val
-int (Var v _ _) = lookupVal v
-int (Array shape as _ _) =
+lookupType :: VName -> InterpM Type
+lookupType v = do
+  mt <- asks ((M.!? v) . envTMap)
+  case mt of
+    Nothing -> throwError $ "lookupVal: unknown type vname " <> T.pack (show v)
+    Just t -> pure t
+
+interpret :: Exp -> Either Error Val
+interpret e =
+  runReader (runExceptT $ runInterpM $ intExp e) initEnv
+
+intExp :: Exp -> InterpM Val
+intExp (Var v _ _) = lookupVal v
+intExp (Array shape as _ _) =
   ValArray shape <$> mapM intAtom as
-int (EmptyArray shape _ _ _) =
+intExp (EmptyArray shape _ _ _) =
   pure $ ValArray shape mempty
-int (Frame shape es _ _) =
-  ValArray shape <$> mapM int es
-int (EmptyFrame shape _ _ _) =
+intExp (Frame shape es _ _) =
+  ValArray shape <$> mapM intExp es
+intExp (EmptyFrame shape _ _ _) =
   pure $ ValArray shape mempty
-int (App (f : es) _ _) = do
-  f' <- int f
-  es' <- mapM int es
+intExp (App (f : es) _ _) = do
+  f' <- intExp f
+  es' <- mapM intExp es
   apply f' es'
+intExp (TApp e ts _ _) = do
+  e' <- intExp e
+  undefined
 
 bind :: VName -> Val -> InterpM a -> InterpM a
 bind v val =
@@ -81,10 +100,29 @@ binds [] m = m
 binds ((v, val) : vvals) m =
   bind v val $ binds vvals m
 
+tbind :: VName -> Type -> InterpM a -> InterpM a
+tbind v t =
+  local (\env -> env {envTMap = M.insert v t $ envTMap env})
+
+tbinds :: [(VName, Type)] -> InterpM a -> InterpM a
+tbinds [] m = m
+tbinds ((v, t) : vts) m =
+  tbind v t $ tbinds vts m
+
+tapply :: Val -> [Type] -> InterpM Val
+tapply (ValTLambda pts e) ts =
+  tbinds (zip (map fst pts) ts) $ intExp e
+tapply (ValVar f) ts = do
+  f' <- lookupVal f
+  case f' of
+    ValTLambda {} -> tapply f' ts
+    ValTFun func -> func ts
+    _ -> throwError $ "cannot apply: " <> prettyText f'
+
 apply :: Val -> [Val] -> InterpM Val
 apply (ValLambda pts e) args =
   binds (zip (map fst pts) args) $
-    int e
+    intExp e
 apply (ValVar f) args = do
   f' <- lookupVal f
   case f' of
@@ -98,7 +136,7 @@ intAtom (Lambda ps e _ _) = pure $ ValLambda ps e
 intAtom (TLambda ps e _ _) = pure $ ValTLambda ps e
 intAtom (ILambda ps e _ _) = pure $ ValILambda ps e
 intAtom (Box is e t _) =
-  ValBox is <$> int e <*> pure t -- fix
+  ValBox is <$> intExp e <*> pure t -- fix
 
 prelude :: [(Text, Syntax.Type Text, Val)]
 prelude =
