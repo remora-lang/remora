@@ -16,6 +16,6 @@ repl = runInputT defaultSettings loop
         Just input -> do
           let mexp = parse "" (T.pack input)
           case mexp of
-            Left err -> outputStrLn $ "parse error: " <> err
+            Left err -> outputStrLn $ "parse error:\n" <> err
             Right e -> outputStrLn $ prettyString e
           loop

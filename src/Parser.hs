@@ -1,7 +1,7 @@
 module Parser (parse) where
 
 import Control.Monad (void)
-import Data.Char (isAlpha, isAlphaNum, isSpace)
+import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Void
@@ -95,7 +95,7 @@ withUnchecked = fmap ($ Unchecked)
 
 lId :: Parser Text
 lId = lexeme $ try $ do
-  c <- satisfy isAlpha
+  c <- satisfy (\c -> not (isDigit c) && not (isDisallowed c))
   cs <- many (satisfy $ not . isDisallowed)
   let x = T.pack $ c : cs
   if x `elem` keywords
