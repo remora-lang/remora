@@ -1,6 +1,9 @@
 module CLI.REPL (repl) where
 
+import Data.Text qualified as T
+import Parser
 import System.Console.Haskeline
+import Util
 
 repl :: IO ()
 repl = runInputT defaultSettings loop
@@ -9,8 +12,10 @@ repl = runInputT defaultSettings loop
     loop = do
       minput <- getInputLine ">> "
       case minput of
-        Nothing -> return ()
-        Just "quit" -> return ()
+        Nothing -> loop
         Just input -> do
-          outputStrLn $ "Input was: " ++ input
+          let mexp = parse "" (T.pack input)
+          case mexp of
+            Left err -> outputStrLn $ "parse error: " <> err
+            Right e -> outputStrLn $ prettyString e
           loop
