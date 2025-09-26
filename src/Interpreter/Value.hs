@@ -23,6 +23,7 @@ data Val m
   | ValBox [Shape] (Val m) Type
   | ValFun ([Val m] -> m (Val m))
   | ValTFun ([Type] -> m (Val m))
+  | ValIFun ([Shape] -> m (Val m))
 
 instance Show (Val m)
 
@@ -65,3 +66,4 @@ instance Pretty (Val m) where
     parens $ "box" <+> hsep (map pretty is) <+> pretty v <+> pretty t
   pretty ValFun {} = "#<fun>"
   pretty ValTFun {} = "#<tfun>"
+  pretty ValIFun {} = "#<ifun>"

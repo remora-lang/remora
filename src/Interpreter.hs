@@ -10,6 +10,7 @@ import Data.Text qualified as T
 import Interpreter.Value hiding (Val)
 import Interpreter.Value qualified as Value
 import Prettyprinter
+import RemoraPrelude
 import Syntax hiding (Atom, Exp, Shape, Type)
 import Syntax qualified
 import Util
@@ -30,11 +31,19 @@ data Env = Env
     envTMap :: Map VName Type
   }
 
-initEnv :: [(VName, Type, Val)] -> Env
+initEnv :: Prelude VName InterpM -> Env
 initEnv prelude = Env m tm
   where
-    m = M.fromList $ map (\(v, _, val) -> (v, val)) prelude
-    tm = M.fromList $ map (\(v, t, _) -> (v, t)) prelude
+    m =
+      M.fromList $
+        map (\(PreludeVal v _ val) -> (v, val)) $
+          filter isVal prelude
+    tm =
+      M.fromList $
+        map (\(PreludeVal v t _) -> (v, t)) $
+          filter isVal prelude
+    isVal PreludeVal {} = True
+    isVal _ = False
 
 type Error = Text
 
@@ -61,7 +70,7 @@ lookupType v = do
     Nothing -> throwError $ "lookupVal: unknown type vname " <> T.pack (show v)
     Just t -> pure t
 
-interpret :: [(VName, Type, Val)] -> Exp -> Either Error Val
+interpret :: Prelude VName InterpM -> Exp -> Either Error Val
 interpret prelude e =
   runReader (runExceptT $ runInterpM $ intExp e) (initEnv prelude)
 
@@ -111,6 +120,8 @@ tapply (ValVar f) ts = do
     ValTLambda {} -> tapply f' ts
     ValTFun func -> func ts
     _ -> throwError $ "cannot apply: " <> prettyText f'
+tapply (ValTFun f) ts = f ts
+tapply v _ = error $ prettyString v
 
 apply :: Val -> [Val] -> InterpM Val
 apply (ValLambda pts e) args =

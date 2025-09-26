@@ -36,7 +36,8 @@ instance (Show v, Pretty v) => Pretty (Shape v) where
   pretty (Add is) = parens $ hsep ("+" : map pretty is)
   pretty (Concat is) = parens $ hsep ("++" : map pretty is)
 
--- peels the first shape off a shape; assumes normalized as `Shape`
--- peel :: Shape v -> Maybe (Shape v, Shape v)
--- peel (Shape (s : ss)) = Just (s, Shape ss)
--- peel _ = Nothing
+-- peels the first shape off a shape
+peel :: Shape v -> Maybe (Dim v, Shape v)
+peel (Shape (d : ds)) = Just (d, Shape ds)
+peel (Concat (s : ss)) = peel s
+peel _ = Nothing

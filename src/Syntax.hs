@@ -239,6 +239,17 @@ instance HasPos (Exp f v) where
   posOf (Unbox _ _ _ _ pos) = pos
   posOf (Atom a) = posOf a
 
+class HasShape x where
+  shapeOf :: x -> Shape VName
+
+instance HasShape (Atom f v) where
+  shapeOf a = mempty
+
+-- TODO: fix for vars
+instance HasShape (Type VName) where
+  shapeOf (TArr t s) = s <> shapeOf t
+  shapeOf _ = mempty
+
 isFunctionType :: Type v -> Bool
 isFunctionType ((:->) _ _) = True
 isFunctionType _ = False

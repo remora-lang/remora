@@ -187,6 +187,7 @@ pExp =
                     Frame <$> (lKeyword "frame" >> pShapeLit) <*> some pExp,
                     App <$> ((:) <$> pExp <*> some pExp),
                     IApp <$> pExp <*> (some pShape),
+                    lKeyword "t-app" >> TApp <$> pExp <*> (some pType),
                     pUnbox
                   ]
             ]

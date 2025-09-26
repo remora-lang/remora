@@ -41,8 +41,17 @@ lookupType :: VName -> CheckM (Type VName)
 lookupType v = do
   mt <- askSym v
   case mt of
-    Nothing -> throwError $ "unknown type for var: " <> T.pack (show v)
+    Nothing -> throwError $ "unknown type for var: " <> prettyText v
     Just t -> pure t
+
+kindOf :: Type VName -> CheckM Kind
+kindOf (TVar t) = do
+  mk <- askSym t
+  case mk of
+    Nothing -> throwError $ "unknown kind for type: " <> prettyText t
+    Just k -> pure k
+kindOf TArr {} = pure KindArray
+kindOf _ = pure KindAtom
 
 bindVName :: Text -> Type VName -> CheckM a -> CheckM a
 bindVName v t m = do
@@ -111,7 +120,7 @@ instance MonadSymTable CheckM VName Sort where
 check ::
   (Monad m) =>
   Exp Unchecked Text ->
-  Either Error ([(VName, Type VName, Val m)], Exp Typed VName)
+  Either Error (Prelude VName m, Exp Typed VName)
 check e = fst $ evalRWS (runExceptT $ runCheckM $ withPrelude $ checkExp e) initEnv initTag
 
 -- All this does for now is convert all the `Text` variables to `VName` ones.
@@ -159,10 +168,13 @@ checkExp app@(App fes@(f : e : _) _ pos) = do
       case typeOf f' of
         pts :-> ret -> do
           let argts = map typeOf es'
-          unless (and $ zipWith (==) pts argts) $ -- this will have to be relaxed
+          unless (pts == argts) $ -- this will have to be relaxed
             throwError $
               withPos pos $
-                "Parameter and argument types don't match: " <> prettyText app
+                "Parameter and argument types don't match:\n"
+                  <> prettyText app
+                  <> "\n"
+                  <> prettyText (pts, argts)
           pure $ App (f' : es') (Typed ret) pos
         _ ->
           throwError $
@@ -173,7 +185,27 @@ checkExp e@(App _ _ pos) =
   throwError $
     withPos pos $
       "Applications require at least a function and an argument: " <> prettyText e
-checkExp (TApp e ts _ pos) = undefined
+checkExp tapp@(TApp e ts _ pos) = do
+  e' <- checkExp e
+  ts' <- mapM checkType ts
+  case typeOf e' of
+    Forall pts r -> do
+      ks <- mapM kindOf ts'
+      unless (map snd pts == ks) $
+        throwError $
+          withPos pos $
+            "Parameter and argument kinds don't match:\n"
+              <> prettyText tapp
+              <> "\n"
+              <> prettyText (pts, ts')
+      pure $ TApp e' ts' (Typed r) pos
+    t ->
+      throwError $
+        withPos pos $
+          "Expected a forall type in type application: "
+            <> prettyText tapp
+            <> "\n"
+            <> prettyText t
 checkExp (IApp e is _ pos) = undefined
 checkExp (Unbox vs e b _ pos) = undefined
 checkExp (Atom a) = Atom <$> checkAtom a
@@ -200,9 +232,15 @@ checkType Float = pure Float
 checkType (TArr t shape) = TArr <$> checkType t <*> checkShape shape
 checkType (as :-> b) = (:->) <$> mapM checkType as <*> checkType b
 checkType (Forall pts t) =
-  bindTypes pts $ checkType t
+  bindTypes pts $ do
+    pts' <- forM pts $ \(v, k) -> (,k) <$> lookupVName v
+    t' <- checkType t
+    pure $ Forall pts' t'
 checkType (DProd pts t) =
-  bindSorts pts $ checkType t
+  bindSorts pts $ do
+    pts' <- forM pts $ \(v, s) -> (,s) <$> lookupVName v
+    t' <- checkType t
+    pure $ DProd pts' t'
 
 checkDim :: Dim Text -> CheckM (Dim VName)
 checkDim (DimVar v) = DimVar <$> lookupVName v
@@ -214,13 +252,19 @@ checkShape (Shape ds) = Shape <$> mapM checkDim ds
 checkShape (Add ds) = Add <$> mapM checkDim ds
 checkShape (Concat ss) = Concat <$> mapM checkShape ss
 
-withPrelude :: (Monad m) => CheckM a -> CheckM ([(VName, Type VName, Val m)], a)
+withPrelude :: (Monad m) => CheckM a -> CheckM (Prelude VName m, a)
 withPrelude m = checkPrelude prelude mempty
   where
     checkPrelude [] prelude' =
       (reverse prelude',) <$> m
-    checkPrelude ((f, t, v) : ps) prelude' = do
-      t' <- checkType t
-      bindVName f t' $ do
-        f' <- lookupVName f
-        checkPrelude ps ((f', t', v) : prelude')
+    checkPrelude (p : ps) prelude' = do
+      case p of
+        PreludeVal f t v -> do
+          t' <- checkType t
+          bindVName f t' $ do
+            f' <- lookupVName f
+            checkPrelude ps (PreludeVal f' t' v : prelude')
+        PreludeType t k ->
+          bindType t k $ do
+            t' <- lookupVName t
+            checkPrelude ps (PreludeType t' k : prelude')
