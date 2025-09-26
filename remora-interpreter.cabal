@@ -23,6 +23,7 @@ library
     import:           common
     exposed-modules:
       Syntax
+      Shape
       Parser
       Interpreter
       Interpreter.Value

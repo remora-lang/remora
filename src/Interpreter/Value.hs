@@ -1,7 +1,7 @@
 module Interpreter.Value (Val (..)) where
 
 import Prettyprinter
-import Syntax hiding (Atom, Exp, Idx, Type)
+import Syntax hiding (Atom, Exp, Shape, Type)
 import Syntax qualified
 import VName
 
@@ -9,7 +9,7 @@ type Exp = Syntax.Exp Typed VName
 
 type Atom = Syntax.Atom Typed VName
 
-type Idx = Syntax.Idx VName
+type Shape = Syntax.Shape VName
 
 type Type = Syntax.Type VName
 
@@ -20,7 +20,7 @@ data Val m
   | ValLambda [(VName, Type)] Exp
   | ValTLambda [(VName, Kind)] Exp
   | ValILambda [(VName, Sort)] Exp
-  | ValBox [Idx] (Val m) Type
+  | ValBox [Shape] (Val m) Type
   | ValFun ([Val m] -> m (Val m))
   | ValTFun ([Type] -> m (Val m))
 

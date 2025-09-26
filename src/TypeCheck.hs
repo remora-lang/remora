@@ -19,14 +19,16 @@ import VName
 
 data Env = Env
   { envMap :: Map Text VName,
-    envTable :: SymTable VName (Type VName)
+    envType :: SymTable VName (Type VName),
+    envKind :: SymTable VName Kind,
+    envSort :: SymTable VName Sort
   }
 
 withPos :: (Pretty x) => SourcePos -> x -> Text
 withPos pos x = prettyText x <> (" at " <> prettyText (show pos))
 
 initEnv :: Env
-initEnv = Env mempty mempty
+initEnv = Env mempty mempty mempty mempty
 
 lookupVName :: Text -> CheckM VName
 lookupVName v = do
@@ -57,6 +59,28 @@ bindVNames [] m = m
 bindVNames ((v, t) : vs) m =
   bindVName v t $ bindVNames vs m
 
+bindType :: Text -> Kind -> CheckM a -> CheckM a
+bindType v k m = do
+  vname <- newVName v
+  local (\env -> env {envMap = M.insert v vname $ envMap env}) $
+    insertSym vname k m
+
+bindTypes :: [(Text, Kind)] -> CheckM a -> CheckM a
+bindTypes [] m = m
+bindTypes ((v, k) : vs) m =
+  bindType v k $ bindTypes vs m
+
+bindSort :: Text -> Sort -> CheckM a -> CheckM a
+bindSort v s m = do
+  vname <- newVName v
+  local (\env -> env {envMap = M.insert v vname $ envMap env}) $
+    insertSym vname s m
+
+bindSorts :: [(Text, Sort)] -> CheckM a -> CheckM a
+bindSorts [] m = m
+bindSorts ((v, s) : vs) m =
+  bindSort v s $ bindSorts vs m
+
 type Error = Text
 
 newtype CheckM a = CheckM {runCheckM :: ExceptT Error (RWS Env () Tag) a}
@@ -70,9 +94,19 @@ newtype CheckM a = CheckM {runCheckM :: ExceptT Error (RWS Env () Tag) a}
     )
 
 instance MonadSymTable CheckM VName (Type VName) where
-  askSymTable = asks envTable
+  askSymTable = asks envType
   withSymTable f =
-    local (\env -> env {envTable = f $ envTable env})
+    local (\env -> env {envType = f $ envType env})
+
+instance MonadSymTable CheckM VName Kind where
+  askSymTable = asks envKind
+  withSymTable f =
+    local (\env -> env {envKind = f $ envKind env})
+
+instance MonadSymTable CheckM VName Sort where
+  askSymTable = asks envSort
+  withSymTable f =
+    local (\env -> env {envSort = f $ envSort env})
 
 check ::
   (Monad m) =>
@@ -163,14 +197,19 @@ checkType (TVar v) = TVar <$> lookupVName v
 checkType Bool = pure Bool
 checkType Int = pure Int
 checkType Float = pure Float
+checkType (TArr t shape) = TArr <$> checkType t <*> checkShape shape
 checkType (as :-> b) = (:->) <$> mapM checkType as <*> checkType b
+checkType (Forall pts t) =
+  bindTypes pts $ checkType t
+checkType (DProd pts t) =
+  bindSorts pts $ checkType t
 
-checkIdx :: Idx Text -> CheckM (Idx VName)
-checkIdx (IdxVar v) = IdxVar <$> lookupVName v
-checkIdx (Dim d) = pure $ Dim d
-checkIdx (Shape is) = Shape <$> mapM checkIdx is
-checkIdx (Add is) = Add <$> mapM checkIdx is
-checkIdx (Concat is) = Concat <$> mapM checkIdx is
+checkShape :: Shape Text -> CheckM (Shape VName)
+checkShape (ShapeVar v) = ShapeVar <$> lookupVName v
+checkShape (Dim d) = pure $ Dim d
+checkShape (Shape is) = Shape <$> mapM checkShape is
+checkShape (Add is) = Add <$> mapM checkShape is
+checkShape (Concat is) = Concat <$> mapM checkShape is
 
 withPrelude :: (Monad m) => CheckM a -> CheckM ([(VName, Type VName, Val m)], a)
 withPrelude m = checkPrelude prelude mempty

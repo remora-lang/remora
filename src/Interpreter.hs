@@ -10,7 +10,7 @@ import Data.Text qualified as T
 import Interpreter.Value hiding (Val)
 import Interpreter.Value qualified as Value
 import Prettyprinter
-import Syntax hiding (Atom, Exp, Idx, Type)
+import Syntax hiding (Atom, Exp, Shape, Type)
 import Syntax qualified
 import Util
 import VName
@@ -21,7 +21,7 @@ type Exp = Syntax.Exp Typed VName
 
 type Atom = Syntax.Atom Typed VName
 
-type Idx = Syntax.Idx VName
+type Shape = Syntax.Shape VName
 
 type Type = Syntax.Type VName
 

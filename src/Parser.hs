@@ -5,7 +5,7 @@ import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Void
-import Syntax hiding (Atom, Exp, Idx, Type)
+import Syntax hiding (Atom, Exp, Shape, Type)
 import Syntax qualified
 import Text.Megaparsec
   ( Parsec,
@@ -39,7 +39,7 @@ type Exp = Syntax.Exp Unchecked Text
 
 type Atom = Syntax.Atom Unchecked Text
 
-type Idx = Syntax.Idx Text
+type Shape = Syntax.Shape Text
 
 type Type = Syntax.Type Text
 
@@ -171,7 +171,7 @@ pAtom =
               <$> (symbol "I\\" >> (parens $ many pArg))
               <*> pExp
     pBox =
-      Box <$> (many pIdx) <*> pExp <*> pType
+      Box <$> (many pShape) <*> pExp <*> pType
 
 pExp :: Parser Exp
 pExp =
@@ -184,7 +184,7 @@ pExp =
                   [ Array <$> (lKeyword "array" >> pShapeLit) <*> some pAtom,
                     Frame <$> (lKeyword "frame" >> pShapeLit) <*> some pExp,
                     App <$> ((:) <$> pExp <*> some pExp),
-                    IApp <$> pExp <*> (some pIdx),
+                    IApp <$> pExp <*> (some pShape),
                     pUnbox
                   ]
             ]
@@ -199,14 +199,14 @@ pExp =
         <*> (pExp <* symbol ")")
         <*> pExp
 
-pIdx :: Parser Idx
-pIdx =
+pShape :: Parser Shape
+pShape =
   choice
-    [ IdxVar <$> lId,
+    [ ShapeVar <$> lId,
       Dim <$> pDecimal,
-      Shape <$> many pIdx,
+      Syntax.Shape <$> many pShape,
       parens $
-        Add <$> many pIdx,
+        Add <$> many pShape,
       parens $
-        Concat <$> many pIdx
+        Concat <$> many pShape
     ]

@@ -1,8 +1,24 @@
 {-# LANGUAGE UndecidableInstances #-}
 
-module Syntax where
+module Syntax
+  ( module Shape,
+    Typed (..),
+    Unchecked (..),
+    Kind (..),
+    Sort (..),
+    Base (..),
+    Atom (..),
+    Type (..),
+    Exp (..),
+    HasType (..),
+    HasPos (..),
+    isFunctionType,
+    idxFromDims,
+  )
+where
 
 import Prettyprinter
+import Shape
 import Text.Megaparsec.Pos (SourcePos)
 import VName
 
@@ -17,24 +33,6 @@ newtype Typed a = Typed a
 
 instance (Pretty a) => Pretty (Typed a) where
   pretty (Typed a) = pretty a
-
-data Idx v
-  = IdxVar v
-  | Dim Int
-  | Shape [Idx v]
-  | Add [Idx v]
-  | Concat [Idx v]
-
-deriving instance (Show v) => Show (Idx v)
-
-deriving instance (Eq v) => Eq (Idx v)
-
-instance (Show v, Pretty v) => Pretty (Idx v) where
-  pretty (IdxVar v) = pretty v
-  pretty (Dim d) = pretty d
-  pretty (Shape is) = parens $ hsep ("shape" : map pretty is)
-  pretty (Add is) = parens $ hsep ("+" : map pretty is)
-  pretty (Concat is) = parens $ hsep ("++" : map pretty is)
 
 data Kind
   = KindArray
@@ -71,7 +69,7 @@ data Atom f v
   | Lambda [(v, Type v)] (Exp f v) (f (Type v)) SourcePos
   | TLambda [(v, Kind)] (Exp f v) (f (Type v)) SourcePos
   | ILambda [(v, Sort)] (Exp f v) (f (Type v)) SourcePos
-  | Box [Idx v] (Exp f v) (Type v) SourcePos
+  | Box [Shape v] (Exp f v) (Type v) SourcePos
 
 deriving instance (Show v) => Show (Atom Unchecked v)
 
@@ -117,7 +115,7 @@ data Type v
   | Bool
   | Int
   | Float
-  | TArr (Type v) (Idx v)
+  | TArr (Type v) (Shape v)
   | (:->) [Type v] (Type v)
   | Forall [(v, Kind)] (Type v)
   | DProd [(v, Sort)] (Type v)
@@ -160,7 +158,7 @@ data Exp f v
   | EmptyFrame [Int] (Type v) (f (Type v)) SourcePos
   | App [Exp f v] (f (Type v)) SourcePos
   | TApp (Exp f v) [Type v] (f (Type v)) SourcePos
-  | IApp (Exp f v) [Idx v] (f (Type v)) SourcePos
+  | IApp (Exp f v) [Shape v] (f (Type v)) SourcePos
   | Unbox [v] (Exp f v) (Exp f v) (f (Type v)) SourcePos
   | Atom (Atom f v)
 
@@ -245,5 +243,5 @@ isFunctionType :: Type v -> Bool
 isFunctionType ((:->) _ _) = True
 isFunctionType _ = False
 
-idxFromDims :: [Int] -> Idx v
+idxFromDims :: [Int] -> Shape v
 idxFromDims ds = Shape $ map Dim ds
