@@ -8,7 +8,9 @@ import Data.Map (Map)
 import Data.Map qualified as M
 import Data.Text (Text)
 import Data.Text qualified as T
+import Interpreter.Value
 import Prettyprinter
+import RemoraPrelude
 import SymTable
 import Syntax
 import Text.Megaparsec.Pos (SourcePos)
@@ -72,8 +74,11 @@ instance MonadSymTable CheckM VName (Type VName) where
   withSymTable f =
     local (\env -> env {envTable = f $ envTable env})
 
-check :: Exp Unchecked Text -> Either Error (Exp Typed VName)
-check e = fst $ evalRWS (runExceptT $ runCheckM $ checkExp e) initEnv initTag
+check ::
+  (Monad m) =>
+  Exp Unchecked Text ->
+  Either Error ([(VName, Type VName, Val m)], Exp Typed VName)
+check e = fst $ evalRWS (runExceptT $ runCheckM $ withPrelude $ checkExp e) initEnv initTag
 
 -- All this does for now is convert all the `Text` variables to `VName` ones.
 checkExp :: Exp Unchecked Text -> CheckM (Exp Typed VName)
@@ -158,6 +163,7 @@ checkType (TVar v) = TVar <$> lookupVName v
 checkType Bool = pure Bool
 checkType Int = pure Int
 checkType Float = pure Float
+checkType (as :-> b) = (:->) <$> mapM checkType as <*> checkType b
 
 checkIdx :: Idx Text -> CheckM (Idx VName)
 checkIdx (IdxVar v) = IdxVar <$> lookupVName v
@@ -165,3 +171,14 @@ checkIdx (Dim d) = pure $ Dim d
 checkIdx (Shape is) = Shape <$> mapM checkIdx is
 checkIdx (Add is) = Add <$> mapM checkIdx is
 checkIdx (Concat is) = Concat <$> mapM checkIdx is
+
+withPrelude :: (Monad m) => CheckM a -> CheckM ([(VName, Type VName, Val m)], a)
+withPrelude m = checkPrelude prelude mempty
+  where
+    checkPrelude [] prelude' =
+      (reverse prelude',) <$> m
+    checkPrelude ((f, t, v) : ps) prelude' = do
+      t' <- checkType t
+      bindVName f t' $ do
+        f' <- lookupVName f
+        checkPrelude ps ((f', t', v) : prelude')

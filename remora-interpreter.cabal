@@ -25,6 +25,7 @@ library
       Syntax
       Parser
       Interpreter
+      Interpreter.Value
       TypeCheck
       VName
       SymTable
@@ -32,6 +33,7 @@ library
       Util
       CLI
       CLI.REPL
+      RemoraPrelude
     -- other-modules:
     -- other-extensions:
     build-depends:

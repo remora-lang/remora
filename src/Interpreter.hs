@@ -7,11 +7,15 @@ import Data.Map (Map)
 import Data.Map qualified as M
 import Data.Text (Text)
 import Data.Text qualified as T
+import Interpreter.Value hiding (Val)
+import Interpreter.Value qualified as Value
 import Prettyprinter
 import Syntax hiding (Atom, Exp, Idx, Type)
 import Syntax qualified
 import Util
 import VName
+
+type Val = Value.Val InterpM
 
 type Exp = Syntax.Exp Typed VName
 
@@ -26,8 +30,11 @@ data Env = Env
     envTMap :: Map VName Type
   }
 
-initEnv :: Env
-initEnv = Env mempty mempty
+initEnv :: [(VName, Type, Val)] -> Env
+initEnv prelude = Env m tm
+  where
+    m = M.fromList $ map (\(v, _, val) -> (v, val)) prelude
+    tm = M.fromList $ map (\(v, t, _) -> (v, t)) prelude
 
 type Error = Text
 
@@ -39,21 +46,6 @@ newtype InterpM a = InterpM {runInterpM :: ExceptT Error (Reader Env) a}
       MonadReader Env,
       MonadError Error
     )
-
-data Val
-  = ValVar VName
-  | ValBase Base
-  | ValArray [Int] [Val]
-  | ValLambda [(VName, Type)] Exp
-  | ValTLambda [(VName, Kind)] Exp
-  | ValILambda [(VName, Sort)] Exp
-  | ValBox [Idx] Val Type
-  | ValFun ([Val] -> InterpM Val)
-  | ValTFun ([Type] -> InterpM Val)
-
-instance Show Val
-
-instance Pretty Val
 
 lookupVal :: VName -> InterpM Val
 lookupVal v = do
@@ -69,9 +61,9 @@ lookupType v = do
     Nothing -> throwError $ "lookupVal: unknown type vname " <> T.pack (show v)
     Just t -> pure t
 
-interpret :: Exp -> Either Error Val
-interpret e =
-  runReader (runExceptT $ runInterpM $ intExp e) initEnv
+interpret :: [(VName, Type, Val)] -> Exp -> Either Error Val
+interpret prelude e =
+  runReader (runExceptT $ runInterpM $ intExp e) (initEnv prelude)
 
 intExp :: Exp -> InterpM Val
 intExp (Var v _ _) = lookupVal v
@@ -89,7 +81,8 @@ intExp (App (f : es) _ _) = do
   apply f' es'
 intExp (TApp e ts _ _) = do
   e' <- intExp e
-  undefined
+  tapply e' ts
+intExp (Syntax.Atom a) = intAtom a
 
 bind :: VName -> Val -> InterpM a -> InterpM a
 bind v val =
@@ -129,6 +122,7 @@ apply (ValVar f) args = do
     ValLambda {} -> apply f' args
     ValFun func -> func args
     _ -> throwError $ "cannot apply: " <> prettyText f'
+apply (ValFun f) args = f args
 
 intAtom :: Atom -> InterpM Val
 intAtom (Base b _ _) = pure $ ValBase b
@@ -137,26 +131,3 @@ intAtom (TLambda ps e _ _) = pure $ ValTLambda ps e
 intAtom (ILambda ps e _ _) = pure $ ValILambda ps e
 intAtom (Box is e t _) =
   ValBox is <$> intExp e <*> pure t -- fix
-
-prelude :: [(Text, Syntax.Type Text, Val)]
-prelude =
-  [ ( "head",
-      Forall
-        [("t", KindAtom)]
-        ( DProd
-            [("d", SortDim)]
-            ( DProd
-                [("s", SortShape)]
-                ( [TArr (TVar "t") (Shape [Add [Dim 1, IdxVar "d"], IdxVar "s"])]
-                    :-> TArr (TVar "t") (IdxVar "s")
-                )
-            )
-        ),
-      ValFun $ \xs ->
-        case xs of
-          [ValArray shape (_ : vs)] ->
-            -- TODO: shape must be decremented
-            pure $ ValArray shape vs
-          _ -> error $ "head: " <> show xs
-    )
-  ]
