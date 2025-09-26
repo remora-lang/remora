@@ -13,7 +13,7 @@ prelude =
         [("t", KindAtom)]
         ( DProd
             [("d", SortDim), ("s", SortShape)]
-            ( [TArr (TVar "t") (Concat [Shape [ShapeVar "d"], ShapeVar "s"])]
+            ( [TArr (TVar "t") (Concat [Shape [DimVar "d"], ShapeVar "s"])]
                 :-> TArr Int mempty
             )
         ),

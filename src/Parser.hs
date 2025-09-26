@@ -5,7 +5,7 @@ import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Void
-import Syntax hiding (Atom, Exp, Shape, Type)
+import Syntax hiding (Atom, Dim, Exp, Shape, Type)
 import Syntax qualified
 import Text.Megaparsec
   ( Parsec,
@@ -38,6 +38,8 @@ type Parser = Parsec Void Text
 type Exp = Syntax.Exp Unchecked Text
 
 type Atom = Syntax.Atom Unchecked Text
+
+type Dim = Syntax.Dim Text
 
 type Shape = Syntax.Shape Text
 
@@ -199,14 +201,20 @@ pExp =
         <*> (pExp <* symbol ")")
         <*> pExp
 
+pDim :: Parser Dim
+pDim =
+  choice
+    [ DimVar <$> lId,
+      Syntax.Dim <$> pDecimal
+    ]
+
 pShape :: Parser Shape
 pShape =
   choice
     [ ShapeVar <$> lId,
-      Dim <$> pDecimal,
-      Syntax.Shape <$> many pShape,
+      Syntax.Shape <$> many pDim,
       parens $
-        Add <$> many pShape,
+        Add <$> many pDim,
       parens $
         Concat <$> many pShape
     ]

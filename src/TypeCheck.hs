@@ -204,12 +204,15 @@ checkType (Forall pts t) =
 checkType (DProd pts t) =
   bindSorts pts $ checkType t
 
+checkDim :: Dim Text -> CheckM (Dim VName)
+checkDim (DimVar v) = DimVar <$> lookupVName v
+checkDim (Dim d) = pure $ Dim d
+
 checkShape :: Shape Text -> CheckM (Shape VName)
 checkShape (ShapeVar v) = ShapeVar <$> lookupVName v
-checkShape (Dim d) = pure $ Dim d
-checkShape (Shape is) = Shape <$> mapM checkShape is
-checkShape (Add is) = Add <$> mapM checkShape is
-checkShape (Concat is) = Concat <$> mapM checkShape is
+checkShape (Shape ds) = Shape <$> mapM checkDim ds
+checkShape (Add ds) = Add <$> mapM checkDim ds
+checkShape (Concat ss) = Concat <$> mapM checkShape ss
 
 withPrelude :: (Monad m) => CheckM a -> CheckM ([(VName, Type VName, Val m)], a)
 withPrelude m = checkPrelude prelude mempty

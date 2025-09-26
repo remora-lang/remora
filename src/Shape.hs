@@ -2,11 +2,22 @@ module Shape where
 
 import Prettyprinter
 
+data Dim v
+  = DimVar v
+  | Dim Int
+
+deriving instance (Show v) => Show (Dim v)
+
+deriving instance (Eq v) => Eq (Dim v)
+
+instance (Show v, Pretty v) => Pretty (Dim v) where
+  pretty (DimVar v) = pretty v
+  pretty (Dim d) = pretty d
+
 data Shape v
   = ShapeVar v
-  | Dim Int
-  | Shape [Shape v]
-  | Add [Shape v]
+  | Shape [Dim v]
+  | Add [Dim v]
   | Concat [Shape v]
 
 deriving instance (Show v) => Show (Shape v)
@@ -21,12 +32,11 @@ instance Monoid (Shape v) where
 
 instance (Show v, Pretty v) => Pretty (Shape v) where
   pretty (ShapeVar v) = pretty v
-  pretty (Dim d) = pretty d
   pretty (Shape is) = parens $ hsep ("shape" : map pretty is)
   pretty (Add is) = parens $ hsep ("+" : map pretty is)
   pretty (Concat is) = parens $ hsep ("++" : map pretty is)
 
 -- peels the first shape off a shape; assumes normalized as `Shape`
-peel :: Shape v -> Maybe (Shape v, Shape v)
-peel (Shape (s : ss)) = Just (s, Shape ss)
-peel _ = Nothing
+-- peel :: Shape v -> Maybe (Shape v, Shape v)
+-- peel (Shape (s : ss)) = Just (s, Shape ss)
+-- peel _ = Nothing
