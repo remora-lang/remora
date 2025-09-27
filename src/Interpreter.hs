@@ -91,6 +91,9 @@ intExp (App (f : es) _ _) = do
 intExp (TApp e ts _ _) = do
   e' <- intExp e
   tapply e' ts
+intExp (IApp e is _ _) = do
+  e' <- intExp e
+  iapply e' is
 intExp (Syntax.Atom a) = intAtom a
 
 bind :: VName -> Val -> InterpM a -> InterpM a
@@ -110,6 +113,10 @@ tbinds :: [(VName, Type)] -> InterpM a -> InterpM a
 tbinds [] m = m
 tbinds ((v, t) : vts) m =
   tbind v t $ tbinds vts m
+
+iapply :: Val -> [Shape] -> InterpM Val
+iapply (ValIFun f) shapes = f shapes
+iapply v _ = error $ prettyString v
 
 tapply :: Val -> [Type] -> InterpM Val
 tapply (ValTLambda pts e) ts =

@@ -18,6 +18,7 @@ import Text.Megaparsec
     many,
     notFollowedBy,
     satisfy,
+    single,
     some,
     try,
     (<|>),
@@ -106,7 +107,7 @@ lId = lexeme $ try $ do
   where
     isDisallowed c =
       isSpace c
-        || c `elem` ['(', ')', '[', ']', '{', '}', '"', ',', '\'', '`', ';', '#', '|', '\\']
+        || c `elem` ['(', ')', '[', ']', '{', '}', '"', ',', '\'', '`', ';', '#', '|', '\\', '@']
 
 pDecimal :: Parser Int
 pDecimal = lexeme L.decimal
@@ -186,7 +187,7 @@ pExp =
                   [ Array <$> (lKeyword "array" >> pShapeLit) <*> some pAtom,
                     Frame <$> (lKeyword "frame" >> pShapeLit) <*> some pExp,
                     App <$> ((:) <$> pExp <*> some pExp),
-                    IApp <$> pExp <*> (some pShape),
+                    lKeyword "i-app" >> IApp <$> pExp <*> (some pShape),
                     lKeyword "t-app" >> TApp <$> pExp <*> (some pType),
                     pUnbox
                   ]
@@ -212,10 +213,12 @@ pDim =
 pShape :: Parser Shape
 pShape =
   choice
-    [ ShapeVar <$> lId,
-      Syntax.Shape <$> many pDim,
+    [ single '@' >> ShapeVar <$> lId,
+      (Syntax.Shape . pure) <$> pDim,
       parens $
-        Add <$> many pDim,
-      parens $
-        Concat <$> many pShape
+        choice
+          [ lKeyword "shape" >> Syntax.Shape <$> many pDim,
+            symbol "+" >> Add <$> many pDim,
+            symbol "++" >> Concat <$> many pShape
+          ]
     ]

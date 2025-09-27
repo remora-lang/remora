@@ -20,15 +20,14 @@ import VName
 data Env = Env
   { envMap :: Map Text VName,
     envType :: SymTable VName (Type VName),
-    envKind :: SymTable VName Kind,
-    envSort :: SymTable VName Sort
+    envKind :: SymTable VName Kind
   }
 
 withPos :: (Pretty x) => SourcePos -> x -> Text
 withPos pos x = prettyText x <> (" at " <> prettyText (show pos))
 
 initEnv :: Env
-initEnv = Env mempty mempty mempty mempty
+initEnv = Env mempty mempty mempty
 
 lookupVName :: Text -> CheckM VName
 lookupVName v = do
@@ -52,6 +51,12 @@ kindOf (TVar t) = do
     Just k -> pure k
 kindOf TArr {} = pure KindArray
 kindOf _ = pure KindAtom
+
+sortOf :: Shape VName -> Sort
+-- This is shit (and wrongish), fix
+sortOf (Shape [DimVar d]) = SortDim
+sortOf (Shape [Dim n]) = SortDim
+sortOf _ = SortShape
 
 bindVName :: Text -> Type VName -> CheckM a -> CheckM a
 bindVName v t m = do
@@ -82,8 +87,7 @@ bindTypes ((v, k) : vs) m =
 bindSort :: Text -> Sort -> CheckM a -> CheckM a
 bindSort v s m = do
   vname <- newVName v
-  local (\env -> env {envMap = M.insert v vname $ envMap env}) $
-    insertSym vname s m
+  local (\env -> env {envMap = M.insert v vname $ envMap env}) m
 
 bindSorts :: [(Text, Sort)] -> CheckM a -> CheckM a
 bindSorts [] m = m
@@ -111,11 +115,6 @@ instance MonadSymTable CheckM VName Kind where
   askSymTable = asks envKind
   withSymTable f =
     local (\env -> env {envKind = f $ envKind env})
-
-instance MonadSymTable CheckM VName Sort where
-  askSymTable = asks envSort
-  withSymTable f =
-    local (\env -> env {envSort = f $ envSort env})
 
 check ::
   (Monad m) =>
@@ -206,7 +205,27 @@ checkExp tapp@(TApp e ts _ pos) = do
             <> prettyText tapp
             <> "\n"
             <> prettyText t
-checkExp (IApp e is _ pos) = undefined
+checkExp iapp@(IApp e is _ pos) = do
+  e' <- checkExp e
+  is' <- mapM checkShape is
+  case typeOf e' of
+    DProd pts r -> do
+      let sorts = map sortOf is'
+      unless (map snd pts == sorts) $
+        throwError $
+          withPos pos $
+            "Parameter and argument sorts don't match:\n"
+              <> prettyText iapp
+              <> "\n"
+              <> prettyText (map snd pts, sorts)
+      pure $ IApp e' is' (Typed r) pos
+    t ->
+      throwError $
+        withPos pos $
+          "Expected a dprod type in shape application: "
+            <> prettyText iapp
+            <> "\n"
+            <> prettyText t
 checkExp (Unbox vs e b _ pos) = undefined
 checkExp (Atom a) = Atom <$> checkAtom a
 
