@@ -15,6 +15,52 @@ data PreludeDef v m
 prelude :: (Monad m) => Prelude Text m
 prelude =
   [ PreludeVal
+      "head"
+      ( Forall
+          [("t", KindAtom)]
+          ( DProd
+              [("d", SortDim), ("s", SortShape)]
+              ( [ TArr
+                    (TVar "t")
+                    ( Concat
+                        [ ShapeDim (Add [Dim 1, DimVar "d"]),
+                          ShapeVar "s"
+                        ]
+                    )
+                ]
+                  :-> TArr (TVar "t") (ShapeVar "s")
+              )
+          )
+      )
+      ( ValTFun $ \[_t] ->
+          pure $ ValIFun $ \[_d, _s] ->
+            pure $ ValFun $ \[ValArray (d : ds) vs] ->
+              pure $ ValArray (d - 1 : ds) $ init vs
+      ),
+    PreludeVal
+      "tail"
+      ( Forall
+          [("t", KindAtom)]
+          ( DProd
+              [("d", SortDim), ("s", SortShape)]
+              ( [ TArr
+                    (TVar "t")
+                    ( Concat
+                        [ ShapeDim (Add [Dim 1, DimVar "d"]),
+                          ShapeVar "s"
+                        ]
+                    )
+                ]
+                  :-> TArr (TVar "t") (ShapeVar "s")
+              )
+          )
+      )
+      ( ValTFun $ \[_t] ->
+          pure $ ValIFun $ \[_d, _s] ->
+            pure $ ValFun $ \[ValArray (d : ds) vs] ->
+              pure $ ValArray (d - 1 : ds) $ tail vs
+      ),
+    PreludeVal
       "length"
       ( Forall
           [("t", KindAtom)]
@@ -31,29 +77,27 @@ prelude =
               pure $ ValBase $ IntVal $ d
       ),
     PreludeVal
+      "append"
+      ( Forall
+          [("t", KindAtom)]
+          ( DProd
+              [("m", SortDim), ("n", SortDim), ("s", SortShape)]
+              ( [ TArr (TVar "t") (Concat [ShapeVar "m", ShapeVar "s"]),
+                  TArr (TVar "t") (Concat [ShapeVar "n", ShapeVar "s"])
+                ]
+                  :-> TArr (TVar "t") (Concat [ShapeVar "m", ShapeVar "n", ShapeVar "s"])
+              )
+          )
+      )
+      ( ValTFun $ \[_t] ->
+          pure $ ValIFun $ \[[m], [n], s] ->
+            pure $ ValFun $ \[ValArray _ xs, ValArray _ ys] ->
+              pure $ ValArray (m + n : s) (xs ++ ys)
+      ),
+    PreludeVal
       "+"
       ([Int, Int] :-> Int)
       ( ValFun $ \[ValBase (IntVal x), ValBase (IntVal y)] ->
           pure $ ValBase $ IntVal $ x + y
       )
   ]
-
--- ( "head",
---  Forall
---    [("t", KindAtom)]
---    ( DProd
---        [("d", SortDim)]
---        ( DProd
---            [("s", SortShape)]
---            ( [TArr (TVar "t") (Shape [Add [Dim 1, ShapeVar "d"], ShapeVar "s"])]
---                :-> TArr (TVar "t") (ShapeVar "s")
---            )
---        )
---    ),
---  ValFun $ \xs ->
---    case xs of
---      [ValArray shape (_ : vs)] ->
---        -- TODO: shape must be decremented
---        pure $ ValArray shape vs
---      _ -> error $ "head: " <> show xs
--- ),

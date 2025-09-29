@@ -13,6 +13,37 @@ type Shape = Syntax.Shape VName
 
 type Type = Syntax.Type VName
 
+-- data ValShape
+--  = ValDim Int
+--  | ValShape [ValShape]
+--  deriving (Show, Eq)
+--
+-- instance Pretty ValShape where
+--  pretty (ValDim d) = pretty d
+--  pretty (ValShape s) = parens $ hsep ("shape" : map pretty s)
+--
+-- instance Semigroup ValShape where
+--  s <> t = ValShape [s, t]
+--
+-- instance Monoid ValShape where
+--  mempty = ValShape []
+--
+-- normValShape :: ValShape -> ValShape
+-- normValShape (ValDim n) = ValDim n
+-- normValShape (ValShape ss) =
+--  case merged of
+--    [s] -> s
+--    _ -> ValShape merged
+--  where
+--    merged =
+--      concatMap
+--        ( \s ->
+--            case normValShape s of
+--              ValShape ss' -> ss'
+--              s' -> [s']
+--        )
+--        ss
+
 data Val m
   = ValVar VName
   | ValBase Base
@@ -23,7 +54,7 @@ data Val m
   | ValBox [Shape] (Val m) Type
   | ValFun ([Val m] -> m (Val m))
   | ValTFun ([Type] -> m (Val m))
-  | ValIFun ([Shape] -> m (Val m))
+  | ValIFun ([[Int]] -> m (Val m))
 
 instance Show (Val m)
 

@@ -11,10 +11,12 @@ import Interpreter.Value hiding (Val)
 import Interpreter.Value qualified as Value
 import Prettyprinter
 import RemoraPrelude
-import Syntax hiding (Atom, Exp, Shape, Type)
+import Syntax hiding (Atom, Dim, Exp, Shape, Type)
 import Syntax qualified
 import Util
 import VName
+
+type Dim = Syntax.Dim VName
 
 type Val = Value.Val InterpM
 
@@ -93,8 +95,25 @@ intExp (TApp e ts _ _) = do
   tapply e' ts
 intExp (IApp e is _ _) = do
   e' <- intExp e
-  iapply e' is
+  is' <- mapM intShape is
+  iapply e' is'
 intExp (Syntax.Atom a) = intAtom a
+
+intDim :: Dim -> InterpM Int
+intDim = pure . intDim'
+
+intDim' :: Dim -> Int
+intDim' DimVar {} = error ""
+intDim' (Syntax.Dim d) = d
+intDim' (Add ds) = sum $ map intDim' ds
+
+intShape :: Shape -> InterpM [Int]
+intShape = pure . intShape' . normShape
+  where
+    intShape' ShapeVar {} = error ""
+    intShape' (ShapeDim d) = [intDim' d]
+    intShape' (Concat ss) =
+      concatMap intShape' ss
 
 bind :: VName -> Val -> InterpM a -> InterpM a
 bind v val =
@@ -114,7 +133,7 @@ tbinds [] m = m
 tbinds ((v, t) : vts) m =
   tbind v t $ tbinds vts m
 
-iapply :: Val -> [Shape] -> InterpM Val
+iapply :: Val -> [[Int]] -> InterpM Val
 iapply (ValIFun f) shapes = f shapes
 iapply v _ = error $ prettyString v
 

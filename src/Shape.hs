@@ -40,12 +40,6 @@ instance (Show v, Pretty v) => Pretty (Shape v) where
   pretty (Concat []) = "•"
   pretty (Concat is) = parens $ hsep ("++" : map pretty is)
 
--- peels the first shape off a shape
--- peel :: Shape v -> Maybe (Dim v, Shape v)
--- peel (Shape (d : ds)) = Just (d, Shape ds)
--- peel (Concat (s : ss)) = peel s
--- peel _ = Nothing
-
 sepDim :: Shape v -> Either (Dim v) (Shape v)
 sepDim (ShapeDim d) = Left d
 sepDim (Concat [s]) = sepDim s
@@ -84,3 +78,16 @@ normShape (Concat ss) =
         case normShape s of
           Concat ss' -> ss'
           s' -> pure s'
+
+decrementDim :: Dim v -> Dim v
+decrementDim (Dim 0) = error "decrementDim"
+decrementDim (Dim n) = Dim $ n - 1
+decrementDim d = Add [Dim (-1), d]
+
+-- peels the first dim off a shape
+peel :: (Eq v) => Shape v -> Maybe (Dim v, Shape v)
+peel = peel' . normShape
+  where
+    peel' (ShapeDim d) = Just (d, mempty)
+    peel' (Concat (s : ss)) = peel s
+    peel' _ = Nothing
