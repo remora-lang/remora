@@ -255,4 +255,4 @@ isFunctionType ((:->) _ _) = True
 isFunctionType _ = False
 
 idxFromDims :: [Int] -> Shape v
-idxFromDims ds = Shape $ map Dim ds
+idxFromDims ds = Concat $ map (ShapeDim . Dim) ds

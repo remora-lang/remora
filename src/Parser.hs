@@ -115,10 +115,10 @@ pDecimal = lexeme L.decimal
 pType :: Parser Type
 pType =
   choice
-    [ TVar <$> lId,
-      symbol "Bool" >> pure Bool,
-      symbol "Int" >> pure Int,
-      symbol "FLoat" >> pure Float
+    [ "Bool" >> pure Bool,
+      "Int" >> pure Int,
+      "FLoat" >> pure Float,
+      TVar <$> lId
     ]
 
 pSort :: Parser Sort
@@ -207,18 +207,18 @@ pDim :: Parser Dim
 pDim =
   choice
     [ DimVar <$> lId,
-      Syntax.Dim <$> pDecimal
+      Syntax.Dim <$> pDecimal,
+      symbol "+" >> Add <$> many pDim
     ]
 
 pShape :: Parser Shape
 pShape =
   choice
     [ single '@' >> ShapeVar <$> lId,
-      (Syntax.Shape . pure) <$> pDim,
+      Syntax.ShapeDim <$> pDim,
       parens $
         choice
-          [ lKeyword "shape" >> Syntax.Shape <$> many pDim,
-            symbol "+" >> Add <$> many pDim,
+          [ lKeyword "shape" >> Syntax.Concat <$> many (ShapeDim <$> pDim),
             symbol "++" >> Concat <$> many pShape
           ]
     ]

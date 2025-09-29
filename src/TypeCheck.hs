@@ -11,6 +11,7 @@ import Data.Text qualified as T
 import Interpreter.Value
 import Prettyprinter
 import RemoraPrelude
+import Substitute
 import SymTable
 import Syntax
 import Text.Megaparsec.Pos (SourcePos)
@@ -54,8 +55,7 @@ kindOf _ = pure KindAtom
 
 sortOf :: Shape VName -> Sort
 -- This is shit (and wrongish), fix
-sortOf (Shape [DimVar d]) = SortDim
-sortOf (Shape [Dim n]) = SortDim
+sortOf ShapeDim {} = SortDim
 sortOf _ = SortShape
 
 bindVName :: Text -> Type VName -> CheckM a -> CheckM a
@@ -197,7 +197,8 @@ checkExp tapp@(TApp e ts _ pos) = do
               <> prettyText tapp
               <> "\n"
               <> prettyText (pts, ts')
-      pure $ TApp e' ts' (Typed r) pos
+      let r' = substitute' (zip (map fst pts) ts') r
+      pure $ TApp e' ts' (Typed r') pos
     t ->
       throwError $
         withPos pos $
@@ -218,7 +219,9 @@ checkExp iapp@(IApp e is _ pos) = do
               <> prettyText iapp
               <> "\n"
               <> prettyText (map snd pts, sorts)
-      pure $ IApp e' is' (Typed r) pos
+      let r' =
+            substitute' (zip (map fst pts) (map sepDim is')) r
+      pure $ IApp e' is' (Typed r') pos
     t ->
       throwError $
         withPos pos $
@@ -264,11 +267,11 @@ checkType (DProd pts t) =
 checkDim :: Dim Text -> CheckM (Dim VName)
 checkDim (DimVar v) = DimVar <$> lookupVName v
 checkDim (Dim d) = pure $ Dim d
+checkDim (Add ds) = Add <$> mapM checkDim ds
 
 checkShape :: Shape Text -> CheckM (Shape VName)
 checkShape (ShapeVar v) = ShapeVar <$> lookupVName v
-checkShape (Shape ds) = Shape <$> mapM checkDim ds
-checkShape (Add ds) = Add <$> mapM checkDim ds
+checkShape (ShapeDim d) = ShapeDim <$> checkDim d
 checkShape (Concat ss) = Concat <$> mapM checkShape ss
 
 withPrelude :: (Monad m) => CheckM a -> CheckM (Prelude VName m, a)

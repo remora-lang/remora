@@ -14,16 +14,13 @@ data PreludeDef v m
 
 prelude :: (Monad m) => Prelude Text m
 prelude =
-  [ PreludeType "Int" KindAtom,
-    PreludeType "Float" KindAtom,
-    PreludeType "Bool" KindAtom,
-    PreludeVal
+  [ PreludeVal
       "length"
       ( Forall
           [("t", KindAtom)]
           ( DProd
               [("d", SortDim), ("s", SortShape)]
-              ( [TArr (TVar "t") (Concat [Shape [DimVar "d"], ShapeVar "s"])]
+              ( [TArr (TVar "t") (Concat [ShapeDim (DimVar "d"), ShapeVar "s"])]
                   :-> TArr Int mempty
               )
           )
