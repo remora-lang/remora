@@ -47,7 +47,8 @@ library
       containers,
       transformers,
       cmdargs,
-      haskeline
+      haskeline,
+      sbv
 
     hs-source-dirs:   src
 

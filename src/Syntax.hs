@@ -14,6 +14,7 @@ module Syntax
     HasPos (..),
     isFunctionType,
     idxFromDims,
+    normType,
   )
 where
 
@@ -256,3 +257,11 @@ isFunctionType _ = False
 
 idxFromDims :: [Int] -> Shape v
 idxFromDims ds = Concat $ map (ShapeDim . Dim) ds
+
+normType :: (Eq v) => Type v -> Type v
+normType (TArr t s) = TArr (normType t) (normShape s)
+normType (ts :-> r) = map normType ts :-> normType r
+normType (Forall pts t) = Forall pts $ normType t
+normType (DProd pts t) = DProd pts $ normType t
+normType (DSum pts t) = DSum pts $ normType t
+normType t = t

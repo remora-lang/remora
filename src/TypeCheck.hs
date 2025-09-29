@@ -164,9 +164,9 @@ checkExp app@(App fes@(f : e : _) _ pos) = do
   fes' <- mapM checkExp fes
   case fes' of
     (f' : es') ->
-      case typeOf f' of
+      case normType $ typeOf f' of
         pts :-> ret -> do
-          let argts = map typeOf es'
+          let argts = map (normType . typeOf) es'
           unless (pts == argts) $ -- this will have to be relaxed
             throwError $
               withPos pos $
@@ -247,32 +247,38 @@ checkAtom (ILambda ps e _ pos) = undefined
 checkAtom (Box is e t pos) = undefined
 
 checkType :: Type Text -> CheckM (Type VName)
-checkType (TVar v) = TVar <$> lookupVName v
-checkType Bool = pure Bool
-checkType Int = pure Int
-checkType Float = pure Float
-checkType (TArr t shape) = TArr <$> checkType t <*> checkShape shape
-checkType (as :-> b) = (:->) <$> mapM checkType as <*> checkType b
-checkType (Forall pts t) =
-  bindTypes pts $ do
-    pts' <- forM pts $ \(v, k) -> (,k) <$> lookupVName v
-    t' <- checkType t
-    pure $ Forall pts' t'
-checkType (DProd pts t) =
-  bindSorts pts $ do
-    pts' <- forM pts $ \(v, s) -> (,s) <$> lookupVName v
-    t' <- checkType t
-    pure $ DProd pts' t'
+checkType = fmap normType . checkType'
+  where
+    checkType' (TVar v) = TVar <$> lookupVName v
+    checkType' Bool = pure Bool
+    checkType' Int = pure Int
+    checkType' Float = pure Float
+    checkType' (TArr t shape) = TArr <$> checkType' t <*> checkShape shape
+    checkType' (as :-> b) = (:->) <$> mapM checkType' as <*> checkType' b
+    checkType' (Forall pts t) =
+      bindTypes pts $ do
+        pts' <- forM pts $ \(v, k) -> (,k) <$> lookupVName v
+        t' <- checkType' t
+        pure $ Forall pts' t'
+    checkType' (DProd pts t) =
+      bindSorts pts $ do
+        pts' <- forM pts $ \(v, s) -> (,s) <$> lookupVName v
+        t' <- checkType' t
+        pure $ DProd pts' t'
 
 checkDim :: Dim Text -> CheckM (Dim VName)
-checkDim (DimVar v) = DimVar <$> lookupVName v
-checkDim (Dim d) = pure $ Dim d
-checkDim (Add ds) = Add <$> mapM checkDim ds
+checkDim = fmap normDim . checkDim'
+  where
+    checkDim' (DimVar v) = DimVar <$> lookupVName v
+    checkDim' (Dim d) = pure $ Dim d
+    checkDim' (Add ds) = Add <$> mapM checkDim' ds
 
 checkShape :: Shape Text -> CheckM (Shape VName)
-checkShape (ShapeVar v) = ShapeVar <$> lookupVName v
-checkShape (ShapeDim d) = ShapeDim <$> checkDim d
-checkShape (Concat ss) = Concat <$> mapM checkShape ss
+checkShape = fmap normShape . checkShape'
+  where
+    checkShape' (ShapeVar v) = ShapeVar <$> lookupVName v
+    checkShape' (ShapeDim d) = ShapeDim <$> checkDim d
+    checkShape' (Concat ss) = Concat <$> mapM checkShape' ss
 
 withPrelude :: (Monad m) => CheckM a -> CheckM (Prelude VName m, a)
 withPrelude m = checkPrelude prelude mempty
