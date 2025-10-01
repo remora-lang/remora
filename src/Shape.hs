@@ -4,6 +4,15 @@ import Data.Bifunctor
 import Data.SBV
 import Prettyprinter
 
+data Sort
+  = SortShape
+  | SortDim
+  deriving (Show, Eq, Ord)
+
+instance Pretty Sort where
+  pretty SortShape = "Shape"
+  pretty SortDim = "Dim"
+
 data Dim v
   = DimVar v
   | Dim Int
@@ -39,11 +48,6 @@ instance (Show v, Pretty v) => Pretty (Shape v) where
   -- pretty (Shape is) = parens $ hsep ("shape" : map pretty is)
   pretty (Concat []) = "•"
   pretty (Concat is) = parens $ hsep ("++" : map pretty is)
-
-sepDim :: Shape v -> Either (Dim v) (Shape v)
-sepDim (ShapeDim d) = Left d
-sepDim (Concat [s]) = sepDim s
-sepDim s = Right s
 
 normDim :: (Eq v) => Dim v -> Dim v
 normDim (Dim n) = Dim n
@@ -91,3 +95,10 @@ peel = peel' . normShape
     peel' (ShapeDim d) = Just (d, mempty)
     peel' (Concat (s : ss)) = peel s
     peel' _ = Nothing
+
+compatSort :: (Eq v) => Sort -> Shape v -> Bool
+compatSort sort = compatSort' sort . normShape
+  where
+    compatSort' SortDim ShapeDim {} = True
+    compatSort' SortShape _ = True
+    compatSort' _ _ = False

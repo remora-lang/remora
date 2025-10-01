@@ -53,11 +53,6 @@ kindOf (TVar t) = do
 kindOf TArr {} = pure KindArray
 kindOf _ = pure KindAtom
 
-sortOf :: Shape VName -> Sort
--- This is shit (and wrongish), fix
-sortOf ShapeDim {} = SortDim
-sortOf _ = SortShape
-
 bindVName :: Text -> Type VName -> CheckM a -> CheckM a
 bindVName v t m = do
   envm <- asks envMap
@@ -211,16 +206,15 @@ checkExp iapp@(IApp e is _ pos) = do
   is' <- mapM checkShape is
   case typeOf e' of
     DProd pts r -> do
-      let sorts = map sortOf is'
-      unless (map snd pts == sorts) $
+      unless (all (uncurry compatSort) (zip (map snd pts) is')) $
         throwError $
           withPos pos $
             "Parameter and argument sorts don't match:\n"
               <> prettyText iapp
               <> "\n"
-              <> prettyText (map snd pts, sorts)
+              <> prettyText (map snd pts, is')
       let r' =
-            substitute' (zip (map fst pts) (map sepDim is')) r
+            substitute' (zip (map fst pts) is') r
       pure $ IApp e' is' (Typed r') pos
     t ->
       throwError $

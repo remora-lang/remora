@@ -44,15 +44,6 @@ instance Pretty Kind where
   pretty KindArray = "Array"
   pretty KindAtom = "Atom"
 
-data Sort
-  = SortShape
-  | SortDim
-  deriving (Show, Eq, Ord)
-
-instance Pretty Sort where
-  pretty SortShape = "Shape"
-  pretty SortDim = "Dim"
-
 data Base
   = BoolVal Bool
   | IntVal Int
