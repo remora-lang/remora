@@ -117,7 +117,6 @@ check ::
   Either Error (Prelude VName m, Exp Typed VName)
 check e = fst $ evalRWS (runExceptT $ runCheckM $ withPrelude $ checkExp e) initEnv initTag
 
--- All this does for now is convert all the `Text` variables to `VName` ones.
 checkExp :: Exp Unchecked Text -> CheckM (Exp Typed VName)
 checkExp (Var v _ pos) = do
   vname <- lookupVName v

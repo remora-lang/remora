@@ -82,10 +82,17 @@ prelude =
           [("t", KindAtom)]
           ( DProd
               [("m", SortDim), ("n", SortDim), ("s", SortShape)]
-              ( [ TArr (TVar "t") (Concat [ShapeVar "m", ShapeVar "s"]),
-                  TArr (TVar "t") (Concat [ShapeVar "n", ShapeVar "s"])
+              ( [ TArr (TVar "t") (Concat [ShapeDim $ DimVar "m", ShapeVar "s"]),
+                  TArr (TVar "t") (Concat [ShapeDim $ DimVar "n", ShapeVar "s"])
                 ]
-                  :-> TArr (TVar "t") (Concat [ShapeVar "m", ShapeVar "n", ShapeVar "s"])
+                  :-> TArr
+                    (TVar "t")
+                    ( Concat
+                        [ ShapeDim $ DimVar "m",
+                          ShapeDim $ DimVar "n",
+                          ShapeVar "s"
+                        ]
+                    )
               )
           )
       )
@@ -93,6 +100,27 @@ prelude =
           pure $ ValIFun $ \[[m], [n], s] ->
             pure $ ValFun $ \[ValArray _ xs, ValArray _ ys] ->
               pure $ ValArray (m + n : s) (xs ++ ys)
+      ),
+    PreludeVal
+      "reverse"
+      ( Forall
+          [("t", KindAtom)]
+          ( DProd
+              [("d", SortDim), ("s", SortShape)]
+              ( let arr_t =
+                      TArr
+                        (TVar "t")
+                        ( Concat
+                            [ShapeDim $ DimVar "d", ShapeVar "s"]
+                        )
+                 in [arr_t] :-> arr_t
+              )
+          )
+      )
+      ( ValTFun $ \[_t] ->
+          pure $ ValIFun $ \[[_d], _s] ->
+            pure $ ValFun $ \[ValArray shape xs] ->
+              pure $ ValArray shape (reverse xs)
       ),
     PreludeVal
       "+"
