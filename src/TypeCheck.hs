@@ -189,11 +189,12 @@ checkExp app@(App fes@(f : e : _) _ pos) = do
                       frame_a <- ShapeVar <$> newVName "a"
                       pure (frame_a <> shapeOf arg_t ==! shapeOf e', frame_a)
                   )
+          -- need to actually apply this subst
           subst <- solve constraints
           principal <- maximumM $ map (frame_f <>) frames
           let ret' =
                 case ret of
-                  TArr t' shape' -> TArr t' (Concat [principal, shape'])
+                  TArr t' shape' -> TArr t' (principal <> shape')
                   t -> TArr t principal
           pure $ App (f' : es') (Typed ret') pos
         _ ->
