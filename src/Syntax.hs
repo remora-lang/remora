@@ -12,6 +12,7 @@ module Syntax
     Exp (..),
     HasType (..),
     HasPos (..),
+    HasShape (..),
     isFunctionType,
     idxFromDims,
     normType,
@@ -241,6 +242,9 @@ instance HasShape (Atom f v) where
 instance HasShape (Type VName) where
   shapeOf (TArr t s) = s <> shapeOf t
   shapeOf _ = mempty
+
+instance (HasShape (Type v), HasType (Exp f v)) => HasShape (Exp f v) where
+  shapeOf = shapeOf . typeOf
 
 isFunctionType :: Type v -> Bool
 isFunctionType ((:->) _ _) = True

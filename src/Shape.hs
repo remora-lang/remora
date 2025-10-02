@@ -3,6 +3,7 @@ module Shape where
 import Control.Monad
 import Control.Monad.Identity
 import Data.Bifunctor
+import Data.Map (Map)
 import Data.SBV
 import Prettyprinter
 
@@ -105,14 +106,46 @@ compatSort sort = compatSort' sort . normShape
     compatSort' SortShape _ = True
     compatSort' _ _ = False
 
+data Constraint v
+  = LTE (Shape v) (Shape v)
+  | (:&&) (Constraint v) (Constraint v)
+  | Not (Constraint v)
+
+deriving instance (Show v) => Show (Constraint v)
+
+deriving instance (Eq v) => Eq (Constraint v)
+
+(<!) :: Shape v -> Shape v -> Constraint v
+s <! t = s <=! t :&& s /=! t
+
+(>!) :: Shape v -> Shape v -> Constraint v
+s >! t = Not $ s <=! t
+
+(<=!) :: Shape v -> Shape v -> Constraint v
+(<=!) = LTE
+
+(>=!) :: Shape v -> Shape v -> Constraint v
+s >=! t = Not $ s <! t
+
+(==!) :: Shape v -> Shape v -> Constraint v
+s ==! t = s <=! t :&& s >=! t
+
+(/=!) :: Shape v -> Shape v -> Constraint v
+s /=! t = Not $ s ==! t
+
+infix 4 <!, <=!, >!, >=!, ==!, /=!
+
+infixr 3 :&&
+
 class (Monad m) => MonadShape v m where
   (<?), (<=?), (>?), (>=?), (==?), (/=?) :: Shape v -> Shape v -> m Bool
+  solve :: [Constraint v] -> m (Map v (Shape v))
   s <? t = (&&) <$> (s <=? t) <*> (s /=?) t
   s >? t = not <$> (s <=? t)
   s >=? t = not <$> (s <? t)
   s ==? t = (&&) <$> (s <=? t) <*> (s >=? t)
   s /=? t = not <$> (s ==? t)
-  {-# MINIMAL (<=?) #-}
+  {-# MINIMAL (<=?), solve #-}
 
 infix 4 <?, <=?, >?, >=?, ==?, /=?
 
