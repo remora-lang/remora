@@ -13,45 +13,44 @@ import Control.Monad.Trans
 import Control.Monad.Trans.State (StateT, evalStateT)
 import Data.Map (Map)
 import Data.Map qualified as M
-import Data.SBV hiding (MonadSymbolic, Symbolic, prove, symbolic)
+import Data.SBV hiding (MonadSymbolic, Symbolic, prove, sat, symbolic)
 import Data.SBV qualified as SBV
 import Data.SBV.Control
-import Data.SBV.Internals (SolverContext)
+import Data.SBV.Internals (SolverContext (..))
 import Data.SBV.List qualified as SL
 import Data.SBV.RegExp
 import Data.SBV.Trans qualified as SBV.Trans
 import Data.SBV.Tuple
 import GHC.IsList
 import Prettyprinter
-import Shape hiding (Shape)
-import Shape qualified
+import Shape
 import System.IO.Unsafe
 import Util
 import VName
 
 type SShape = SList Integer
 
-data SEnv
+data SEnv v
   = SEnv
-  { senvMap :: Map VName SShape
+  { senvMap :: Map v SShape
   }
 
-initSEnv :: SEnv
+initSEnv :: (Ord v) => SEnv v
 initSEnv = SEnv mempty
 
-type MonadSymbolic m =
+type MonadSymbolic v m =
   ( SBV.MonadSymbolic m,
-    MonadState SEnv m,
+    MonadState (SEnv v) m,
+    Ord v,
+    Pretty v,
     SolverContext m,
     MonadIO m
   )
 
-type Shape = Shape.Shape VName
-
-symbolic :: (MonadSymbolic m, SymVal a) => String -> m (SBV a)
+symbolic :: (MonadSymbolic v m, SymVal a) => String -> m (SBV a)
 symbolic = SBV.Trans.symbolic
 
-lookupSym :: (MonadSymbolic m) => VName -> m SShape
+lookupSym :: (MonadSymbolic v m) => v -> m SShape
 lookupSym v = do
   msym <- gets $ (M.!? v) . senvMap
   case msym of
@@ -61,7 +60,7 @@ lookupSym v = do
       pure sym
     Just sym -> pure sym
 
-toSShape :: (MonadSymbolic m) => Shape -> m SShape
+toSShape :: (MonadSymbolic v m) => Shape v -> m SShape
 toSShape (ShapeVar v) = lookupSym v
 toSShape (ShapeDim d) = do
   sym_d <- symDim d
@@ -84,26 +83,39 @@ toSShape (Concat ss) =
 -- This may not work; stateful actions might need to be performed
 -- in isolation of constraint generation.
 -- https://github.com/LeventErkok/sbv/blob/7c8640c200c539c9a5e7d46ba705fa11ddd65835/Data/SBV/Utils/ExtractIO.hs#L27
-type Symbolic = StateT SEnv SBV.Symbolic
+type Symbolic v = StateT (SEnv v) SBV.Symbolic
 
-evalState :: Symbolic a -> SBV.Symbolic a
+evalState :: (Ord v) => Symbolic v a -> SBV.Symbolic a
 evalState = flip evalStateT initSEnv
 
-runSymbolic :: Symbolic a -> IO a
+runSymbolic :: (Ord v) => Symbolic v a -> IO a
 runSymbolic = runSMT . evalState
 
--- prove :: (Provable a) => Symbolic a -> IO ThmResult
--- prove = SBV.prove . evalState
+prove :: (Ord v) => Symbolic v SBool -> IO ThmResult
+prove = SBV.prove . evalState
 
--- eqShapes :: Shape -> Shape -> Bool
--- eqShapes s t = unsafePerformIO m
---  where
---    m :: IO Bool
---    m =
---      modelExists
---        <$> ( prove
---                ( (.==)
---                    <$> toSShape s
---                    <*> toSShape t
---                )
---            )
+sat :: (Ord v) => Symbolic v SBool -> IO SatResult
+sat = SBV.sat . evalState
+
+instance SolverContext (Symbolic v) where
+  constrain = lift . constrain
+  softConstrain = lift . softConstrain
+  namedConstraint s a = lift $ namedConstraint s a
+  constrainWithAttribute cs a = lift $ constrainWithAttribute cs a
+  setInfo s ss = lift $ setInfo s ss
+  setOption = lift . setOption
+  setLogic = lift . setLogic
+  setTimeOut = lift . setTimeOut
+  contextState = undefined
+
+eqShapes :: (Ord v, Pretty v) => Shape v -> Shape v -> ThmResult
+eqShapes s t =
+  unsafePerformIO $
+    prove $
+      (.==) <$> toSShape s <*> toSShape t
+
+satShapes :: (Ord v, Pretty v) => Shape v -> Shape v -> SatResult
+satShapes s t =
+  unsafePerformIO $
+    sat $
+      (.==) <$> toSShape s <*> toSShape t
