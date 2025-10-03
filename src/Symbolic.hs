@@ -13,7 +13,8 @@ import Control.Monad.Trans
 import Control.Monad.Trans.State (StateT, evalStateT)
 import Data.Map (Map)
 import Data.Map qualified as M
-import Data.SBV hiding (MonadSymbolic, Symbolic, prove, sat, symbolic)
+import Data.Maybe
+import Data.SBV hiding (MonadSymbolic, Symbolic, free, prove, sat, symbolic)
 import Data.SBV qualified as SBV
 import Data.SBV.Control
 import Data.SBV.Internals (SolverContext (..))
@@ -21,9 +22,12 @@ import Data.SBV.List qualified as SL
 import Data.SBV.RegExp
 import Data.SBV.Trans qualified as SBV.Trans
 import Data.SBV.Tuple
+import Data.Set qualified as S
+import Free
 import GHC.IsList
 import Prettyprinter
 import Shape
+import Substitute
 import System.IO.Unsafe
 import Util
 import VName
@@ -115,8 +119,38 @@ eqShapes s t =
     prove $
       (.==) <$> toSShape s <*> toSShape t
 
-satShapes :: (Ord v, Pretty v) => Shape v -> Shape v -> SatResult
-satShapes s t =
+satShapes' :: (Ord v, Pretty v) => Shape v -> Shape v -> SatResult
+satShapes' s t =
   unsafePerformIO $
     sat $
       (.==) <$> toSShape s <*> toSShape t
+
+satShapes ::
+  (Ord v, Pretty v) =>
+  Shape v ->
+  Shape v ->
+  (Shape v, Map v (Shape v))
+satShapes s t =
+  (substitute subst s, subst)
+  where
+    res = satShapes' s t
+    subst = mkSatMap res [s, t]
+
+mkSatMap ::
+  (Free v x, Foldable t, Pretty v, Ord v) =>
+  SatResult ->
+  t x ->
+  Map v (Shape v)
+mkSatMap res xs =
+  M.fromList
+    $ map
+      ( \v ->
+          ( v,
+            Concat $
+              map (ShapeDim . Dim . fromInteger) $
+                fromJust $
+                  getModelValue (prettyString v) res
+          )
+      )
+    $ S.toList
+    $ foldMap free xs

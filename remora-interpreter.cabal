@@ -37,6 +37,7 @@ library
       RemoraPrelude
       Substitute
       Symbolic
+      Free
     -- other-modules:
     -- other-extensions:
     build-depends:
