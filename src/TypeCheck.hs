@@ -7,6 +7,7 @@ import Control.Monad.RWS
 import Control.Monad.Trans.Except
 import Data.Map (Map)
 import Data.Map qualified as M
+import Data.SBV qualified as SBV
 import Data.Text (Text)
 import Data.Text qualified as T
 import Interpreter.Value
@@ -14,6 +15,7 @@ import Prettyprinter
 import RemoraPrelude
 import Substitute
 import SymTable
+import Symbolic
 import Syntax
 import Text.Megaparsec.Pos (SourcePos)
 import Util
@@ -97,7 +99,6 @@ type MonadCheck m =
     MonadReader Env m,
     MonadState Tag m,
     MonadError Error m,
-    MonadShape VName m,
     MonadSymTable m VName (Type VName),
     MonadSymTable m VName Kind
   )
@@ -111,8 +112,6 @@ newtype CheckM a = CheckM {runCheckM :: ExceptT Error (RWS Env () Tag) a}
       MonadState Tag,
       MonadError Error
     )
-
-instance MonadShape VName CheckM
 
 instance MonadSymTable CheckM VName (Type VName) where
   askSymTable = asks envType
@@ -183,16 +182,20 @@ checkExp app@(App fes@(f : e : _) _ pos) = do
                   <> prettyText (pts, argts)
           pure $ App (f' : es') (Typed ret) pos
         TArr (pts :-> ret) frame_f -> do
-          (constraints, frames) <-
-            unzip
+          (arg_shapes, substs, frames) <-
+            unzip3
               <$> ( forM (zip pts es') $ \(arg_t, e') -> do
                       frame_a <- ShapeVar <$> newVName "a"
-                      pure (frame_a <> shapeOf arg_t ==! shapeOf e', frame_a)
+                      let (s, subst) =
+                            satShapes
+                              (SBV..==)
+                              (frame_a <> shapeOf arg_t)
+                              (shapeOf e')
+                      pure (s, subst, frame_a)
                   )
-          -- need to actually apply this subst
-          subst <- solve constraints
-          principal <- maximumM $ map (frame_f <>) frames
-          let ret' =
+          let frames' = zipWith substitute substs frames
+              principal = maximumShape $ map (frame_f <>) frames'
+              ret' =
                 case ret of
                   TArr t' shape' -> TArr t' (principal <> shape')
                   t -> TArr t principal

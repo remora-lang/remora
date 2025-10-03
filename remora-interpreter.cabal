@@ -38,6 +38,7 @@ library
       Substitute
       Symbolic
       Free
+      Reason
     -- other-modules:
     -- other-extensions:
     build-depends:
