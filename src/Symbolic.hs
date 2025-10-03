@@ -81,6 +81,9 @@ toSShape (ShapeDim d) = do
 toSShape (Concat ss) =
   (SL.concat . fromList) <$> mapM toSShape ss
 
+-- This may not work; stateful actions might need to be performed
+-- in isolation of constraint generation.
+-- https://github.com/LeventErkok/sbv/blob/7c8640c200c539c9a5e7d46ba705fa11ddd65835/Data/SBV/Utils/ExtractIO.hs#L27
 type Symbolic = StateT SEnv SBV.Symbolic
 
 evalState :: Symbolic a -> SBV.Symbolic a
