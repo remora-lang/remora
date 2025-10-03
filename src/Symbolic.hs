@@ -106,7 +106,8 @@ instance SolverContext (Symbolic v) where
   setOption = lift . setOption
   setLogic = lift . setLogic
   setTimeOut = lift . setTimeOut
-  contextState = undefined
+  contextState = lift contextState
+  internalVariable = lift . internalVariable
 
 eqShapes :: (Ord v, Pretty v) => Shape v -> Shape v -> ThmResult
 eqShapes s t =
