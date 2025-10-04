@@ -1,5 +1,6 @@
 module Interpreter where
 
+import Control.Monad
 import Control.Monad.Error.Class
 import Control.Monad.Reader
 import Control.Monad.Trans.Except
@@ -86,7 +87,7 @@ intExp (Frame shape es _ _) =
   ValArray shape <$> mapM intExp es
 intExp (EmptyFrame shape _ _ _) =
   pure $ ValArray shape mempty
-intExp (App (f : es) _ _) = do
+intExp (App (f : es) (Typed r) _) = do
   f' <- intExp f
   es' <- mapM intExp es
   apply f' es'
@@ -135,6 +136,9 @@ tbinds ((v, t) : vts) m =
 
 iapply :: Val -> [[Int]] -> InterpM Val
 iapply (ValIFun f) shapes = f shapes
+iapply (ValArray shape fs) shapes = do
+  vs <- mapM (flip iapply shapes) fs
+  pure $ ValArray shape vs
 iapply v _ = error $ prettyString v
 
 tapply :: Val -> [Type] -> InterpM Val
@@ -147,6 +151,9 @@ tapply (ValVar f) ts = do
     ValTFun func -> func ts
     _ -> throwError $ "cannot apply: " <> prettyText f'
 tapply (ValTFun f) ts = f ts
+tapply (ValArray shape fs) ts = do
+  vs <- mapM (flip tapply ts) fs
+  pure $ ValArray shape vs
 tapply v _ = error $ prettyString v
 
 apply :: Val -> [Val] -> InterpM Val
@@ -159,6 +166,9 @@ apply (ValVar f) args = do
     ValLambda {} -> apply f' args
     ValFun func -> func args
     _ -> throwError $ "cannot apply: " <> prettyText f'
+apply (ValArray shape fs) args = do
+  vs <- mapM (flip apply args) fs
+  pure $ ValArray shape vs
 apply (ValFun f) args = f args
 
 intAtom :: Atom -> InterpM Val

@@ -195,10 +195,7 @@ checkExp app@(App fes@(f : e : _) _ pos) = do
                   )
           let frames' = zipWith substitute substs frames
               principal = maximumShape $ map (frame_f <>) frames'
-              ret' =
-                case ret of
-                  TArr t' shape' -> TArr t' (principal <> shape')
-                  t -> TArr t principal
+              ret' = TArr ret principal
           pure $ App (f' : es') (Typed ret') pos
         _ ->
           throwError $
@@ -224,6 +221,17 @@ checkExp tapp@(TApp e ts _ pos) = do
               <> prettyText (pts, ts')
       let r' = substitute' (zip (map fst pts) ts') r
       pure $ TApp e' ts' (Typed r') pos
+    TArr (Forall pts r) frame_f -> do
+      ks <- mapM kindOf ts'
+      unless (map snd pts == ks) $
+        throwError $
+          withPos pos $
+            "Parameter and argument kinds don't match:\n"
+              <> prettyText tapp
+              <> "\n"
+              <> prettyText (pts, ts')
+      let r' = substitute' (zip (map fst pts) ts') r
+      pure $ TApp e' ts' (Typed (TArr r' frame_f)) pos
     t ->
       throwError $
         withPos pos $
@@ -246,6 +254,17 @@ checkExp iapp@(IApp e is _ pos) = do
       let r' =
             substitute' (zip (map fst pts) is') r
       pure $ IApp e' is' (Typed r') pos
+    TArr (DProd pts r) frame_f -> do
+      unless (all (uncurry compatSort) (zip (map snd pts) is')) $
+        throwError $
+          withPos pos $
+            "Parameter and argument sorts don't match:\n"
+              <> prettyText iapp
+              <> "\n"
+              <> prettyText (map snd pts, is')
+      let r' =
+            substitute' (zip (map fst pts) is') r
+      pure $ IApp e' is' (Typed (TArr r' frame_f)) pos
     t ->
       throwError $
         withPos pos $

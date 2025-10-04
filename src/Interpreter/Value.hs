@@ -1,7 +1,7 @@
 module Interpreter.Value (Val (..)) where
 
 import Prettyprinter
-import Syntax hiding (Atom, Exp, Shape, Type)
+import Syntax hiding (Atom, Exp, HasShape (..), Shape, Type)
 import Syntax qualified
 import VName
 
@@ -98,3 +98,19 @@ instance Pretty (Val m) where
   pretty ValFun {} = "#<fun>"
   pretty ValTFun {} = "#<tfun>"
   pretty ValIFun {} = "#<ifun>"
+
+shapeOf :: Val m -> [Int]
+shapeOf (ValArray s _) = s
+shapeOf _ = mempty
+
+lift :: [Int] -> Val m -> Val m
+lift [] v = v
+lift shape@(d : ds) v =
+  ValArray (shape <> shapeOf v) $ replicate d elems
+  where
+    elems = lift ds v
+
+-- where
+--  rep [] _ = ValArray mempty mempty
+--  rep [d] v = ValArray [d] $ replicate d v
+--  rep (d : ds) v = replicate d $ rep ds v
