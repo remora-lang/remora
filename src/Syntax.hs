@@ -153,7 +153,6 @@ data Exp f v
   | TApp (Exp f v) [Type v] (f (Type v)) SourcePos
   | IApp (Exp f v) [Shape v] (f (Type v)) SourcePos
   | Unbox [v] (Exp f v) (Exp f v) (f (Type v)) SourcePos
-  | Atom (Atom f v)
 
 deriving instance (Show v) => Show (Exp Unchecked v)
 
@@ -181,7 +180,6 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Exp f v) where
     parens $ "i-app" <+> pretty e <+> hsep (map pretty is)
   pretty (Unbox vs e b _ _) =
     parens $ "unbox" <+> (parens (hsep (map pretty vs ++ [pretty e]))) <+> pretty b
-  pretty (Atom a) = pretty a
 
 class HasType x where
   typeOf :: x -> Type VName
@@ -208,7 +206,6 @@ instance HasType (Exp Typed VName) where
   typeOf (TApp _ _ (Typed t) _) = t
   typeOf (IApp _ _ (Typed t) _) = t
   typeOf (Unbox _ _ _ (Typed t) _) = t
-  typeOf (Atom a) = typeOf a
 
 class HasPos x where
   posOf :: x -> SourcePos
@@ -230,7 +227,6 @@ instance HasPos (Exp f v) where
   posOf (TApp _ _ _ pos) = pos
   posOf (IApp _ _ _ pos) = pos
   posOf (Unbox _ _ _ _ pos) = pos
-  posOf (Atom a) = posOf a
 
 class HasShape x where
   shapeOf :: x -> Shape VName

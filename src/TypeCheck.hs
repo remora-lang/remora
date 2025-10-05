@@ -273,7 +273,6 @@ checkExp iapp@(IApp e is _ pos) = do
             <> "\n"
             <> prettyText t
 checkExp (Unbox vs e b _ pos) = undefined
-checkExp (Atom a) = Atom <$> checkAtom a
 
 checkAtom :: (MonadCheck m) => Atom Unchecked Text -> m (Atom Typed VName)
 checkAtom (Base b _ pos) =

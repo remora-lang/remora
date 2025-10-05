@@ -105,7 +105,6 @@ intExp (IApp e is _ _) = do
   e' <- intExp e
   is' <- mapM intShape is
   iapply e' is'
-intExp (Syntax.Atom a) = intAtom a
 
 intDim :: Dim -> InterpM Int
 intDim = pure . intDim'

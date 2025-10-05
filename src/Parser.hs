@@ -178,23 +178,20 @@ pAtom =
 
 pExp :: Parser Exp
 pExp =
-  withSrcPos
-    ( withUnchecked
-        ( choice
-            [ Var <$> lId,
-              parens $
-                choice
-                  [ Array <$> (lKeyword "array" >> pShapeLit) <*> some pAtom,
-                    Frame <$> (lKeyword "frame" >> pShapeLit) <*> some pExp,
-                    (. const Unchecked) <$> (App <$> ((:) <$> pExp <*> some pExp)),
-                    lKeyword "i-app" >> IApp <$> pExp <*> (some pShape),
-                    lKeyword "t-app" >> TApp <$> pExp <*> (some pType),
-                    pUnbox
-                  ]
-            ]
-        )
-    )
-    <|> (Syntax.Atom <$> pAtom)
+  withSrcPos $
+    withUnchecked $
+      choice
+        [ Var <$> lId,
+          parens $
+            choice
+              [ Array <$> (lKeyword "array" >> pShapeLit) <*> some pAtom,
+                Frame <$> (lKeyword "frame" >> pShapeLit) <*> some pExp,
+                (. const Unchecked) <$> (App <$> ((:) <$> pExp <*> some pExp)),
+                lKeyword "i-app" >> IApp <$> pExp <*> (some pShape),
+                lKeyword "t-app" >> TApp <$> pExp <*> (some pType),
+                pUnbox
+              ]
+        ]
   where
     pShapeLit = parens $ many pDecimal
     pUnbox =

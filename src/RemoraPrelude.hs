@@ -133,5 +133,23 @@ prelude =
       ([TArr Int mempty, TArr Int mempty] :-> TArr Int mempty)
       ( ValFun $ \[ValArray _ [ValBase (IntVal x)], ValArray _ [ValBase (IntVal y)]] ->
           pure $ ValArray mempty [ValBase $ IntVal $ x - y]
+      ),
+    PreludeVal
+      "sum"
+      ( DProd
+          [("s", SortShape)]
+          ( [ TArr
+                Int
+                (ShapeVar "s")
+            ]
+              :-> TArr Int mempty
+          )
+      )
+      ( let valSum :: Val m -> Int
+            valSum (ValBase (IntVal x)) = x
+            valSum (ValArray _ vs) = sum $ map valSum vs
+         in ValIFun $ \[_s] ->
+              pure $ ValFun $ \[xs] ->
+                pure $ ValArray mempty [ValBase $ IntVal $ valSum xs]
       )
   ]
