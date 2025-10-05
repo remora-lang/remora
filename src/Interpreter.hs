@@ -4,6 +4,7 @@ import Control.Monad
 import Control.Monad.Error.Class
 import Control.Monad.Reader
 import Control.Monad.Trans.Except
+import Data.List qualified as L
 import Data.Map (Map)
 import Data.Map qualified as M
 import Data.Text (Text)
@@ -87,10 +88,16 @@ intExp (Frame shape es _ _) =
   ValArray shape <$> mapM intExp es
 intExp (EmptyFrame shape _ _ _) =
   pure $ ValArray shape mempty
-intExp (App (f : es) (Typed r) _) = do
+intExp (App (f : es) (Typed (r, principal)) _) = do
+  shape_p <- intShape principal
   f' <- intExp f
   es' <- mapM intExp es
-  apply f' es'
+  case typeOf f of
+    TArr (arg_ts :-> _) _ -> do
+      shape_is <- mapM (intShape . shapeOf) arg_ts
+      let (f'', es'') = lift' shape_p shape_is f' es'
+      map' shape_is f'' es''
+    _ -> error ""
 intExp (TApp e ts _ _) = do
   e' <- intExp e
   tapply e' ts
@@ -167,7 +174,7 @@ apply (ValVar f) args = do
     ValFun func -> func args
     _ -> throwError $ "cannot apply: " <> prettyText f'
 apply (ValArray shape fs) args = do
-  vs <- mapM (flip apply args) fs
+  vs <- zipWithM apply fs (map pure args)
   pure $ ValArray shape vs
 apply (ValFun f) args = f args
 
@@ -178,3 +185,34 @@ intAtom (TLambda ps e _ _) = pure $ ValTLambda ps e
 intAtom (ILambda ps e _ _) = pure $ ValILambda ps e
 intAtom (Box is e t _) =
   ValBox is <$> intExp e <*> pure t -- fix
+
+map' :: [[Int]] -> Val -> [Val] -> InterpM Val
+map' shape_is (ValArray shape_f fs) args = do
+  vs <-
+    zipWithM
+      ( \f args -> do
+          apply f (zipWith ValArray shape_is args)
+      )
+      fs
+      arg_splits
+  pure $ ValArray shape_f vs
+  where
+    arg_splits =
+      L.transpose $ zipWith arg_split shape_is args
+    arg_split shape_param arg@(ValArray shape_arg as) =
+      split nc $ as
+      where
+        nc = product shape_param
+
+lift' :: [Int] -> [[Int]] -> Val -> [Val] -> (Val, [Val])
+lift' shape_p shape_is (ValArray shape_fs fs) args =
+  (ValArray shape_p fs', zipWith lift_arg shape_is args)
+  where
+    nfe = product shape_p `div` product shape_fs
+    fs' = concat $ rep nfe $ split 1 fs
+
+    lift_arg shape_param arg@(ValArray shape_arg as) =
+      ValArray (shape_p <> shape_param) $ concat $ rep nae $ split nac as
+      where
+        nae = product shape_p `div` product (prefix shape_arg shape_param)
+        nac = product shape_param

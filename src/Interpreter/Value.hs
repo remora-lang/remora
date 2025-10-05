@@ -1,5 +1,14 @@
-module Interpreter.Value (Val (..)) where
+module Interpreter.Value
+  ( Val (..),
+    lift,
+    liftTo,
+    prefix,
+    split,
+    rep,
+  )
+where
 
+import Data.List qualified as L
 import Prettyprinter
 import Syntax hiding (Atom, Exp, HasShape (..), Shape, Type)
 import Syntax qualified
@@ -61,6 +70,8 @@ instance Show (Val m)
 instance Pretty (Val m) where
   pretty (ValVar v) = pretty v
   pretty (ValBase b) = pretty b
+  pretty (ValArray [] [v]) =
+    pretty v
   pretty (ValArray shape vs) =
     group $ encloseSep "[" "]" ("," <> line) (map pretty vs)
   pretty (ValLambda pts e) =
@@ -110,7 +121,20 @@ lift shape@(d : ds) v =
   where
     elems = lift ds v
 
--- where
---  rep [] _ = ValArray mempty mempty
---  rep [d] v = ValArray [d] $ replicate d v
---  rep (d : ds) v = replicate d $ rep ds v
+liftTo :: [Int] -> Val m -> Val m
+liftTo shape v = lift (take (length shape - length (shapeOf v)) shape) v
+
+split :: Int -> [a] -> [[a]]
+split _ [] = []
+split n as = take n as : split n (drop n as)
+
+rep :: Int -> [a] -> [a]
+rep n = concat . replicate n
+
+prefix :: [Int] -> [Int] -> [Int]
+prefix as bs = prefix' [] as
+  where
+    prefix' as [] = as
+    prefix' as' (a : as)
+      | (a : as) `L.isPrefixOf` bs = as'
+      | otherwise = prefix' (as' ++ [a]) as

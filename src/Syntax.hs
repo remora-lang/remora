@@ -149,7 +149,7 @@ data Exp f v
   | EmptyArray [Int] (Type v) (f (Type v)) SourcePos
   | Frame [Int] [Exp f v] (f (Type v)) SourcePos
   | EmptyFrame [Int] (Type v) (f (Type v)) SourcePos
-  | App [Exp f v] (f (Type v)) SourcePos
+  | App [Exp f v] (f (Type v, Shape v)) SourcePos
   | TApp (Exp f v) [Type v] (f (Type v)) SourcePos
   | IApp (Exp f v) [Shape v] (f (Type v)) SourcePos
   | Unbox [v] (Exp f v) (Exp f v) (f (Type v)) SourcePos
@@ -204,7 +204,7 @@ instance HasType (Exp Typed VName) where
   typeOf (EmptyArray _ _ (Typed t) _) = t
   typeOf (Frame _ _ (Typed t) _) = t
   typeOf (EmptyFrame _ _ (Typed t) _) = t
-  typeOf (App _ (Typed t) _) = t
+  typeOf (App _ (Typed (t, _)) _) = t
   typeOf (TApp _ _ (Typed t) _) = t
   typeOf (IApp _ _ (Typed t) _) = t
   typeOf (Unbox _ _ _ (Typed t) _) = t

@@ -124,8 +124,14 @@ prelude =
       ),
     PreludeVal
       "+"
-      ([Int, Int] :-> Int)
-      ( ValFun $ \[ValBase (IntVal x), ValBase (IntVal y)] ->
-          pure $ ValBase $ IntVal $ x + y
+      ([TArr Int mempty, TArr Int mempty] :-> TArr Int mempty)
+      ( ValFun $ \[ValArray _ [ValBase (IntVal x)], ValArray _ [ValBase (IntVal y)]] ->
+          pure $ ValArray mempty [ValBase $ IntVal $ x + y]
+      ),
+    PreludeVal
+      "-"
+      ([TArr Int mempty, TArr Int mempty] :-> TArr Int mempty)
+      ( ValFun $ \[ValArray _ [ValBase (IntVal x)], ValArray _ [ValBase (IntVal y)]] ->
+          pure $ ValArray mempty [ValBase $ IntVal $ x - y]
       )
   ]

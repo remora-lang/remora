@@ -171,16 +171,16 @@ checkExp app@(App fes@(f : e : _) _ pos) = do
   case fes' of
     (f' : es') ->
       case normType $ typeOf f' of
-        pts :-> ret -> do
-          let argts = map (normType . typeOf) es'
-          unless (pts == argts) $ -- this will have to be relaxed
-            throwError $
-              withPos pos $
-                "Parameter and argument types don't match:\n"
-                  <> prettyText app
-                  <> "\n"
-                  <> prettyText (pts, argts)
-          pure $ App (f' : es') (Typed ret) pos
+        -- pts :-> ret -> do
+        --  let argts = map (normType . typeOf) es'
+        --  unless (pts == argts) $ -- this will have to be relaxed
+        --    throwError $
+        --      withPos pos $
+        --        "Parameter and argument types don't match:\n"
+        --          <> prettyText app
+        --          <> "\n"
+        --          <> prettyText (pts, argts)
+        --  pure $ App (f' : es') (Typed ret) pos
         TArr (pts :-> ret) frame_f -> do
           (arg_shapes, substs, frames) <-
             unzip3
@@ -196,7 +196,7 @@ checkExp app@(App fes@(f : e : _) _ pos) = do
           let frames' = zipWith substitute substs frames
               principal = maximumShape $ map (frame_f <>) frames'
               ret' = TArr ret principal
-          pure $ App (f' : es') (Typed ret') pos
+          pure $ App (f' : es') (Typed (ret', principal)) pos
         _ ->
           throwError $
             withPos pos $
