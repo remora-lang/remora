@@ -7,7 +7,7 @@ import Control.Monad.RWS
 import Control.Monad.Trans.Except
 import Data.Map (Map)
 import Data.Map qualified as M
-import Data.SBV qualified as SBV
+-- import Data.SBV qualified as SBV
 import Data.Text (Text)
 import Data.Text qualified as T
 import Interpreter.Value
@@ -15,7 +15,7 @@ import Prettyprinter
 import RemoraPrelude
 import Substitute
 import SymTable
-import Symbolic
+-- import Symbolic
 import Syntax
 import Text.Megaparsec.Pos (SourcePos)
 import Util
@@ -201,7 +201,7 @@ checkExp app@(App fes@(f : e : _) _ pos) = do
                         Just frame_a ->
                           pure (shapeOf e', frame_a)
                   )
-          let principal = maximumShape $ map (frame_f <>) frames
+          let principal = undefined -- maximumShape $ map (frame_f <>) frames
               ret' = TArr ret principal
           pure $ App (f' : es') (Typed (ret', principal)) pos
         _ ->
