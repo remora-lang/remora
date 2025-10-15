@@ -1,5 +1,5 @@
 cabal-version:      3.0
-name:               remora-interpreter
+name:               remora-lang
 version:            0.1.0.0
 -- synopsis:
 -- description:
@@ -64,9 +64,9 @@ executable remora
         base ^>=4.19.2.0,
         cmdargs,
         haskeline,
-        remora-interpreter
+        remora-lang
 
-test-suite remora-interpreter-test
+test-suite remora-lang-test
     import:           common
     -- other-modules:
     -- other-extensions:
@@ -75,4 +75,4 @@ test-suite remora-interpreter-test
     main-is:          Main.hs
     build-depends:
         base ^>=4.19.2.0,
-        remora-interpreter
+        remora-lang

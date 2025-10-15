@@ -1,0 +1,4 @@
+packages: remora-lang.cabal
+
+package remora-lang
+  ghc-options: -j
