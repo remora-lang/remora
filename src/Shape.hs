@@ -101,3 +101,12 @@ compatSort sort = compatSort' sort . normShape
     compatSort' SortDim ShapeDim {} = True
     compatSort' SortShape _ = True
     compatSort' _ _ = False
+
+(\\) :: (Eq v, Show v) => Shape v -> Shape v -> Maybe (Shape v)
+s \\ t
+  | s == t = Just mempty
+Concat [] \\ t = Nothing
+s \\ Concat [] = pure s
+(Concat ss) \\ (Concat ts)
+  | last ss == last ts = Concat (init ss) \\ Concat (init ts)
+s \\ t = error $ show (s, t)

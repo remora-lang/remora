@@ -171,30 +171,37 @@ checkExp app@(App fes@(f : e : _) _ pos) = do
   case fes' of
     (f' : es') ->
       case normType $ typeOf f' of
-        -- pts :-> ret -> do
-        --  let argts = map (normType . typeOf) es'
-        --  unless (pts == argts) $ -- this will have to be relaxed
-        --    throwError $
-        --      withPos pos $
-        --        "Parameter and argument types don't match:\n"
-        --          <> prettyText app
-        --          <> "\n"
-        --          <> prettyText (pts, argts)
-        --  pure $ App (f' : es') (Typed ret) pos
+        -- TArr (pts :-> ret) frame_f -> do
+        --   (arg_shapes, substs, frames) <-
+        --     unzip3
+        --       <$> ( forM (zip pts es') $ \(arg_t, e') -> do
+        --               frame_a <- ShapeVar <$> newVName "a"
+        --               let (s, subst) =
+        --                     satShapes
+        --                       (SBV..==)
+        --                       (frame_a <> shapeOf arg_t)
+        --                       (shapeOf e')
+        --               pure (s, subst, frame_a)
+        --           )
+        --   let frames' = zipWith substitute substs frames
+        --       principal = maximumShape $ map (frame_f <>) frames'
+        --       ret' = TArr ret principal
+        --   pure $ App (f' : es') (Typed (ret', principal)) pos
         TArr (pts :-> ret) frame_f -> do
-          (arg_shapes, substs, frames) <-
-            unzip3
+          (arg_shapes, frames) <-
+            unzip
               <$> ( forM (zip pts es') $ \(arg_t, e') -> do
-                      frame_a <- ShapeVar <$> newVName "a"
-                      let (s, subst) =
-                            satShapes
-                              (SBV..==)
-                              (frame_a <> shapeOf arg_t)
-                              (shapeOf e')
-                      pure (s, subst, frame_a)
+                      case normShape (shapeOf e') \\ normShape (shapeOf arg_t) of
+                        Nothing ->
+                          throwError $
+                            "Incompatible: "
+                              <> prettyText (shapeOf e')
+                              <> "\n"
+                              <> prettyText (shapeOf arg_t)
+                        Just frame_a ->
+                          pure (shapeOf e', frame_a)
                   )
-          let frames' = zipWith substitute substs frames
-              principal = maximumShape $ map (frame_f <>) frames'
+          let principal = maximumShape $ map (frame_f <>) frames
               ret' = TArr ret principal
           pure $ App (f' : es') (Typed (ret', principal)) pos
         _ ->
