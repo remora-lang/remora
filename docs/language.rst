@@ -63,7 +63,7 @@ Patterns, Atoms, and Expressions
      : | "(" "frame" `shape_lit` `type` ")"
      : | "[" `atom`+ "]"
      : | "[" `exp`+ "]"
-     : | "(" `exp` `type_app`* `index_app`* `exp`* ")"
+     : | "(" `exp` `type_app`? `index_app`? `exp`* ")"
      : | "(" "unbox" "(" `pat`+ ")" `exp` ")"
      : | "(" "let" "(" `pat`+ ")" `exp` ")"
    op : "+" | "-" | "iota" | ...
