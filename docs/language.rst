@@ -52,9 +52,7 @@ Patterns, Atoms, and Expressions
    pat : `id` | "_"
    atom : `base`
       : | `op`
-      : | "(" "fn" "(" ("(" `id` ":" `type` ")")+ ")" `exp` ")"
-      : | "(" "t-fn" "(" type_param* ")" `exp` ")"
-      : | "(" "i-fn" "[" index_param* "]" `exp` ")"
+      : | "(" "fn" ("(" type_param* ")")? ("[" index_param* "]")? "(" ("(" `id` ":" `type` ")")* ")" `exp` ")"
       : | "(" "box" `shape`* `exp` `type` ")"
    exp : `id`
      : | "(" "array" `shape_lit` `atom`+ ")"
@@ -67,3 +65,6 @@ Patterns, Atoms, and Expressions
      : | "(" "unbox" "(" `pat`+ ")" `exp` ")"
      : | "(" "let" "(" `pat`+ ")" `exp` ")"
    op : "+" | "-" | "iota" | ...
+
+..      : | "(" "t-fn" "(" type_param* ")" `exp` ")"
+..      : | "(" "i-fn" "[" index_param* "]" `exp` ")"
