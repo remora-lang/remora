@@ -37,8 +37,8 @@ Types
       : | "(" "A" `type` `shape` ")"
       : | "(" "->" `type` `type` ")"
       : | "(" "->" "(" `type`+ ")" `type` ")"
-      : | "(" "forall" "(" type_param* ")" `type`)
-      : | "(" "prod" "[" index_param* "]" `type`)
+      : | "(" "forall" "(" type_param* ")" `type` ")"
+      : | "(" "prod" "[" index_param* "]" `type` ")"
       : | "(" "exists" "[" `index_param`* "]" `type` ")"
    base_type : `Int` | `Bool` | `Float`
    type_param : `id` | "@" `id`
