@@ -4,6 +4,7 @@ Typed Remora
 =======
 Grammar
 =======
+
 ----------------------
 Declarations
 ----------------------
@@ -36,13 +37,13 @@ Types
       : | "(" "A" `type` `shape` ")"
       : | "(" "->" `type` `type` ")"
       : | "(" "->" "(" `type`+ ")" `type` ")"
-      : | "(" "exists" "[" `index_param`+ "]" `type` ")"
+      : | "(" "forall" "(" type_param* ")" `type`)
+      : | "(" "prod" "[" index_param* "]" `type`)
+      : | "(" "exists" "[" `index_param`* "]" `type` ")"
    base_type : `Int` | `Bool` | `Float`
    type_param : `id` | "@" `id`
    type_app  : "@" "(" `type`* ")"
 ..   type_app  : "@" `type`
-..      : | (forall ((x `k`) ...) `type`)
-..      : | (prod ((x `γ`) ...) `type`)
 
 --------------------------------
 Patterns, Atoms, and Expressions
@@ -62,9 +63,16 @@ Patterns, Atoms, and Expressions
      : | "[" `atom`+ "]"
      : | "[" `exp`+ "]"
      : | "(" `exp` `type_app`? `index_app`? `exp`* ")"
-     : | "(" "unbox" "(" `pat`+ ")" `exp` ")"
+     : | "(" "unbox" "(" `pat`+ `exp` ")" `exp` ")"
      : | "(" "let" "(" `pat`+ ")" `exp` ")"
    op : "+" | "-" | "iota" | ...
 
 ..      : | "(" "t-fn" "(" type_param* ")" `exp` ")"
 ..      : | "(" "i-fn" "[" index_param* "]" `exp` ")"
+
+
+-----------
+Identifiers
+-----------
+.. productionlist::
+   id :
