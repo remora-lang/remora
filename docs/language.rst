@@ -5,7 +5,7 @@ Typed Remora
 Grammar
 =======
 ----------------------
-Top-level declarations
+Declarations
 ----------------------
 .. productionlist::
    decl : "(" "def" `id` ("(" type_param* ")")? ("[" index_param* "]")? "(" ("(" `id` ":" `type` ")")* ")" `exp` ")"
