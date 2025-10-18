@@ -8,7 +8,7 @@ Source Grammar
 
 --------------------------------------------------------------------------------
 
-This is the grammar that the parser currently supports. It'the sugar-free
+This is the grammar that the parser currently supports. It's the sugar-free
 grammar below with some syntactic sugar tacked on, as used/defined in Justin's
 thesis and the Remora tutorial. The exact sugar is:
 
