@@ -27,7 +27,6 @@ These changes add a couple of productions to the `exp` non-terminal:
 .. productionlist::
    exp : ... | `atom` | "[" `exp`+ "]"
 
-
 =========================
 Sugar-free Source Grammar
 =========================
@@ -98,7 +97,6 @@ Identifiers
 .. productionlist::
    id :
 
-
 ======================
 Future Grammar Musings
 ======================
@@ -166,12 +164,9 @@ Patterns, Atoms, and Expressions
      : | "[" `exp`+ "]"
      : | "(" `exp` `type_app`? `idx_app`? `exp`* ")"
      : | "(" "unbox" "(" `pat`+ `exp` ")" `exp` ")"
-
    op : "+" | "-" | "iota" | ...
-
 ..      : | "(" "t-fn" "(" type_param* ")" `exp` ")"
 ..      : | "(" "i-fn" "[" idx_param* "]" `exp` ")"
-
 
 -----------
 Identifiers
