@@ -33,39 +33,39 @@ Sugar-free Source Grammar
 
 --------------------------------------------------------------------------------
 
-The source language free of any sugar.
+The language is almost exactly as defined in Chapter 4 of Justin's thesis except
+that the variable-distinguishing prefixes from Section 6.1 are incorporated into
+the grammar.
 
 --------------------------------------
 Indices, Shapes, Dimensions, and Sorts
 --------------------------------------
 
 .. productionlist::
-   sort : "Shape" | "Dim"
-   dim : `id`
+   idx_var : "$" `id` | "@" `id`
+   dim : "$" `id`
      : | `integer_lit`
      : | "(" "+" `dim`* ")"
-   shape : `id`
+   shape : "@" `id`
        : | "(" "shape"  `dim`* ")"
        : | "(" "++" `shape`* ")"
    idx : `dim` | `shape`
    shape_lit : "(" `integer_lit`* ")"
-   idx_param : "(" `id` `sort` ")"
 
 ---------------
 Types and Kinds
 ---------------
 
 .. productionlist::
-   kind : "Array" | "Atom"
-   type : `id`
+   type_var : "*" `id` | "&" `id`
+   type : `type_var`
       : | `base_type`
       : | "(" "A" `type` `shape` ")"
       : | "(" "->" "(" `type`* ")" `type` ")"
-      : | "(" "forall" "(" `type_param`* ")" `type` ")"
-      : | "(" "prod" "(" `idx_param`* ")" `type` ")"
-      : | "(" "exists" "(" `idx_param`* ")" `type` ")"
+      : | "(" "forall" "(" `type_var`* ")" `type` ")"
+      : | "(" "prod" "(" `idx_var`* ")" `type` ")"
+      : | "(" "exists" "(" `idx_var`* ")" `type` ")"
    base_type : `Int` | `Bool` | `Float`
-   type_param : "(" `id` `kind` ")"
 
 --------------------------------
 Patterns, Atoms, and Expressions
@@ -77,8 +77,8 @@ Patterns, Atoms, and Expressions
    atom : `base`
       : | `op`
       : | "(" "fn" "(" val_param* ")" `exp` ")"
-      : | "(" "t-fn" "(" type_param* ")" `exp` ")"
-      : | "(" "i-fn" "(" idx_param* ")" `exp` ")"
+      : | "(" "t-fn" "(" type_var* ")" `exp` ")"
+      : | "(" "i-fn" "(" idx_var* ")" `exp` ")"
       : | "(" "box" `idx`* `exp` `type` ")"
    exp : `id`
      : | "(" "array" `shape_lit` `atom`+ ")"

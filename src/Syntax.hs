@@ -2,10 +2,10 @@
 
 module Syntax
   ( module Shape,
+    TVar (..),
+    unTVar,
     Typed (..),
     Unchecked (..),
-    Kind (..),
-    Sort (..),
     Base (..),
     Atom (..),
     Type (..),
@@ -16,6 +16,7 @@ module Syntax
     isFunctionType,
     idxFromDims,
     normType,
+    normExp,
   )
 where
 
@@ -36,15 +37,6 @@ newtype Typed a = Typed a
 instance (Pretty a) => Pretty (Typed a) where
   pretty (Typed a) = pretty a
 
-data Kind
-  = KindArray
-  | KindAtom
-  deriving (Show, Eq, Ord)
-
-instance Pretty Kind where
-  pretty KindArray = "Array"
-  pretty KindAtom = "Atom"
-
 data Base
   = BoolVal Bool
   | IntVal Int
@@ -60,8 +52,8 @@ instance Pretty Base where
 data Atom f v
   = Base Base (f (Type v)) SourcePos
   | Lambda [(v, Type v)] (Exp f v) (f (Type v)) SourcePos
-  | TLambda [(v, Kind)] (Exp f v) (f (Type v)) SourcePos
-  | ILambda [(v, Sort)] (Exp f v) (f (Type v)) SourcePos
+  | TLambda [TVar v] (Exp f v) (f (Type v)) SourcePos
+  | ILambda [IVar v] (Exp f v) (f (Type v)) SourcePos
   | Box [Shape v] (Exp f v) (Type v) SourcePos
 
 deriving instance (Show v) => Show (Atom Unchecked v)
@@ -84,42 +76,50 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Atom f v) where
     let pArgs =
           parens $
             hsep $
-              map
-                ( \(v, k) ->
-                    tupled $ [pretty v, pretty k]
-                )
-                args
+              map pretty args
      in parens $ "Tλ" <+> pArgs <+> pretty e
   pretty (ILambda args e _ _) =
     let pArgs =
           parens $
             hsep $
-              map
-                ( \(v, s) ->
-                    tupled $ [pretty v, pretty s]
-                )
-                args
+              map pretty args
      in parens $ "Iλ" <+> pArgs <+> pretty e
   pretty (Box is e t _) =
     parens $ "box" <+> hsep (map pretty is) <+> pretty e <+> pretty t
 
+data TVar v
+  = AtomTVar v
+  | ArrayTVar v
+
+unTVar :: TVar v -> v
+unTVar (AtomTVar v) = v
+unTVar (ArrayTVar v) = v
+
+deriving instance (Show v) => Show (TVar v)
+
+deriving instance (Eq v) => Eq (TVar v)
+
+instance (Show v, Pretty v) => Pretty (TVar v) where
+  pretty (AtomTVar v) = "&" <> pretty v
+  pretty (ArrayTVar v) = "*" <> pretty v
+
 data Type v
-  = TVar v
+  = TVar (TVar v)
   | Bool
   | Int
   | Float
   | TArr (Type v) (Shape v)
   | (:->) [Type v] (Type v)
-  | Forall [(v, Kind)] (Type v)
-  | DProd [(v, Sort)] (Type v)
-  | DSum [(v, Sort)] (Type v)
+  | Forall [TVar v] (Type v)
+  | DProd [IVar v] (Type v)
+  | DSum [IVar v] (Type v)
 
 deriving instance (Show v) => Show (Type v)
 
 deriving instance (Eq v) => Eq (Type v)
 
 instance (Show v, Pretty v) => Pretty (Type v) where
-  pretty (TVar v) = pretty v
+  pretty (TVar x) = pretty x
   pretty Bool = "Bool"
   pretty Int = "Int"
   pretty Float = "Float"
@@ -130,17 +130,17 @@ instance (Show v, Pretty v) => Pretty (Type v) where
   pretty (Forall xs t) =
     parens $
       "∀"
-        <+> parens (hsep (map (\(x, k) -> pretty x <+> pretty k) xs))
+        <+> parens (hsep (map pretty xs))
         <+> pretty t
   pretty (DProd xs t) =
     parens $
       "Π"
-        <+> parens (hsep (map (\(x, s) -> pretty x <+> pretty s) xs))
+        <+> parens (hsep (map pretty xs))
         <+> pretty t
   pretty (DSum xs t) =
     parens $
       "Σ"
-        <+> parens (hsep (map (\(x, s) -> pretty x <+> pretty s) xs))
+        <+> parens (hsep (map pretty xs))
         <+> pretty t
 
 data Exp f v
@@ -256,3 +256,32 @@ normType (Forall pts t) = Forall pts $ normType t
 normType (DProd pts t) = DProd pts $ normType t
 normType (DSum pts t) = DSum pts $ normType t
 normType t = t
+
+isArrayLit :: Exp f v -> Bool
+isArrayLit Array {} = True
+isArrayLit _ = False
+
+isFrame :: Exp f v -> Bool
+isFrame Frame {} = True
+isFrame _ = False
+
+arrayElems :: Exp f v -> Maybe [Atom f v]
+arrayElems (Array _ as _ _) = pure as
+arrayElems _ = Nothing
+
+frameElems :: Exp f v -> Maybe [Exp f v]
+frameElems (Frame _ es _ _) = pure es
+frameElems _ = Nothing
+
+normExp :: Exp f v -> Exp f v
+normExp (Frame shape es t pos) =
+  case es' of
+    (Frame shape' _ t' _ : _)
+      | Just ess' <- mapM frameElems es' ->
+          Frame (shape <> shape') (concat ess') t' pos
+    (Array shape' _ t' _ : _)
+      | Just ass' <- mapM arrayElems es' ->
+          Array (shape <> shape') (concat ass') t' pos
+    _ -> Frame shape es' t pos
+  where
+    es' = map normExp es

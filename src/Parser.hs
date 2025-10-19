@@ -5,7 +5,7 @@ import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Void
-import Syntax hiding (Atom, Dim, Exp, Shape, Type)
+import Syntax hiding (Atom, Dim, Exp, IVar, Shape, TVar, Type)
 import Syntax qualified
 import Text.Megaparsec
   ( Parsec,
@@ -46,6 +46,10 @@ type Shape = Syntax.Shape Text
 
 type Type = Syntax.Type Text
 
+type TVar = Syntax.TVar Text
+
+type IVar = Syntax.IVar Text
+
 parse :: FilePath -> Text -> Either String Exp
 parse fname s =
   case Text.Megaparsec.parse (spaceConsumer *> pExp <* eof) fname s of
@@ -76,7 +80,10 @@ keywords =
     "i-app",
     "unbox",
     "box",
-    "shape"
+    "shape",
+    "fn",
+    "t-fn",
+    "i-fn"
   ]
 
 lKeyword :: Text -> Parser ()
@@ -112,20 +119,27 @@ lId = lexeme $ try $ do
 pDecimal :: Parser Int
 pDecimal = lexeme L.decimal
 
+pTVar :: Parser TVar
+pTVar =
+  choice
+    [ AtomTVar <$> ("@" >> lId),
+      ArrayTVar <$> ("*" >> lId)
+    ]
+
+pIVar :: Parser IVar
+pIVar =
+  choice
+    [ DVar <$> ("$" >> lId),
+      SVar <$> ("@" >> lId)
+    ]
+
 pType :: Parser Type
 pType =
   choice
     [ "Bool" >> pure Bool,
       "Int" >> pure Int,
       "FLoat" >> pure Float,
-      TVar <$> lId
-    ]
-
-pSort :: Parser Sort
-pSort =
-  choice
-    [ symbol "Shape" >> pure SortShape,
-      symbol "Dim" >> pure SortDim
+      Syntax.TVar <$> pTVar
     ]
 
 pBase :: Parser Base
@@ -152,10 +166,11 @@ pAtom =
   withSrcPos $
     choice
       [ withUnchecked $ Base <$> pBase,
-        try $ -- fix
+        try $
           parens $
             choice
               [ pLambda,
+                pTLambda,
                 pILambda,
                 pBox
               ]
@@ -165,36 +180,45 @@ pAtom =
       let pArg = parens $ (,) <$> lId <*> pType
        in withUnchecked $
             Lambda
-              <$> (symbol "\\" >> (parens $ many pArg))
+              <$> (lKeyword "fn" >> (parens $ many pArg))
               <*> pExp
     pILambda =
-      let pArg = parens $ (,) <$> lId <*> pSort
-       in withUnchecked $
-            ILambda
-              <$> (symbol "I\\" >> (parens $ many pArg))
-              <*> pExp
+      withUnchecked $
+        ILambda
+          <$> (lKeyword "i-fn" >> (parens $ many pIVar))
+          <*> pExp
+    pTLambda =
+      withUnchecked $
+        TLambda
+          <$> (lKeyword "t-fn" >> (parens $ many pTVar))
+          <*> pExp
     pBox =
       Box <$> (many pShape) <*> pExp <*> pType
 
 pExp :: Parser Exp
 pExp =
-  withSrcPos
-    ( withUnchecked
-        ( choice
-            [ Var <$> lId,
-              parens $
-                choice
-                  [ Array <$> (lKeyword "array" >> pShapeLit) <*> some pAtom,
-                    Frame <$> (lKeyword "frame" >> pShapeLit) <*> some pExp,
-                    (. const Unchecked) <$> (App <$> ((:) <$> pExp <*> some pExp)),
-                    lKeyword "i-app" >> IApp <$> pExp <*> (some pShape),
-                    lKeyword "t-app" >> TApp <$> pExp <*> (some pType),
-                    pUnbox
-                  ]
-            ]
-        )
-    )
-    <|> (withSrcPos $ withUnchecked $ (Array mempty . pure) <$> pAtom)
+  choice
+    [ withSrcPos
+        ( withUnchecked
+            ( choice
+                [ Var <$> lId,
+                  parens $
+                    choice
+                      [ Array <$> (lKeyword "array" >> pShapeLit) <*> some pAtom,
+                        Frame <$> (lKeyword "frame" >> pShapeLit) <*> some pExp,
+                        (. const Unchecked) <$> (App <$> ((:) <$> pExp <*> some pExp)),
+                        lKeyword "i-app" >> IApp <$> pExp <*> (some pShape),
+                        lKeyword "t-app" >> TApp <$> pExp <*> (some pType),
+                        pUnbox
+                      ]
+                ]
+            )
+        ),
+      (withSrcPos $ withUnchecked $ (Array mempty . pure) <$> pAtom),
+      between (symbol "[") (symbol "]") $ do
+        es <- some pExp
+        normExp <$> withSrcPos (withUnchecked $ pure $ Frame [length es] es)
+    ]
   where
     pShapeLit = parens $ many pDecimal
     pUnbox =
@@ -206,7 +230,7 @@ pExp =
 pDim :: Parser Dim
 pDim =
   choice
-    [ DimVar <$> lId,
+    [ "$" >> DimVar <$> lId,
       Syntax.Dim <$> pDecimal,
       symbol "+" >> Add <$> many pDim
     ]
@@ -214,7 +238,7 @@ pDim =
 pShape :: Parser Shape
 pShape =
   choice
-    [ single '@' >> ShapeVar <$> lId,
+    [ "@" >> ShapeVar <$> lId,
       Syntax.ShapeDim <$> pDim,
       parens $
         choice

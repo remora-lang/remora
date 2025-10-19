@@ -3,14 +3,21 @@ module Shape where
 import Data.Bifunctor
 import Prettyprinter
 
-data Sort
-  = SortShape
-  | SortDim
-  deriving (Show, Eq, Ord)
+data IVar v
+  = SVar v
+  | DVar v
 
-instance Pretty Sort where
-  pretty SortShape = "Shape"
-  pretty SortDim = "Dim"
+deriving instance (Show v) => Show (IVar v)
+
+deriving instance (Eq v) => Eq (IVar v)
+
+unIVar :: IVar v -> v
+unIVar (SVar v) = v
+unIVar (DVar v) = v
+
+instance (Show v, Pretty v) => Pretty (IVar v) where
+  pretty (SVar v) = "@" <> pretty v
+  pretty (DVar v) = "$" <> pretty v
 
 data Dim v
   = DimVar v
@@ -94,13 +101,6 @@ peel = peel' . normShape
     peel' (ShapeDim d) = Just (d, mempty)
     peel' (Concat (s : ss)) = peel s
     peel' _ = Nothing
-
-compatSort :: (Eq v) => Sort -> Shape v -> Bool
-compatSort sort = compatSort' sort . normShape
-  where
-    compatSort' SortDim ShapeDim {} = True
-    compatSort' SortShape _ = True
-    compatSort' _ _ = False
 
 (\\) :: (Eq v, Show v) => Shape v -> Shape v -> Maybe (Shape v)
 s \\ t

@@ -10,7 +10,7 @@ where
 
 import Data.List qualified as L
 import Prettyprinter
-import Syntax hiding (Atom, Exp, HasShape (..), Shape, Type)
+import Syntax hiding (Atom, Exp, HasShape (..), IVar, Shape, TVar, Type)
 import Syntax qualified
 import VName
 
@@ -21,6 +21,10 @@ type Atom = Syntax.Atom Typed VName
 type Shape = Syntax.Shape VName
 
 type Type = Syntax.Type VName
+
+type TVar = Syntax.TVar VName
+
+type IVar = Syntax.IVar VName
 
 -- data ValShape
 --  = ValDim Int
@@ -58,8 +62,8 @@ data Val m
   | ValBase Base
   | ValArray [Int] [Val m]
   | ValLambda [(VName, Type)] Exp
-  | ValTLambda [(VName, Kind)] Exp
-  | ValILambda [(VName, Sort)] Exp
+  | ValTLambda [TVar] Exp
+  | ValILambda [IVar] Exp
   | ValBox [Shape] (Val m) Type
   | ValFun ([Val m] -> m (Val m))
   | ValTFun ([Type] -> m (Val m))
@@ -88,21 +92,13 @@ instance Pretty (Val m) where
     let pArgs =
           parens $
             hsep $
-              map
-                ( \(v, k) ->
-                    tupled $ [pretty v, pretty k]
-                )
-                pts
+              map pretty pts
      in parens $ "Tλ" <+> pArgs <+> pretty e
   pretty (ValILambda pts e) =
     let pArgs =
           parens $
             hsep $
-              map
-                ( \(v, s) ->
-                    tupled $ [pretty v, pretty s]
-                )
-                pts
+              map pretty pts
      in parens $ "Iλ" <+> pArgs <+> pretty e
   pretty (ValBox is v t) =
     parens $ "box" <+> hsep (map pretty is) <+> pretty v <+> pretty t

@@ -149,7 +149,7 @@ iapply v _ = error $ prettyString v
 
 tapply :: Val -> [Type] -> InterpM Val
 tapply (ValTLambda pts e) ts =
-  tbinds (zip (map fst pts) ts) $ intExp e
+  tbinds (zip (map unTVar pts) ts) $ intExp e
 tapply (ValVar f) ts = do
   f' <- lookupVal f
   case f' of

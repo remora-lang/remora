@@ -29,11 +29,11 @@ substitute' :: (Ord a, Substitute a b c) => [(a, b)] -> c -> c
 substitute' = substitute . M.fromList
 
 instance (Ord v) => Substitute v (Type v) (Type v) where
-  substitute subst (TVar v) = fromMaybe (TVar v) $ subst M.!? v
+  substitute subst (TVar v) = fromMaybe (TVar v) $ subst M.!? (unTVar v)
   substitute subst (TArr t s) = TArr (substitute subst t) s
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
   substitute subst (Forall pts t) =
-    Forall pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map fst pts) subst) t
+    Forall pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unTVar pts) subst) t
   substitute subst (DProd pts t) = DProd pts $ substitute subst t
   substitute subst (DSum pts t) = DSum pts $ substitute subst t
   substitute _ t = t
@@ -84,7 +84,7 @@ instance (Ord v) => Substitute v (Shape v) (Type v) where
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
   substitute subst (Forall pts t) = Forall pts $ substitute subst t
   substitute subst (DProd pts t) =
-    DProd pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map fst pts) subst) t
+    DProd pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unIVar pts) subst) t
   substitute subst (DSum pts t) =
-    DSum pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map fst pts) subst) t
+    DSum pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unIVar pts) subst) t
   substitute _ t = t

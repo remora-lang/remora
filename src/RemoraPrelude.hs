@@ -10,25 +10,25 @@ type Prelude v m = [PreludeDef v m]
 
 data PreludeDef v m
   = PreludeVal v (Type v) (Val m)
-  | PreludeType v Kind
+  | PreludeType (TVar v)
 
 prelude :: (Monad m) => Prelude Text m
 prelude =
   [ PreludeVal
       "head"
       ( Forall
-          [("t", KindAtom)]
+          [AtomTVar "t"]
           ( DProd
-              [("d", SortDim), ("s", SortShape)]
+              [DVar "d", SVar "s"]
               ( [ TArr
-                    (TVar "t")
+                    (TVar (AtomTVar "t"))
                     ( Concat
                         [ ShapeDim (Add [Dim 1, DimVar "d"]),
                           ShapeVar "s"
                         ]
                     )
                 ]
-                  :-> TArr (TVar "t") (ShapeVar "s")
+                  :-> TArr (TVar $ AtomTVar "t") (ShapeVar "s")
               )
           )
       )
@@ -40,18 +40,18 @@ prelude =
     PreludeVal
       "tail"
       ( Forall
-          [("t", KindAtom)]
+          [AtomTVar "t"]
           ( DProd
-              [("d", SortDim), ("s", SortShape)]
+              [DVar "d", SVar "s"]
               ( [ TArr
-                    (TVar "t")
+                    (TVar (AtomTVar "t"))
                     ( Concat
                         [ ShapeDim (Add [Dim 1, DimVar "d"]),
                           ShapeVar "s"
                         ]
                     )
                 ]
-                  :-> TArr (TVar "t") (ShapeVar "s")
+                  :-> TArr (TVar (AtomTVar "t")) (ShapeVar "s")
               )
           )
       )
@@ -63,10 +63,10 @@ prelude =
     PreludeVal
       "length"
       ( Forall
-          [("t", KindAtom)]
+          [AtomTVar "t"]
           ( DProd
-              [("d", SortDim), ("s", SortShape)]
-              ( [TArr (TVar "t") (Concat [ShapeDim (DimVar "d"), ShapeVar "s"])]
+              [DVar "d", SVar "s"]
+              ( [TArr (TVar (AtomTVar "t")) (Concat [ShapeDim (DimVar "d"), ShapeVar "s"])]
                   :-> TArr Int mempty
               )
           )
@@ -79,14 +79,14 @@ prelude =
     PreludeVal
       "append"
       ( Forall
-          [("t", KindAtom)]
+          [AtomTVar "t"]
           ( DProd
-              [("m", SortDim), ("n", SortDim), ("s", SortShape)]
-              ( [ TArr (TVar "t") (Concat [ShapeDim $ DimVar "m", ShapeVar "s"]),
-                  TArr (TVar "t") (Concat [ShapeDim $ DimVar "n", ShapeVar "s"])
+              [DVar "m", DVar "n", SVar "s"]
+              ( [ TArr (TVar (AtomTVar "t")) (Concat [ShapeDim $ DimVar "m", ShapeVar "s"]),
+                  TArr (TVar (AtomTVar "t")) (Concat [ShapeDim $ DimVar "n", ShapeVar "s"])
                 ]
                   :-> TArr
-                    (TVar "t")
+                    (TVar (AtomTVar "t"))
                     ( Concat
                         [ ShapeDim $ DimVar "m",
                           ShapeDim $ DimVar "n",
@@ -104,12 +104,12 @@ prelude =
     PreludeVal
       "reverse"
       ( Forall
-          [("t", KindAtom)]
+          [AtomTVar "t"]
           ( DProd
-              [("d", SortDim), ("s", SortShape)]
+              [DVar "d", SVar "s"]
               ( let arr_t =
                       TArr
-                        (TVar "t")
+                        (TVar (AtomTVar "t"))
                         ( Concat
                             [ShapeDim $ DimVar "d", ShapeVar "s"]
                         )
@@ -137,7 +137,7 @@ prelude =
     PreludeVal
       "sum"
       ( DProd
-          [("s", SortShape)]
+          [SVar "s"]
           ( [ TArr
                 Int
                 (ShapeVar "s")
