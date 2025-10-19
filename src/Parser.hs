@@ -223,7 +223,7 @@ pExp =
     pShapeLit = parens $ many pDecimal
     pUnbox =
       Unbox
-        <$> (symbol "(" >> (many (lId <* notFollowedBy (symbol ")"))))
+        <$> (symbol "(" >> (many (pIVar <* notFollowedBy (symbol ")"))))
         <*> (pExp <* symbol ")")
         <*> pExp
 

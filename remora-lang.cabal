@@ -39,6 +39,7 @@ library
       --Symbolic
       Free
       --Reason
+      SExp
     -- other-modules:
     -- other-extensions:
     build-depends:

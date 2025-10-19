@@ -152,7 +152,7 @@ data Exp f v
   | App [Exp f v] (f (Type v, Shape v)) SourcePos
   | TApp (Exp f v) [Type v] (f (Type v)) SourcePos
   | IApp (Exp f v) [Shape v] (f (Type v)) SourcePos
-  | Unbox [v] (Exp f v) (Exp f v) (f (Type v)) SourcePos
+  | Unbox [IVar v] (Exp f v) (Exp f v) (f (Type v)) SourcePos
 
 deriving instance (Show v) => Show (Exp Unchecked v)
 
