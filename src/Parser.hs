@@ -157,8 +157,8 @@ pBase =
           ]
     pNum =
       choice
-        [ try $ IntVal <$> pDecimal,
-          FloatVal <$> lexeme L.float
+        [ try $ FloatVal <$> lexeme L.float,
+          IntVal <$> pDecimal
         ]
 
 pAtom :: Parser Atom

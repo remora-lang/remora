@@ -56,7 +56,7 @@ instance SExpable Base Text where
   toSExp (BoolVal b) =
     SList
       [ "bool",
-        toSExp $ prettyText b
+        if b then "#t" else "#f"
       ]
   toSExp (IntVal x) =
     SList
