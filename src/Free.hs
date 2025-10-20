@@ -9,7 +9,7 @@ class Free v x where
 
 instance (Ord v) => Free v (Dim v) where
   free (DimVar v) = S.singleton v
-  free Dim {} = S.empty
+  free DimN {} = S.empty
   free (Add ds) = foldMap free ds
 
 instance (Ord v) => Free v (Shape v) where

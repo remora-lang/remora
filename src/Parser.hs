@@ -207,7 +207,7 @@ pExp =
                       [ Array <$> (lKeyword "array" >> pShapeLit) <*> some pAtom,
                         Frame <$> (lKeyword "frame" >> pShapeLit) <*> some pExp,
                         (. const Unchecked) <$> (App <$> pExp <*> some pExp),
-                        lKeyword "i-app" >> IApp <$> pExp <*> (some pShape),
+                        lKeyword "i-app" >> IApp <$> pExp <*> some (Right <$> pShape),
                         lKeyword "t-app" >> TApp <$> pExp <*> (some pType),
                         pUnbox
                       ]
@@ -217,7 +217,7 @@ pExp =
       (withSrcPos $ withUnchecked $ (Array mempty . pure) <$> pAtom),
       between (symbol "[") (symbol "]") $ do
         es <- some pExp
-        normExp <$> withSrcPos (withUnchecked $ pure $ Frame [length es] es)
+        flattenExp <$> withSrcPos (withUnchecked $ pure $ Frame [length es] es)
     ]
   where
     pShapeLit = parens $ many pDecimal
@@ -232,7 +232,7 @@ pDim :: Parser Dim
 pDim =
   choice
     [ "$" >> DimVar <$> lId,
-      Syntax.Dim <$> pDecimal,
+      DimN <$> pDecimal,
       symbol "+" >> Add <$> many pDim
     ]
 

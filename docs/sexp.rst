@@ -13,7 +13,7 @@ Indices, Shapes, Dimensions, and Sorts
 .. productionlist::
    idx_var : "(" "dim-ivar" `id` ")" | "(" "shape-ivar" `id` ")"
    dim : "(" "dim-ivar" `id` ")"
-     : | "(" "dim" `integer_lit` ")"
+     : | "(" "dim-n" `integer_lit` ")"
      : | "(" "dim-+" `dim`* ")"
    shape : "(" "shape-ivar" `id` ")"
        : | "(" "shape-dim"  `dim` ")"

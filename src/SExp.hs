@@ -212,13 +212,13 @@ instance SExpable (Type Text) Text where
         toSExp vs,
         toSExp t
       ]
-  toSExp (DProd vs t) =
+  toSExp (Prod vs t) =
     SList
       [ "prod",
         toSExp vs,
         toSExp t
       ]
-  toSExp (DSum vs t) =
+  toSExp (Exists vs t) =
     SList
       [ "exists",
         toSExp vs,
@@ -231,9 +231,9 @@ instance SExpable (Dim Text) Text where
       [ "dim-ivar",
         toSExp v
       ]
-  toSExp (Dim n) =
+  toSExp (DimN n) =
     SList
-      [ "dim",
+      [ "dim-n",
         toSExp n
       ]
   toSExp (Add ds) =

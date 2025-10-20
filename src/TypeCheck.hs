@@ -7,7 +7,6 @@ import Control.Monad.RWS
 import Control.Monad.Trans.Except
 import Data.Map (Map)
 import Data.Map qualified as M
--- import Data.SBV qualified as SBV
 import Data.Text (Text)
 import Data.Text qualified as T
 import Interpreter.Value
@@ -15,62 +14,104 @@ import Prettyprinter
 import RemoraPrelude
 import Substitute
 import SymTable
--- import Symbolic
 import Syntax
 import Text.Megaparsec.Pos (SourcePos)
 import Util
 import VName
 
 data Env = Env
-  { envMap :: Map Text VName,
-    envType :: SymTable VName (Type VName)
+  { envVarMap :: Map Text VName,
+    envTVarMap :: Map (TVar Text) (TVar VName),
+    envIVarMap :: Map (IVar Text) (IVar VName),
+    envTypeMap :: Map VName (Type VName)
   }
 
--- withPos :: (Pretty x) => SourcePos -> x -> Text
--- withPos pos x = prettyText x <> (" at " <> prettyText (show pos))
---
--- initEnv :: Env
--- initEnv = Env mempty mempty mempty
---
--- lookupVName :: (MonadCheck m) => Text -> m VName
--- lookupVName v = do
---  mvname <- asks $ (M.!? v) . envMap
---  case mvname of
---    Nothing -> throwError $ "unknown var: " <> v
---    Just vname -> pure vname
---
--- lookupType :: (MonadCheck m) => VName -> m (Type VName)
--- lookupType v = do
---  mt <- askSym v
---  case mt of
---    Nothing -> throwError $ "unknown type for var: " <> prettyText v
---    Just t -> pure t
---
--- bindVName :: (MonadCheck m) => Text -> Type VName -> m a -> m a
--- bindVName v t m = do
---  envm <- asks envMap
---  vname <-
---    case envm M.!? v of
---      Nothing -> newVName v
---      Just vname -> pure vname
---  local (\env -> env {envMap = M.insert v vname $ envMap env}) $
---    insertSym vname t m
---
--- bindVNames :: (MonadCheck m) => [(Text, Type VName)] -> m a -> m a
--- bindVNames [] m = m
--- bindVNames ((v, t) : vs) m =
---  bindVName v t $ bindVNames vs m
---
--- bindType :: (MonadCheck m) => TVar Text -> m a -> m a
--- bindType v k m = do
---  vname <- newVName v
---  local (\env -> env {envMap = M.insert v vname $ envMap env}) $
---    insertSym vname k m
---
--- bindTypes :: (MonadCheck m) => [TVar Text] -> m a -> m a
--- bindTypes [] m = m
--- bindTypes ((v, k) : vs) m =
---  bindType v k $ bindTypes vs m
+withPos :: (Pretty x) => SourcePos -> x -> Text
+withPos pos x = prettyText x <> (" at " <> prettyText (show pos))
+
+initEnv :: Env
+initEnv = Env mempty mempty mempty mempty
+
+lookupVName :: (MonadCheck m) => Text -> m VName
+lookupVName v = do
+  mvname <- asks $ (M.!? v) . envVarMap
+  case mvname of
+    Nothing -> throwError $ "unknown var: " <> v
+    Just vname -> pure vname
+
+lookupTVar :: (MonadCheck m) => TVar Text -> m (TVar VName)
+lookupTVar tvar = do
+  mtvar' <- asks $ (M.!? tvar) . envTVarMap
+  case mtvar' of
+    Nothing -> throwError $ "Unknown tvar: " <> prettyText tvar
+    Just tvar' -> pure tvar'
+
+lookupIVar :: (MonadCheck m) => IVar Text -> m (IVar VName)
+lookupIVar ivar = do
+  mivar' <- asks $ (M.!? ivar) . envIVarMap
+  case mivar' of
+    Nothing -> throwError $ "Unknown ivar: " <> prettyText ivar
+    Just ivar' -> pure ivar'
+
+lookupType :: (MonadCheck m) => VName -> m (Type VName)
+lookupType v = do
+  mt <- asks $ (M.!? v) . envTypeMap
+  case mt of
+    Nothing -> throwError $ "Unknown type for var: " <> prettyText v
+    Just t -> pure t
+
+checkParam :: (MonadCheck m) => Text -> Type VName -> m a -> m a
+checkParam v t m = do
+  vname <- newVName v
+  local
+    ( \env ->
+        env
+          { envVarMap = M.insert v vname $ envVarMap env,
+            envTypeMap = M.insert vname t $ envTypeMap env
+          }
+    )
+    m
+
+checkParams :: (MonadCheck m) => [(Text, Type VName)] -> m a -> m a
+checkParams [] m = m
+checkParams ((v, t) : vs) m =
+  checkParam v t $ checkParams vs m
+
+checkTypeParam :: (MonadCheck m) => TVar Text -> m a -> m a
+checkTypeParam tvar m = do
+  vname <- newVName $ unTVar tvar
+  let tvar' =
+        case tvar of
+          AtomTVar {} -> AtomTVar vname
+          ArrayTVar {} -> ArrayTVar vname
+  local
+    ( \env ->
+        env {envTVarMap = M.insert tvar tvar' $ envTVarMap env}
+    )
+    m
+
+checkTypeParams :: (MonadCheck m) => [TVar Text] -> m a -> m a
+checkTypeParams [] m = m
+checkTypeParams (tvar : tvars) m =
+  checkTypeParam tvar $ checkTypeParams tvars m
+
+checkIdxParam :: (MonadCheck m) => IVar Text -> m a -> m a
+checkIdxParam ivar m = do
+  vname <- newVName $ unIVar ivar
+  let ivar' =
+        case ivar of
+          SVar {} -> SVar vname
+          DVar {} -> DVar vname
+  local
+    ( \env ->
+        env {envIVarMap = M.insert ivar ivar' $ envIVarMap env}
+    )
+    m
+
+checkIdxParams :: (MonadCheck m) => [IVar Text] -> m a -> m a
+checkIdxParams [] m = m
+checkIdxParams (ivar : ivars) m =
+  checkIdxParam ivar $ checkIdxParams ivars m
 
 type Error = Text
 
@@ -78,8 +119,7 @@ type MonadCheck m =
   ( Monad m,
     MonadReader Env m,
     MonadState Tag m,
-    MonadError Error m,
-    MonadSymTable m VName (Type VName)
+    MonadError Error m
   )
 
 newtype CheckM a = CheckM {runCheckM :: ExceptT Error (RWS Env () Tag) a}
@@ -92,230 +132,221 @@ newtype CheckM a = CheckM {runCheckM :: ExceptT Error (RWS Env () Tag) a}
       MonadError Error
     )
 
-instance MonadSymTable CheckM VName (Type VName) where
-  askSymTable = asks envType
-  withSymTable f =
-    local (\env -> env {envType = f $ envType env})
-
 check ::
   (Monad m) =>
   Exp Unchecked Text ->
   Either Error (Prelude VName m, Exp Typed VName)
-check e = undefined -- fst $ evalRWS (runExceptT $ runCheckM $ withPrelude $ checkExp e) initEnv initTag
+check e = fst $ evalRWS (runExceptT $ runCheckM $ withPrelude $ checkExp e) initEnv initTag
 
--- checkExp :: (MonadCheck m) => Exp Unchecked Text -> m (Exp Typed VName)
--- checkExp (Var v _ pos) = do
---   vname <- lookupVName v
---   t <- lookupType vname
---   pure $ Var vname (Typed t) pos
--- checkExp e@(Array _ [] _ pos) =
---   throwError $ withPos pos $ "Empty array constructed without type: " <> prettyText e
--- checkExp e@(Array shape as _ pos) = do
---   as' <- mapM checkAtom as
---   case as' of
---     [] -> error "impossible"
---     (a' : as'') -> do
---       unless (all (\a'' -> typeOf a'' == typeOf a') as'') $
---         throwError $
---           withPos pos $
---             "Atoms in array have different types: " <> prettyText as'
---       -- TODO: check that the # of elements matches the shape
---       pure $ Array shape as' (Typed $ TArr (typeOf a') (idxFromDims shape)) pos
--- checkExp (EmptyArray shape t _ pos) = do
---   t' <- checkType t
---   pure $ EmptyArray shape t' (Typed $ TArr t' (idxFromDims shape)) pos
--- checkExp e@(Frame _ [] _ pos) =
---   throwError $ withPos pos $ "Empty frame constructed without type: " <> prettyText e
--- checkExp (Frame shape es _ pos) = do
---   es' <- mapM checkExp es
---   case es' of
---     [] -> error "impossible"
---     (e' : es'') -> do
---       unless (all (\e'' -> typeOf e'' == typeOf e') es'') $
---         throwError $
---           withPos pos $
---             "Expressions in frame have different types: " <> prettyText es'
---       -- TODO: check that the # of elements matches the shape
---       pure $ Frame shape es' (Typed $ TArr (typeOf e') (idxFromDims shape)) pos
--- checkExp (EmptyFrame shape t _ pos) = do
---   t' <- checkType t
---   pure $ EmptyFrame shape t' (Typed $ TArr t' (idxFromDims shape)) pos
--- checkExp app@(App fes@(f : e : _) _ pos) = do
---   fes' <- mapM checkExp fes
---   case fes' of
---     (f' : es') ->
---       case normType $ typeOf f' of
---         -- TArr (pts :-> ret) frame_f -> do
---         --   (arg_shapes, substs, frames) <-
---         --     unzip3
---         --       <$> ( forM (zip pts es') $ \(arg_t, e') -> do
---         --               frame_a <- ShapeVar <$> newVName "a"
---         --               let (s, subst) =
---         --                     satShapes
---         --                       (SBV..==)
---         --                       (frame_a <> shapeOf arg_t)
---         --                       (shapeOf e')
---         --               pure (s, subst, frame_a)
---         --           )
---         --   let frames' = zipWith substitute substs frames
---         --       principal = maximumShape $ map (frame_f <>) frames'
---         --       ret' = TArr ret principal
---         --   pure $ App (f' : es') (Typed (ret', principal)) pos
---         TArr (pts :-> ret) frame_f -> do
---           (arg_shapes, frames) <-
---             unzip
---               <$> ( forM (zip pts es') $ \(arg_t, e') -> do
---                       case normShape (shapeOf e') \\ normShape (shapeOf arg_t) of
---                         Nothing ->
---                           throwError $
---                             "Incompatible: "
---                               <> prettyText (shapeOf e')
---                               <> "\n"
---                               <> prettyText (shapeOf arg_t)
---                         Just frame_a ->
---                           pure (shapeOf e', frame_a)
---                   )
---           let principal = undefined -- maximumShape $ map (frame_f <>) frames
---               ret' = TArr ret principal
---           pure $ App (f' : es') (Typed (ret', principal)) pos
---         _ ->
---           throwError $
---             withPos pos $
---               "Expected a function type in application: " <> prettyText e
---     _ -> error "impossible"
--- checkExp e@(App _ _ pos) =
---   throwError $
---     withPos pos $
---       "Applications require at least a function and an argument: " <> prettyText e
--- checkExp tapp@(TApp e ts _ pos) = do
---   e' <- checkExp e
---   ts' <- mapM checkType ts
---   case typeOf e' of
---     Forall pts r -> do
---       ks <- mapM kindOf ts'
---       unless (map snd pts == ks) $
---         throwError $
---           withPos pos $
---             "Parameter and argument kinds don't match:\n"
---               <> prettyText tapp
---               <> "\n"
---               <> prettyText (pts, ts')
---       let r' = substitute' (zip (map fst pts) ts') r
---       pure $ TApp e' ts' (Typed r') pos
---     TArr (Forall pts r) frame_f -> do
---       ks <- mapM kindOf ts'
---       unless (map snd pts == ks) $
---         throwError $
---           withPos pos $
---             "Parameter and argument kinds don't match:\n"
---               <> prettyText tapp
---               <> "\n"
---               <> prettyText (pts, ts')
---       let r' = substitute' (zip (map fst pts) ts') r
---       pure $ TApp e' ts' (Typed (TArr r' frame_f)) pos
---     t ->
---       throwError $
---         withPos pos $
---           "Expected a forall type in type application: "
---             <> prettyText tapp
---             <> "\n"
---             <> prettyText t
--- checkExp iapp@(IApp e is _ pos) = do
---   e' <- checkExp e
---   is' <- mapM checkShape is
---   case typeOf e' of
---     DProd pts r -> do
---       unless (all (uncurry compatSort) (zip (map snd pts) is')) $
---         throwError $
---           withPos pos $
---             "Parameter and argument sorts don't match:\n"
---               <> prettyText iapp
---               <> "\n"
---               <> prettyText (map snd pts, is')
---       let r' =
---             substitute' (zip (map fst pts) is') r
---       pure $ IApp e' is' (Typed r') pos
---     TArr (DProd pts r) frame_f -> do
---       unless (all (uncurry compatSort) (zip (map snd pts) is')) $
---         throwError $
---           withPos pos $
---             "Parameter and argument sorts don't match:\n"
---               <> prettyText iapp
---               <> "\n"
---               <> prettyText (map snd pts, is')
---       let r' =
---             substitute' (zip (map fst pts) is') r
---       pure $ IApp e' is' (Typed (TArr r' frame_f)) pos
---     t ->
---       throwError $
---         withPos pos $
---           "Expected a dprod type in shape application: "
---             <> prettyText iapp
---             <> "\n"
---             <> prettyText t
--- checkExp (Unbox vs e b _ pos) = undefined
---
--- checkAtom :: (MonadCheck m) => Atom Unchecked Text -> m (Atom Typed VName)
--- checkAtom (Base b _ pos) =
---   pure $ Base b (Typed $ typeOf b) pos
--- checkAtom (Lambda ps e _ pos) = do
---   let (xs, pts) = unzip ps
---   pts' <- mapM checkType pts
---   bindVNames (zip xs pts') $ do
---     xs' <- mapM lookupVName xs
---     e' <- checkExp e
---     pure $ Lambda (zip xs' pts') e' (Typed $ pts' :-> typeOf e') pos
--- checkAtom (TLambda ps e _ pos) = undefined
--- checkAtom (ILambda ps e _ pos) = undefined
--- checkAtom (Box is e t pos) = undefined
---
--- checkType :: (MonadCheck m) => Type Text -> m (Type VName)
--- checkType = fmap normType . checkType'
---   where
---     checkType' (TVar v) = TVar <$> lookupVName v
---     checkType' Bool = pure Bool
---     checkType' Int = pure Int
---     checkType' Float = pure Float
---     checkType' (TArr t shape) = TArr <$> checkType' t <*> checkShape shape
---     checkType' (as :-> b) = (:->) <$> mapM checkType' as <*> checkType' b
---     checkType' (Forall pts t) =
---       bindTypes pts $ do
---         pts' <- forM pts $ \(v, k) -> (,k) <$> lookupVName v
---         t' <- checkType' t
---         pure $ Forall pts' t'
---     checkType' (DProd pts t) =
---       bindSorts pts $ do
---         pts' <- forM pts $ \(v, s) -> (,s) <$> lookupVName v
---         t' <- checkType' t
---         pure $ DProd pts' t'
---
--- checkDim :: (MonadCheck m) => Dim Text -> m (Dim VName)
--- checkDim = fmap normDim . checkDim'
---   where
---     checkDim' (DimVar v) = DimVar <$> lookupVName v
---     checkDim' (Dim d) = pure $ Dim d
---     checkDim' (Add ds) = Add <$> mapM checkDim' ds
---
--- checkShape :: (MonadCheck m) => Shape Text -> m (Shape VName)
--- checkShape = fmap normShape . checkShape'
---   where
---     checkShape' (ShapeVar v) = ShapeVar <$> lookupVName v
---     checkShape' (ShapeDim d) = ShapeDim <$> checkDim d
---     checkShape' (Concat ss) = Concat <$> mapM checkShape' ss
---
--- withPrelude :: (MonadCheck m, Monad n) => m a -> m (Prelude VName n, a)
--- withPrelude m = checkPrelude prelude mempty
---   where
---     checkPrelude [] prelude' =
---       (reverse prelude',) <$> m
---     checkPrelude (p : ps) prelude' = do
---       case p of
---         PreludeVal f t v -> do
---           t' <- checkType t
---           bindVName f t' $ do
---             f' <- lookupVName f
---             checkPrelude ps (PreludeVal f' t' v : prelude')
---         PreludeType t k ->
---           bindType t k $ do
---             t' <- lookupVName t
---             checkPrelude ps (PreludeType t' k : prelude')
+checkExp :: (MonadCheck m) => Exp Unchecked Text -> m (Exp Typed VName)
+checkExp (Var v _ pos) = do
+  vname <- lookupVName v
+  t <- lookupType vname
+  pure $ Var vname (Typed t) pos
+checkExp exp@(Array ns as _ pos) = do
+  as' <- mapM checkAtom as
+  case as' of
+    [] ->
+      throwError $
+        withPos pos $
+          "Empty array constructed without type: " <> prettyText exp
+    (a' : _) -> do
+      unless (all (\a'' -> typeOf a'' == typeOf a') as') $
+        throwError $
+          withPos pos $
+            "Atoms in array have different types: " <> prettyText exp
+      unless (product ns == length as') $
+        throwError $
+          withPos pos $
+            "Array shape doesn't match number of elements: " <> prettyText exp
+      pure $ Array ns as' (Typed $ TArr (typeOf a') (intsToShape ns)) pos
+checkExp exp@(EmptyArray ns t _ pos) = do
+  t' <- checkType t
+  unless (product ns == 0) $
+    throwError $
+      withPos pos $
+        "Empty array has a non-empty shape: " <> prettyText exp
+  pure $ EmptyArray ns t' (Typed $ TArr t' (intsToShape ns)) pos
+checkExp exp@(Frame ns es _ pos) = do
+  es' <- mapM checkExp es
+  case es' of
+    [] ->
+      throwError $
+        withPos pos $
+          "Empty frame constructed without type: " <> prettyText exp
+    (e' : _) -> do
+      unless (all (\e'' -> typeOf e'' == typeOf e') es') $
+        throwError $
+          withPos pos $
+            "Expressions in frame have different types: " <> prettyText exp
+      unless (product ns == length es') $
+        throwError $
+          withPos pos $
+            "Frame shape doesn't match number of elements: " <> prettyText exp
+      pure $ Frame ns es' (Typed $ TArr (typeOf e') (intsToShape ns)) pos
+checkExp exp@(EmptyFrame ns t _ pos) = do
+  t' <- checkType t
+  unless (product ns == 0) $
+    throwError $
+      withPos pos $
+        "Empty frame has a non-empty shape: " <> prettyText exp
+  pure $ EmptyFrame ns t' (Typed $ TArr t' (intsToShape ns)) pos
+checkExp exp@(App f args _ pos) = do
+  f' <- checkExp f
+  args' <- mapM checkExp args
+  case typeOf f' of
+    TArr (pts :-> ret) frame_f -> do
+      let check_args pt arg =
+            case normShape (shapeOf arg) \\ normShape (shapeOf pt) of
+              Nothing ->
+                throwError $
+                  withPos pos $
+                    T.unlines
+                      [ "Ill-shaped application:",
+                        "Parameter type: " <> prettyText pt,
+                        "Argument: " <> prettyText arg,
+                        "in",
+                        prettyText exp
+                      ]
+              Just frame_a -> pure (shapeOf arg, frame_a)
+      (arg_shapes, frames) <- unzip <$> zipWithM check_args pts args'
+      let principal = maximumShape $ map (frame_f <>) frames
+          ret' = TArr ret principal
+      pure $ App f' args' (Typed (ret', principal)) pos
+    _ ->
+      throwError $
+        withPos pos $
+          "Expected an array of functions in application: " <> prettyText exp
+checkExp exp@(TApp f ts _ pos) = do
+  f' <- checkExp f
+  ts' <- mapM checkType ts
+  case typeOf f' of
+    Forall pts r -> do
+      let check_args pt t =
+            let same_kind =
+                  case pt of
+                    AtomTVar {} -> atomKind
+                    ArrayTVar {} -> arrayKind
+             in unless (same_kind t) $
+                  throwError $
+                    withPos pos $
+                      T.unlines
+                        [ "Ill-kinded application:",
+                          "Parameter type: " <> prettyText pt,
+                          "Argument: " <> prettyText t,
+                          "in",
+                          prettyText exp
+                        ]
+      zipWithM check_args pts ts'
+      let r' = substitute' (zip pts ts') r
+      pure $ TApp f' ts' (Typed r') pos
+    _ ->
+      throwError $
+        withPos pos $
+          T.unlines
+            [ "Expected a forall expressions in type application:",
+              prettyText exp
+            ]
+checkExp exp@(IApp f is _ pos) = do
+  f' <- checkExp f
+  is' <- mapM (either (fmap Left . checkDim) (fmap Right . checkShape)) is
+  case typeOf f' of
+    Prod pts r -> do
+      let check_args (SVar v) (Left d) =
+            pure (SVar v, Right $ ShapeDim d)
+          check_args (SVar v) (Right s) =
+            pure (SVar v, Right s)
+          check_args (DVar v) (Right s)
+            | Just d <- coerceToDim s = pure (DVar v, Left d)
+          check_args pt i =
+            throwError $
+              withPos pos $
+                T.unlines
+                  [ "Ill-sorted application:",
+                    "Parameter type: " <> prettyText pt,
+                    "Argument: " <> prettyText i,
+                    "in",
+                    prettyText exp
+                  ]
+      (pts', is'') <- unzip <$> zipWithM check_args pts is'
+      let r' = substitute' (zip pts' is'') r
+      pure $ IApp f' is'' (Typed r') pos
+    _ ->
+      throwError $
+        withPos pos $
+          T.unlines
+            [ "Expected a prod expressions in idx application:",
+              prettyText exp
+            ]
+checkExp exp@(Unbox is x_e e box _ pos) = undefined
+
+checkAtom :: (MonadCheck m) => Atom Unchecked Text -> m (Atom Typed VName)
+checkAtom (Base b _ pos) =
+  pure $ Base b (Typed $ typeOf b) pos
+checkAtom (Lambda ps e _ pos) = do
+  let (xs, pts) = unzip ps
+  pts' <- mapM checkType pts
+  checkParams (zip xs pts') $ do
+    xs' <- mapM lookupVName xs
+    e' <- checkExp e
+    pure $ Lambda (zip xs' pts') e' (Typed $ pts' :-> typeOf e') pos
+checkAtom (TLambda ps e _ pos) = undefined
+checkAtom (ILambda ps e _ pos) = undefined
+checkAtom (Box is e t pos) = undefined
+
+checkType :: (MonadCheck m) => Type Text -> m (Type VName)
+checkType = fmap normType . checkType'
+  where
+    checkType' (TVar tvar) = TVar <$> lookupTVar tvar
+    checkType' Bool = pure Bool
+    checkType' Int = pure Int
+    checkType' Float = pure Float
+    checkType' (TArr t shape) = TArr <$> checkType' t <*> checkShape shape
+    checkType' (as :-> b) = (:->) <$> mapM checkType' as <*> checkType' b
+    checkType' (Forall pts t) =
+      checkTypeParams pts $ do
+        pts' <- mapM lookupTVar pts
+        t' <- checkType' t
+        pure $ Forall pts' t'
+    checkType' (Prod pts t) =
+      checkIdxParams pts $ do
+        pts' <- mapM lookupIVar pts
+        t' <- checkType' t
+        pure $ Prod pts' t'
+
+checkDim :: (MonadCheck m) => Dim Text -> m (Dim VName)
+checkDim = fmap normDim . checkDim'
+  where
+    checkDim' (DimVar v) = do
+      dvar <- lookupIVar $ DVar v -- fx
+      let DVar v' = dvar
+      pure $ DimVar v'
+    checkDim' (DimN d) = pure $ DimN d
+    checkDim' (Add ds) = Add <$> mapM checkDim' ds
+
+checkShape :: (MonadCheck m) => Shape Text -> m (Shape VName)
+checkShape = fmap normShape . checkShape'
+  where
+    checkShape' (ShapeVar v) = do
+      svar <- lookupIVar $ SVar v -- fix
+      let SVar v' = svar
+      pure $ ShapeVar v'
+    checkShape' (ShapeDim d) = ShapeDim <$> checkDim d
+    checkShape' (Concat ss) = Concat <$> mapM checkShape' ss
+
+withPrelude :: (MonadCheck m, Monad n) => m a -> m (Prelude VName n, a)
+withPrelude m = checkPrelude prelude mempty
+  where
+    checkPrelude [] prelude' =
+      (reverse prelude',) <$> m
+    checkPrelude (p : ps) prelude' = do
+      case p of
+        PreludeVal f t v -> do
+          t' <- checkType t
+          checkParam f t' $ do
+            f' <- lookupVName f
+            checkPrelude ps (PreludeVal f' t' v : prelude')
+        PreludeType tvar ->
+          checkTypeParam tvar $ do
+            tvar' <- lookupTVar tvar
+            checkPrelude ps (PreludeType tvar' : prelude')

@@ -18,12 +18,12 @@ prelude =
       "head"
       ( Forall
           [AtomTVar "t"]
-          ( DProd
+          ( Prod
               [DVar "d", SVar "s"]
               ( [ TArr
                     (TVar (AtomTVar "t"))
                     ( Concat
-                        [ ShapeDim (Add [Dim 1, DimVar "d"]),
+                        [ ShapeDim (Add [DimN 1, DimVar "d"]),
                           ShapeVar "s"
                         ]
                     )
@@ -41,12 +41,12 @@ prelude =
       "tail"
       ( Forall
           [AtomTVar "t"]
-          ( DProd
+          ( Prod
               [DVar "d", SVar "s"]
               ( [ TArr
                     (TVar (AtomTVar "t"))
                     ( Concat
-                        [ ShapeDim (Add [Dim 1, DimVar "d"]),
+                        [ ShapeDim (Add [DimN 1, DimVar "d"]),
                           ShapeVar "s"
                         ]
                     )
@@ -64,7 +64,7 @@ prelude =
       "length"
       ( Forall
           [AtomTVar "t"]
-          ( DProd
+          ( Prod
               [DVar "d", SVar "s"]
               ( [TArr (TVar (AtomTVar "t")) (Concat [ShapeDim (DimVar "d"), ShapeVar "s"])]
                   :-> TArr Int mempty
@@ -80,7 +80,7 @@ prelude =
       "append"
       ( Forall
           [AtomTVar "t"]
-          ( DProd
+          ( Prod
               [DVar "m", DVar "n", SVar "s"]
               ( [ TArr (TVar (AtomTVar "t")) (Concat [ShapeDim $ DimVar "m", ShapeVar "s"]),
                   TArr (TVar (AtomTVar "t")) (Concat [ShapeDim $ DimVar "n", ShapeVar "s"])
@@ -105,7 +105,7 @@ prelude =
       "reverse"
       ( Forall
           [AtomTVar "t"]
-          ( DProd
+          ( Prod
               [DVar "d", SVar "s"]
               ( let arr_t =
                       TArr
@@ -136,7 +136,7 @@ prelude =
       ),
     PreludeVal
       "sum"
-      ( DProd
+      ( Prod
           [SVar "s"]
           ( [ TArr
                 Int

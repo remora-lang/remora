@@ -103,7 +103,7 @@ intExp (TApp e ts _ _) = do
   tapply e' ts
 intExp (IApp e is _ _) = do
   e' <- intExp e
-  is' <- mapM intShape is
+  is' <- mapM (either (fmap pure . intDim) intShape) is
   iapply e' is'
 
 intDim :: Dim -> InterpM Int
@@ -111,7 +111,7 @@ intDim = pure . intDim'
 
 intDim' :: Dim -> Int
 intDim' DimVar {} = error ""
-intDim' (Syntax.Dim d) = d
+intDim' (DimN d) = d
 intDim' (Add ds) = sum $ map intDim' ds
 
 intShape :: Shape -> InterpM [Int]

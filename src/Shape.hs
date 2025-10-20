@@ -1,46 +1,48 @@
-module Shape where
+module Shape
+  ( Dim (..),
+    Shape (..),
+    Idx (..),
+    IVar (..),
+    unIVar,
+    coerceToDim,
+    normDim,
+    normShape,
+    (\\),
+    intsToShape,
+    (.<=.),
+    maximumShape,
+  )
+where
 
 import Data.Bifunctor
+import Data.List (sort)
+import Data.Maybe
 import Prettyprinter
 
-data IVar v
-  = SVar v
-  | DVar v
-
-deriving instance (Show v) => Show (IVar v)
-
-deriving instance (Eq v) => Eq (IVar v)
-
-unIVar :: IVar v -> v
-unIVar (SVar v) = v
-unIVar (DVar v) = v
-
-instance (Show v, Pretty v) => Pretty (IVar v) where
-  pretty (SVar v) = "@" <> pretty v
-  pretty (DVar v) = "$" <> pretty v
-
+-- | Dimensions.
 data Dim v
-  = DimVar v
-  | Dim Int
-  | Add [Dim v]
-
-deriving instance (Show v) => Show (Dim v)
-
-deriving instance (Eq v) => Eq (Dim v)
+  = -- | A dimension variable.
+    DimVar v
+  | -- | A numeric dimension.
+    DimN Int
+  | -- | Addition of dimensions.
+    Add [Dim v]
+  deriving (Show, Eq, Ord)
 
 instance (Show v, Pretty v) => Pretty (Dim v) where
   pretty (DimVar v) = pretty v
-  pretty (Dim d) = pretty d
+  pretty (DimN d) = pretty d
   pretty (Add ds) = parens $ hsep ("+" : map pretty ds)
 
+-- | Shapes.
 data Shape v
-  = ShapeVar v
-  | ShapeDim (Dim v)
-  | Concat [Shape v]
-
-deriving instance (Show v) => Show (Shape v)
-
-deriving instance (Eq v) => Eq (Shape v)
+  = -- | Shape variables.
+    ShapeVar v
+  | -- | A shape consisting of a single dimension.
+    ShapeDim (Dim v)
+  | -- | Concatenation of shapes.
+    Concat [Shape v]
+  deriving (Show, Eq, Ord)
 
 instance Semigroup (Shape v) where
   s <> t = Concat [s, t]
@@ -51,37 +53,77 @@ instance Monoid (Shape v) where
 instance (Show v, Pretty v) => Pretty (Shape v) where
   pretty (ShapeVar v) = pretty v
   pretty (ShapeDim d) = pretty d
-  -- pretty (Shape is) = parens $ hsep ("shape" : map pretty is)
   pretty (Concat []) = "•"
   pretty (Concat is) = parens $ hsep ("++" : map pretty is)
 
-normDim :: (Eq v) => Dim v -> Dim v
-normDim (Dim n) = Dim n
+-- TODO: Remove
+instance (Show v, Pretty v) => Pretty (Either (Dim v) (Shape v)) where
+  pretty = either pretty pretty
+
+-- | An type index. Since shape variables and dimension variables can be
+-- statically distinguished, we don't need a constructor for type index
+-- variables here.
+data Idx v
+  = Shape (Shape v)
+  | Dim (Dim v)
+  deriving (Eq, Show)
+
+-- | Type index variables. These are needed for type index parameters and
+-- patterns.
+data IVar v
+  = -- | A shape variable.
+    SVar v
+  | -- | A dimension variable.
+    DVar v
+  deriving (Show, Eq, Ord)
+
+instance (Show v, Pretty v) => Pretty (IVar v) where
+  pretty (SVar v) = "@" <> pretty v
+  pretty (DVar v) = "$" <> pretty v
+
+-- | Extract the variable out of an 'IVar'.
+unIVar :: IVar v -> v
+unIVar (SVar v) = v
+unIVar (DVar v) = v
+
+-- | Coerce a shape into a dimension; fails for shapes that don't have rank 1;
+-- optimistically will coerce shape variables. Assumes a normalized shape.
+coerceToDim :: Shape v -> Maybe (Dim v)
+coerceToDim (ShapeVar v) = pure $ DimVar v
+coerceToDim (ShapeDim d) = pure d
+coerceToDim _ = Nothing
+
+-- | Basic dimension normalization; collects all numeric dimensions to the front
+-- of an 'Add' and plops any variables after in sorted order.
+normDim :: (Ord v, Eq v) => Dim v -> Dim v
+normDim (DimN n) = DimN n
 normDim (DimVar v) = DimVar v
 normDim (Add ds) =
   case (d, vars) of
-    (_, []) -> Dim d
-    _ -> Add (Dim d : vars)
+    (_, []) -> DimN d
+    _ -> Add (DimN d : sort vars)
   where
     (d, vars) =
       foldr discriminate (0, []) $
-        flip concatMap ds $ \d ->
-          case normDim d of
+        flip concatMap ds $ \d' ->
+          case normDim d' of
             Add ds' -> ds'
-            d' -> pure d'
-    discriminate d =
-      case d of
-        Dim n -> first (+ n)
+            d'' -> pure d''
+    discriminate d' =
+      case d' of
+        DimN n -> first (+ n)
         DimVar v -> second (DimVar v :)
         _ -> error ""
 
-normShape :: (Eq v) => Shape v -> Shape v
+-- | Basic shape normalization; normalizes dimensions and flattens
+-- concatenations and returns the result in sorted order.
+normShape :: (Ord v, Eq v) => Shape v -> Shape v
 normShape (ShapeVar v) = ShapeVar v
 normShape (ShapeDim d) = ShapeDim $ normDim d
 normShape (Concat ss) =
   case merged of
     [s] -> s
-    _ -> Concat merged
+    _ -> Concat $ sort merged
   where
     merged =
       flip concatMap ss $ \s ->
@@ -89,24 +131,33 @@ normShape (Concat ss) =
           Concat ss' -> ss'
           s' -> pure s'
 
-decrementDim :: Dim v -> Dim v
-decrementDim (Dim 0) = error "decrementDim"
-decrementDim (Dim n) = Dim $ n - 1
-decrementDim d = Add [Dim (-1), d]
-
--- peels the first dim off a shape
-peel :: (Eq v) => Shape v -> Maybe (Dim v, Shape v)
-peel = peel' . normShape
-  where
-    peel' (ShapeDim d) = Just (d, mempty)
-    peel' (Concat (s : ss)) = peel s
-    peel' _ = Nothing
-
+-- | Shape suffix subtraction; given shapes @(++ s1 s2)@ and @t@ if @t == s2@ then
+-- returns @Just s1@. Otherwise fails with @Nothing@.
 (\\) :: (Eq v, Show v) => Shape v -> Shape v -> Maybe (Shape v)
 s \\ t
   | s == t = Just mempty
-Concat [] \\ t = Nothing
+Concat [] \\ _ = Nothing
 s \\ Concat [] = pure s
 (Concat ss) \\ (Concat ts)
   | last ss == last ts = Concat (init ss) \\ Concat (init ts)
 s \\ t = error $ show (s, t)
+
+-- | Turns an explicit list of dimensions into a 'Shape'.
+intsToShape :: [Int] -> Shape v
+intsToShape ds = Concat $ map (ShapeDim . DimN) ds
+
+-- | @s .<= t@ is true if @s@ is a suffix of @t@.
+(.<=.) :: (Eq v, Show v) => Shape v -> Shape v -> Bool
+s .<=. t = isJust $ s \\ t
+
+-- | Returns the largest shape from a collection of shapes with a common prefix.
+-- Unsafe to use if the shapes do not have a common prefix.
+maximumShape :: (Ord v, Show v, Pretty v, Foldable t) => t (Shape v) -> Shape v
+maximumShape =
+  foldr
+    ( \next shape ->
+        if shape .<=. next
+          then next
+          else shape
+    )
+    mempty

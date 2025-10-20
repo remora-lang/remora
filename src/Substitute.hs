@@ -28,19 +28,19 @@ instance (Substitute a b c) => Substitute a b (Map k c) where
 substitute' :: (Ord a, Substitute a b c) => [(a, b)] -> c -> c
 substitute' = substitute . M.fromList
 
-instance (Ord v) => Substitute v (Type v) (Type v) where
-  substitute subst (TVar v) = fromMaybe (TVar v) $ subst M.!? (unTVar v)
+instance (Ord v) => Substitute (TVar v) (Type v) (Type v) where
+  substitute subst (TVar tvar) = fromMaybe (TVar tvar) $ subst M.!? tvar
   substitute subst (TArr t s) = TArr (substitute subst t) s
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
   substitute subst (Forall pts t) =
-    Forall pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unTVar pts) subst) t
-  substitute subst (DProd pts t) = DProd pts $ substitute subst t
-  substitute subst (DSum pts t) = DSum pts $ substitute subst t
+    Forall pts $ substitute (M.filterWithKey (\k _ -> k `notElem` pts) subst) t
+  substitute subst (Prod pts t) = Prod pts $ substitute subst t
+  substitute subst (Exists pts t) = Exists pts $ substitute subst t
   substitute _ t = t
 
 instance (Ord v) => Substitute v (Dim v) (Dim v) where
   substitute subst (DimVar v) = fromMaybe (DimVar v) $ subst M.!? v
-  substitute _ (Dim d) = Dim d
+  substitute _ (DimN d) = DimN d
   substitute subst (Add ds) = Add $ map (substitute subst) ds
 
 instance (Ord v) => Substitute v (Shape v) (Dim v) where
@@ -48,43 +48,74 @@ instance (Ord v) => Substitute v (Shape v) (Dim v) where
     case normShape <$> subst M.!? v of
       Just (ShapeDim d) -> substitute subst d
       _ -> DimVar v
-  substitute subst (Dim d) = Dim d
+  substitute subst (DimN d) = DimN d
   substitute subst (Add ds) = Add $ map (substitute subst) ds
+
+instance (Ord v) => Substitute v (Dim v) (Shape v) where
+  substitute _ (ShapeVar v) = ShapeVar v
+  substitute subst (ShapeDim d) = ShapeDim $ substitute subst d
+  substitute subst (Concat shapes) = Concat $ map (substitute subst) shapes
 
 instance (Ord v) => Substitute v (Shape v) (Shape v) where
   substitute subst (ShapeVar v) = fromMaybe (ShapeVar v) $ subst M.!? v
   substitute subst (ShapeDim d) = ShapeDim $ substitute subst d
   substitute subst (Concat shapes) = Concat $ map (substitute subst) shapes
 
--- instance (Ord v) => Substitute v (Either (Dim v) (Shape v)) (Shape v) where
---  substitute subst (ShapeVar v) = substitute (substToRights subst) (ShapeVar v)
---  substitute subst (ShapeDim d) = ShapeDim $ substitute (substToLefts subst) d
---  substitute subst (Concat shapes) = Concat $ map (substitute subst) shapes
---
--- substToLefts :: (Ord a) => Map a (Either b c) -> Map a b
--- substToLefts =
---  M.fromList . lefts . map (\(a, e) -> bimap (a,) (a,) e) . M.toList
---
--- substToRights :: (Ord a) => Map a (Either b c) -> Map a c
--- substToRights =
---  M.fromList . rights . map (\(a, e) -> bimap (a,) (a,) e) . M.toList
---
--- instance (Ord v) => Substitute v (Either (Dim v) (Shape v)) (Type v) where
---  substitute subst (TArr t s) = TArr t (substitute subst s)
---  substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
---  substitute subst (Forall pts t) = Forall pts $ substitute subst t
---  substitute subst (DProd pts t) =
---    DProd pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map fst pts) subst) t
---  substitute subst (DSum pts t) =
---    DSum pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map fst pts) subst) t
---  substitute _ t = t
+instance (Ord v, Substitute v (Dim v) c) => Substitute (IVar v) (Dim v) c where
+  substitute subst c = substitute subst' c
+    where
+      subst' =
+        M.mapKeys unpack $
+          M.filterWithKey
+            ( \k _ -> case k of
+                DVar {} -> True
+                SVar {} -> False
+            )
+            subst
+      unpack (DVar v) = v
+      unpack (SVar v) = v
+
+instance (Ord v, Substitute v (Shape v) c) => Substitute (IVar v) (Shape v) c where
+  substitute subst c = substitute subst' c
+    where
+      subst' =
+        M.mapKeys unpack $
+          M.filterWithKey
+            ( \k _ -> case k of
+                DVar {} -> False
+                SVar {} -> True
+            )
+            subst
+      unpack (DVar v) = v
+      unpack (SVar v) = v
+
+instance (Ord v, Substitute v a c, Substitute v b c) => Substitute v (Either a b) c where
+  substitute subst c =
+    substitute substRight $ substitute substLeft c
+    where
+      substLeft =
+        M.map (fromLeft (error "")) $
+          M.filter isLeft subst
+      substRight =
+        M.map (fromRight (error "")) $
+          M.filter isRight subst
+
+instance (Ord v) => Substitute v (Dim v) (Type v) where
+  substitute subst (TArr t s) = TArr t (substitute subst s)
+  substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
+  substitute subst (Forall pts t) = Forall pts $ substitute subst t
+  substitute subst (Prod pts t) =
+    Prod pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unIVar pts) subst) t
+  substitute subst (Exists pts t) =
+    Exists pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unIVar pts) subst) t
+  substitute _ t = t
 
 instance (Ord v) => Substitute v (Shape v) (Type v) where
   substitute subst (TArr t s) = TArr t (substitute subst s)
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
   substitute subst (Forall pts t) = Forall pts $ substitute subst t
-  substitute subst (DProd pts t) =
-    DProd pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unIVar pts) subst) t
-  substitute subst (DSum pts t) =
-    DSum pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unIVar pts) subst) t
+  substitute subst (Prod pts t) =
+    Prod pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unIVar pts) subst) t
+  substitute subst (Exists pts t) =
+    Exists pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unIVar pts) subst) t
   substitute _ t = t
