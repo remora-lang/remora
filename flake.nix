@@ -53,7 +53,39 @@
         };
 
         # haskell-flake doesn't set the default package, but you can do it here.
-        packages.default = self'.packages.remora-lang;
+        packages.default = self'.packages.remora-all;
+
+        packages = {
+          remora-all = pkgs.buildEnv {
+            name = "remora-all";
+            paths = [
+              self'.packages.remora-lang
+              self'.packages.remora-docs
+            ];
+          };
+
+          remora-docs = pkgs.stdenv.mkDerivation {
+            pname = "remora-docs";
+            version = "0.1";
+
+            src = ./.;
+            nativeBuildInputs = [
+              pkgs.sphinx
+            ];
+
+            phases = [  "buildPhase" "installPhase" ];
+
+            buildPhase = ''
+               mkdir -p "docs/_build/html"
+               sphinx-build -b html "$src/docs" "docs/_build/html"
+            '';
+
+            installPhase = ''
+              mkdir -p "$out/docs"
+              cp -r docs/_build/html "$out/docs/html"
+            '';
+          };
+        };
       };
     };
 }
