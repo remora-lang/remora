@@ -43,7 +43,7 @@ library
     -- other-modules:
     -- other-extensions:
     build-depends:
-      base ^>=4.19.2.0,
+      base >=4.19.2.0,
       megaparsec,
       text,
       prettyprinter,
@@ -62,7 +62,7 @@ executable remora
     -- other-modules:
     -- other-extensions:
     build-depends:
-        base ^>=4.19.2.0,
+        base >=4.19.2.0,
         cmdargs,
         haskeline,
         remora-lang
@@ -75,5 +75,5 @@ test-suite remora-lang-test
     hs-source-dirs:   test
     main-is:          Main.hs
     build-depends:
-        base ^>=4.19.2.0,
+        base >=4.19.2.0,
         remora-lang
