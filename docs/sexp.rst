@@ -48,7 +48,10 @@ Source position, Atoms, and Expressions
 
 .. productionlist::
    val_param : "(" `id` `type` ")"
-   base : `integer_lit` | `float_lit` | "#t" | "#f"
+   base : "(" "int" `integer_lit` ")"
+      : | "(" "float" `float_lit` ")"
+      : | "#t"
+      : | "#f"
    atom : "(" "base" `base` `pos` ")"
       : | "(" "fn" "(" `val_param`* ")" `exp` `pos` ")"
       : | "(" "t-fn" "(" `type_var`* ")" `exp` `pos` ")"
