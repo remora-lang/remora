@@ -25,16 +25,27 @@ data Remora
       }
   deriving (Data, Typeable, Show, Eq)
 
+parse =
+  Parse
+    { file = Nothing &= help "Parse the passed file.",
+      exp = Nothing &= help "Parse an expression passed as an argument.",
+      sexp = False &= help "Print the parsed result as an s-expression."
+    }
+    &= details
+      [ "Parse a Remora program or expression.",
+        "",
+        "Expressions may be passed directly as an argument using the -e flag, e.g.:",
+        "remora parse -e \"[[1 2] [3 4]]\"",
+        "",
+        "If no flags are passed, will read input from stdin."
+      ]
+
 mode =
   cmdArgsMode $
     modes
-      [ REPL,
-        Interpret,
-        Parse
-          { file = Nothing,
-            exp = Nothing,
-            sexp = False
-          }
+      [ REPL &= details ["DO NOT USE: remora repl is a broken WIP."],
+        Interpret &= details ["DO NOT USE: remora interpret is broken WIP."],
+        parse
       ]
       &= program "remora"
 
