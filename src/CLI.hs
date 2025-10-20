@@ -4,8 +4,10 @@
 module CLI (main) where
 
 import CLI.REPL qualified
+import Data.Maybe
 import Data.Text (Text)
 import Data.Text qualified as T
+import Data.Text.IO qualified as T
 import Parser qualified
 import Prettyprinter
 import SExp
@@ -17,22 +19,39 @@ data Remora
   = REPL
   | Interpret
   | Parse
-      { exp :: String,
+      { file :: Maybe FilePath,
+        exp :: Maybe String,
         sexp :: Bool
       }
   deriving (Data, Typeable, Show, Eq)
 
 mode =
   cmdArgsMode $
-    modes [REPL, Interpret, Parse {exp = def, sexp = False}] &= program "remora"
+    modes
+      [ REPL,
+        Interpret,
+        Parse
+          { file = Nothing,
+            exp = Nothing,
+            sexp = False
+          }
+      ]
+      &= program "remora"
 
 main :: IO ()
 main = do
   mode <- cmdArgsRun mode
   case mode of
     REPL -> CLI.REPL.repl
-    Parse s sexp ->
-      case Parser.parse "" $ T.pack s of
+    Parse mfile mexp sexp -> do
+      input <- case mfile of
+        Just path -> T.readFile path
+        Nothing ->
+          case mexp of
+            Just s -> pure $ T.pack s
+            Nothing -> T.getContents
+
+      case Parser.parse (fromMaybe "" mfile) input of
         Left err -> putStrLn err
         Right exp
           | sexp -> putStrLn $ prettyString (toSExp exp :: SExp Text)
