@@ -141,9 +141,10 @@ instance SExpable (Exp Unchecked Text) Text where
         toSExp t,
         toSExp pos
       ]
-  toSExp (App es _ pos) =
+  toSExp (App f es _ pos) =
     SList
       [ "app",
+        toSExp f,
         toSExp es,
         toSExp pos
       ]
@@ -154,20 +155,39 @@ instance SExpable (Exp Unchecked Text) Text where
         toSExp ts,
         toSExp pos
       ]
-  toSExp (Unbox vs x_e e _ pos) =
+  toSExp (Unbox vs v_e x_e e _ pos) =
     SList
       [ "unbox",
         toSExp vs,
+        toSExp v_e,
         toSExp x_e,
         toSExp e,
         toSExp pos
       ]
 
 instance SExpable (TVar Text) Text where
-  toSExp = SAtom . prettyText
+  toSExp (AtomTVar v) =
+    SList
+      [ "atom-tvar",
+        toSExp v
+      ]
+  toSExp (ArrayTVar v) =
+    SList
+      [ "array-tvar",
+        toSExp v
+      ]
 
 instance SExpable (IVar Text) Text where
-  toSExp = SAtom . prettyText
+  toSExp (SVar v) =
+    SList
+      [ "shape-ivar",
+        toSExp v
+      ]
+  toSExp (DVar v) =
+    SList
+      [ "dim-ivar",
+        toSExp v
+      ]
 
 instance SExpable (Type Text) Text where
   toSExp (TVar v) = toSExp v
@@ -206,14 +226,26 @@ instance SExpable (Type Text) Text where
       ]
 
 instance SExpable (Dim Text) Text where
-  toSExp d@DimVar {} = toSExp $ prettyText d
-  toSExp (Dim n) = toSExp n
+  toSExp (DimVar v) =
+    SList
+      [ "dim-ivar",
+        toSExp v
+      ]
+  toSExp (Dim n) =
+    SList
+      [ "dim",
+        toSExp n
+      ]
   toSExp (Add ds) =
-    SList $ "+" : map toSExp ds
+    SList $ "dim-+" : map toSExp ds
 
 instance SExpable (Shape Text) Text where
-  toSExp s@ShapeVar {} = toSExp $ prettyText s
+  toSExp (ShapeVar v) =
+    SList
+      [ "shape-ivar",
+        toSExp v
+      ]
   toSExp (ShapeDim d) =
     SList ["shape-dim", toSExp d]
   toSExp (Concat ss) =
-    SList $ "++" : map toSExp ss
+    SList $ "shape-++" : map toSExp ss

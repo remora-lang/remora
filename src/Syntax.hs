@@ -149,10 +149,10 @@ data Exp f v
   | EmptyArray [Int] (Type v) (f (Type v)) SourcePos
   | Frame [Int] [Exp f v] (f (Type v)) SourcePos
   | EmptyFrame [Int] (Type v) (f (Type v)) SourcePos
-  | App [Exp f v] (f (Type v, Shape v)) SourcePos
+  | App (Exp f v) [Exp f v] (f (Type v, Shape v)) SourcePos
   | TApp (Exp f v) [Type v] (f (Type v)) SourcePos
   | IApp (Exp f v) [Shape v] (f (Type v)) SourcePos
-  | Unbox [IVar v] (Exp f v) (Exp f v) (f (Type v)) SourcePos
+  | Unbox [IVar v] v (Exp f v) (Exp f v) (f (Type v)) SourcePos
 
 deriving instance (Show v) => Show (Exp Unchecked v)
 
@@ -172,14 +172,14 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Exp f v) where
         "Array"
           <+> (parens $ hsep (map pretty shape))
           <+> (group $ encloseSep "[" "]" ("," <> line) (map pretty es))
-  pretty (App es _ _) =
-    parens $ hsep $ map pretty es
+  pretty (App f es _ _) =
+    parens $ hsep $ map pretty (f : es)
   pretty (TApp e ts _ _) =
     parens $ "t-app" <+> pretty e <+> hsep (map pretty ts)
   pretty (IApp e is _ _) =
     parens $ "i-app" <+> pretty e <+> hsep (map pretty is)
-  pretty (Unbox vs e b _ _) =
-    parens $ "unbox" <+> (parens (hsep (map pretty vs ++ [pretty e]))) <+> pretty b
+  pretty (Unbox vs v e b _ _) =
+    parens $ "unbox" <+> (parens (hsep (map pretty vs ++ [pretty v, pretty e]))) <+> pretty b
 
 class HasType x where
   typeOf :: x -> Type VName
@@ -202,10 +202,10 @@ instance HasType (Exp Typed VName) where
   typeOf (EmptyArray _ _ (Typed t) _) = t
   typeOf (Frame _ _ (Typed t) _) = t
   typeOf (EmptyFrame _ _ (Typed t) _) = t
-  typeOf (App _ (Typed (t, _)) _) = t
+  typeOf (App _ _ (Typed (t, _)) _) = t
   typeOf (TApp _ _ (Typed t) _) = t
   typeOf (IApp _ _ (Typed t) _) = t
-  typeOf (Unbox _ _ _ (Typed t) _) = t
+  typeOf (Unbox _ _ _ _ (Typed t) _) = t
 
 class HasPos x where
   posOf :: x -> SourcePos
@@ -223,10 +223,10 @@ instance HasPos (Exp f v) where
   posOf (EmptyArray _ _ _ pos) = pos
   posOf (Frame _ _ _ pos) = pos
   posOf (EmptyFrame _ _ _ pos) = pos
-  posOf (App _ _ pos) = pos
+  posOf (App _ _ _ pos) = pos
   posOf (TApp _ _ _ pos) = pos
   posOf (IApp _ _ _ pos) = pos
-  posOf (Unbox _ _ _ _ pos) = pos
+  posOf (Unbox _ _ _ _ _ pos) = pos
 
 class HasShape x where
   shapeOf :: x -> Shape VName

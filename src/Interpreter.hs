@@ -88,7 +88,7 @@ intExp (Frame shape es _ _) =
   ValArray shape <$> mapM intExp es
 intExp (EmptyFrame shape _ _ _) =
   pure $ ValArray shape mempty
-intExp (App (f : es) (Typed (r, principal)) _) = do
+intExp (App f es (Typed (r, principal)) _) = do
   shape_p <- intShape principal
   f' <- intExp f
   es' <- mapM intExp es

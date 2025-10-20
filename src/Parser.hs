@@ -206,7 +206,7 @@ pExp =
                     choice
                       [ Array <$> (lKeyword "array" >> pShapeLit) <*> some pAtom,
                         Frame <$> (lKeyword "frame" >> pShapeLit) <*> some pExp,
-                        (. const Unchecked) <$> (App <$> ((:) <$> pExp <*> some pExp)),
+                        (. const Unchecked) <$> (App <$> pExp <*> some pExp),
                         lKeyword "i-app" >> IApp <$> pExp <*> (some pShape),
                         lKeyword "t-app" >> TApp <$> pExp <*> (some pType),
                         pUnbox
@@ -224,6 +224,7 @@ pExp =
     pUnbox =
       Unbox
         <$> (symbol "(" >> (many (pIVar <* notFollowedBy (symbol ")"))))
+        <*> lId
         <*> (pExp <* symbol ")")
         <*> pExp
 
