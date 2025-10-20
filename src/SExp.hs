@@ -3,6 +3,7 @@ module SExp where
 import Data.String
 import Data.Text (Text)
 import Data.Text qualified as T
+import Prettyprinter
 import Syntax
 import Text.Megaparsec.Pos
 import Util
@@ -14,6 +15,10 @@ data SExp a
 
 instance (IsString a) => IsString (SExp a) where
   fromString = SAtom . fromString
+
+instance (Pretty a) => Pretty (SExp a) where
+  pretty (SList sexps) = "(" <> hsep (map pretty sexps) <> ")"
+  pretty (SAtom a) = pretty a
 
 class SExpable a b where
   toSExp :: a -> SExp b

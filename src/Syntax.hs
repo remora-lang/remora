@@ -285,3 +285,4 @@ normExp (Frame shape es t pos) =
     _ -> Frame shape es' t pos
   where
     es' = map normExp es
+normExp e = e
