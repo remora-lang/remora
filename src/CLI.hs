@@ -37,7 +37,7 @@ parse =
         "Expressions may be passed directly as an argument using the -e flag, e.g.:",
         "> remora parse -e \"[[1 2] [3 4]]\"",
         "",
-        "If no flags are passed, will read input from stdin."
+        "If neither -f nor -e is passed, will read input from stdin."
       ]
 
 mode =
