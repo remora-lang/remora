@@ -41,9 +41,9 @@ Source position, Atoms, and Expressions
 -------------------------------------------------
 
 .. productionlist::
-   file : "(" "source-file" `string_lit` ")"
-   line : "(" "source-line" `integer_lit` ")"
-   col : "(" "source-column" `integer_lit` ")"
+   file : "(" "file" `string_lit` ")"
+   line : "(" "line" `integer_lit` ")"
+   col : "(" "col" `integer_lit` ")"
    pos : "(" "source-pos" `file` `line` `col` ")"
 
 .. productionlist::

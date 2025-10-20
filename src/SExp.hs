@@ -47,9 +47,9 @@ instance SExpable SourcePos Text where
   toSExp pos =
     SList
       [ "source-pos",
-        SList ["source-file", toSExp $ sourceName pos],
-        SList ["source-line", toSExp $ sourceLine pos],
-        SList ["source-column", toSExp $ sourceColumn pos]
+        SList ["file", toSExp $ sourceName pos],
+        SList ["line", toSExp $ sourceLine pos],
+        SList ["col", toSExp $ sourceColumn pos]
       ]
 
 instance SExpable Base Text where
