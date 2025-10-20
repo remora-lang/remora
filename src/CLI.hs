@@ -35,7 +35,7 @@ parse =
       [ "Parse a Remora program or expression.",
         "",
         "Expressions may be passed directly as an argument using the -e flag, e.g.:",
-        "remora parse -e \"[[1 2] [3 4]]\"",
+        "> remora parse -e \"[[1 2] [3 4]]\"",
         "",
         "If no flags are passed, will read input from stdin."
       ]
