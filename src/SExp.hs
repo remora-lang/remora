@@ -53,7 +53,21 @@ instance SExpable SourcePos Text where
       ]
 
 instance SExpable Base Text where
-  toSExp = SAtom . prettyText
+  toSExp (BoolVal b) =
+    SList
+      [ "bool",
+        toSExp $ prettyText b
+      ]
+  toSExp (IntVal x) =
+    SList
+      [ "int",
+        toSExp $ prettyText x
+      ]
+  toSExp (FloatVal x) =
+    SList
+      [ "float",
+        toSExp $ prettyText x
+      ]
 
 instance SExpable (Atom Unchecked Text) Text where
   toSExp (Base b _ pos) =
@@ -101,21 +115,21 @@ instance SExpable (Exp Unchecked Text) Text where
   toSExp (Array shape as _ pos) =
     SList
       [ "array",
-        toSExp shape,
+        SList $ "shape-lit" : map toSExp shape,
         toSExp as,
         toSExp pos
       ]
   toSExp (EmptyArray shape t _ pos) =
     SList
       [ "empty-array",
-        toSExp shape,
+        SList $ "shape-lit" : map toSExp shape,
         toSExp t,
         toSExp pos
       ]
   toSExp (Frame shape es _ pos) =
     SList
       [ "frame",
-        toSExp shape,
+        SList $ "shape-lit" : map toSExp shape,
         toSExp es,
         toSExp pos
       ]
@@ -123,6 +137,7 @@ instance SExpable (Exp Unchecked Text) Text where
     SList
       [ "empty-frame",
         toSExp shape,
+        SList $ "shape-lit" : map toSExp shape,
         toSExp t,
         toSExp pos
       ]

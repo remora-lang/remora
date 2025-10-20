@@ -51,7 +51,7 @@ main = do
             Just s -> pure $ T.pack s
             Nothing -> T.getContents
 
-      case Parser.parse (fromMaybe "" mfile) input of
+      case Parser.parse (fromMaybe "<cli>" mfile) input of
         Left err -> putStrLn err
         Right exp
           | sexp -> putStrLn $ prettyString (toSExp exp :: SExp Text)
