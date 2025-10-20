@@ -66,7 +66,7 @@ instance (Show v, Pretty v) => Pretty (Either (Dim v) (Shape v)) where
 data Idx v
   = Shape (Shape v)
   | Dim (Dim v)
-  deriving (Eq, Show)
+  deriving (Eq, Show, Ord)
 
 -- | Type index variables. These are needed for type index parameters and
 -- patterns.
@@ -75,7 +75,7 @@ data IVar v
     SVar v
   | -- | A dimension variable.
     DVar v
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Functor)
 
 instance (Show v, Pretty v) => Pretty (IVar v) where
   pretty (SVar v) = "@" <> pretty v

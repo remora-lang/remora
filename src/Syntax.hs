@@ -49,7 +49,7 @@ data TVar v
     AtomTVar v
   | -- | Array-kinded type variable.
     ArrayTVar v
-  deriving (Show, Ord, Eq)
+  deriving (Show, Ord, Eq, Functor)
 
 -- | Extract the variable out of a 'TVar'.
 unTVar :: TVar v -> v
