@@ -169,7 +169,7 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Exp f v) where
   pretty (Frame shape es _ _) =
     group $
       parens $
-        "Array"
+        "Frame"
           <+> (parens $ hsep (map pretty shape))
           <+> (group $ encloseSep "[" "]" ("," <> line) (map pretty es))
   pretty (App f es _ _) =
