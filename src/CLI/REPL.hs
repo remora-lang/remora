@@ -1,6 +1,8 @@
 module CLI.REPL (repl) where
 
+import Control.Monad.IO.Class
 import Data.Text qualified as T
+import Data.Text.IO qualified as T
 import Interpreter
 import Parser
 import System.Console.Haskeline
@@ -15,15 +17,11 @@ repl = runInputT defaultSettings loop
       minput <- getInputLine ">> "
       case minput of
         Nothing -> loop
-        Just input -> do
-          let mexp = parse "" (T.pack input)
-          case mexp of
-            Left err -> outputStrLn $ "parse error:\n" <> err
-            Right e ->
-              case check e of
-                Left err -> outputStrLn $ "typecheck error:\n" <> T.unpack err
-                Right (prelude, e') ->
-                  case interpret prelude e' of
-                    Left err -> outputStrLn $ "interpreter error:\n" <> T.unpack err
-                    Right v -> outputStrLn $ prettyString v
-          loop
+        Just input ->
+          let m = do
+                expr <- parse "" (T.pack input)
+                (prelude, expr') <- check expr
+                interpret prelude expr'
+           in case m of
+                Left err -> liftIO $ T.putStrLn err
+                Right v -> liftIO $ T.putStrLn $ prettyText v

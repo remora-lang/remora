@@ -12,7 +12,6 @@ import Prettyprinter
 import RemoraPrelude
 import Substitute
 import Syntax
-import Text.Megaparsec.Pos (SourcePos)
 import Util
 import VName
 
@@ -24,7 +23,11 @@ data Env = Env
   }
 
 withPos :: (Pretty x) => SourcePos -> x -> Text
-withPos pos x = prettyText x <> (" at " <> prettyText (show pos))
+withPos pos x =
+  T.unlines
+    [ " at " <> prettyText (show pos),
+      prettyText x
+    ]
 
 initEnv :: Env
 initEnv = Env mempty mempty mempty mempty
@@ -279,7 +282,7 @@ checkExp expr@(IApp f is _ pos) = do
             [ "Expected a prod exprressions in idx application:",
               prettyText expr
             ]
-checkExp expr@(Unbox is x_e e box _ pos) = undefined
+checkExp expr@(Unbox is x_e e box _ pos) = error "todo"
 
 checkAtom :: (MonadCheck m) => Atom Unchecked Text -> m (Atom Typed VName)
 checkAtom (Base b _ pos) =
@@ -291,9 +294,9 @@ checkAtom (Lambda ps e _ pos) = do
     xs' <- mapM lookupVName xs
     e' <- checkExp e
     pure $ Lambda (zip xs' pts') e' (Typed $ pts' :-> typeOf e') pos
-checkAtom (TLambda ps e _ pos) = undefined
-checkAtom (ILambda ps e _ pos) = undefined
-checkAtom (Box is e t pos) = undefined
+checkAtom (TLambda ps e _ pos) = error "todo"
+checkAtom (ILambda ps e _ pos) = error "todo"
+checkAtom (Box is e t pos) = error "todo"
 
 checkType :: (MonadCheck m) => Type Text -> m (Type VName)
 checkType = fmap normType . checkType'
@@ -314,7 +317,7 @@ checkType = fmap normType . checkType'
         pts' <- mapM lookupIVar' pts
         t' <- checkType' t
         pure $ Prod pts' t'
-    checkType' (Exists {}) = undefined
+    checkType' (Exists {}) = error "todo"
 
 checkDim :: (MonadCheck m) => Dim Text -> m (Dim VName)
 checkDim = fmap normDim . checkDim'

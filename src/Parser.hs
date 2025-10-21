@@ -50,10 +50,10 @@ type TVar = Syntax.TVar Text
 
 type IVar = Syntax.IVar Text
 
-parse :: FilePath -> Text -> Either String Exp
+parse :: FilePath -> Text -> Either Text Exp
 parse fname s =
   case Text.Megaparsec.parse (spaceConsumer *> pExp <* eof) fname s of
-    Left err -> Left $ errorBundlePretty err
+    Left err -> Left $ T.pack $ errorBundlePretty err
     Right x -> Right x
 
 spaceConsumer :: Parser ()

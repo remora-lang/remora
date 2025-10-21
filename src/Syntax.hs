@@ -2,6 +2,7 @@
 
 module Syntax
   ( module Shape,
+    SourcePos,
     Unchecked (..),
     Typed (..),
     TVar (..),
