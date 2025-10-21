@@ -140,6 +140,8 @@ Concat [] \\ _ = Nothing
 s \\ Concat [] = pure s
 (Concat ss) \\ (Concat ts)
   | last ss == last ts = Concat (init ss) \\ Concat (init ts)
+(Concat ss) \\ t
+  | last ss == t = pure $ Concat $ init ss
 s \\ t = error $ show (s, t)
 
 -- | Turns an explicit list of dimensions into a 'Shape'.
