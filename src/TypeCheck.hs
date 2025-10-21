@@ -25,7 +25,7 @@ data Env = Env
 withPos :: (Pretty x) => SourcePos -> x -> Text
 withPos pos x =
   T.unlines
-    [ " at " <> prettyText (show pos),
+    [ "At " <> prettyText (show pos),
       prettyText x
     ]
 

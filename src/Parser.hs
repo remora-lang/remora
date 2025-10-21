@@ -142,9 +142,9 @@ pType :: Parser Type
 pType =
   choice
     [ Syntax.TVar <$> pTVar,
-      "Bool" >> pure Bool,
-      "Int" >> pure Int,
-      "FLoat" >> pure Float,
+      symbol "Bool" >> pure Bool,
+      symbol "Int" >> pure Int,
+      symbol "FLoat" >> pure Float,
       parens $ TArr <$> (lKeyword "A" >> pType) <*> pShape,
       parens $ (:->) <$> (lKeyword "->" >> parens (many pType)) <*> pType,
       parens $ Forall <$> (lKeyword "forall" >> parens (many pTVar)) <*> pType,
@@ -208,7 +208,11 @@ pAtom =
 pExp :: Parser Exp
 pExp =
   choice
-    [ withSrcPos
+    [ (withSrcPos $ withUnchecked $ (Array mempty . pure) <$> pAtom),
+      between (symbol "[") (symbol "]") $ do
+        es <- some pExp
+        flattenExp <$> withSrcPos (withUnchecked $ pure $ Frame [length es] es),
+      withSrcPos
         ( withUnchecked
             ( choice
                 [ Var <$> lId,
@@ -223,11 +227,7 @@ pExp =
                       ]
                 ]
             )
-        ),
-      (withSrcPos $ withUnchecked $ (Array mempty . pure) <$> pAtom),
-      between (symbol "[") (symbol "]") $ do
-        es <- some pExp
-        flattenExp <$> withSrcPos (withUnchecked $ pure $ Frame [length es] es)
+        )
     ]
   where
     pShapeLit = parens $ many pDecimal
