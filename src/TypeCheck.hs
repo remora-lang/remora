@@ -253,15 +253,15 @@ checkExp expr@(TApp f ts _ pos) = do
             ]
 checkExp expr@(IApp f is _ pos) = do
   f' <- checkExp f
-  is' <- mapM (either (fmap Left . checkDim) (fmap Right . checkShape)) is
+  is' <- mapM (mapIdx (fmap Dim . checkDim) (fmap Shape . checkShape)) is
   case typeOf f' of
     Prod pts r -> do
-      let check_args (SVar v) (Left d) =
-            pure (SVar v, Right $ ShapeDim d)
-          check_args (SVar v) (Right s) =
-            pure (SVar v, Right s)
-          check_args (DVar v) (Right s)
-            | Just d <- coerceToDim s = pure (DVar v, Left d)
+      let check_args (SVar v) (Dim d) =
+            pure (SVar v, Shape $ ShapeDim d)
+          check_args (SVar v) (Shape s) =
+            pure (SVar v, Shape s)
+          check_args (DVar v) (Shape s)
+            | Just d <- coerceToDim s = pure (DVar v, Dim d)
           check_args pt i =
             throwError $
               withPos pos $

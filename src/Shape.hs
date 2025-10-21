@@ -2,6 +2,11 @@ module Shape
   ( Dim (..),
     Shape (..),
     Idx (..),
+    mapIdx,
+    fromDim,
+    isDim,
+    fromShape,
+    isShape,
     IVar (..),
     unIVar,
     coerceToDim,
@@ -64,9 +69,33 @@ instance (Show v, Pretty v) => Pretty (Either (Dim v) (Shape v)) where
 -- statically distinguished, we don't need a constructor for type index
 -- variables here.
 data Idx v
-  = Shape (Shape v)
-  | Dim (Dim v)
+  = Dim (Dim v)
+  | Shape (Shape v)
   deriving (Eq, Show, Ord)
+
+instance (Show v, Pretty v) => Pretty (Idx v) where
+  pretty (Shape s) = pretty s
+  pretty (Dim d) = pretty d
+
+mapIdx :: (Dim v -> a) -> (Shape v -> a) -> Idx v -> a
+mapIdx f_dim f_shape idx =
+  case idx of
+    Dim d -> f_dim d
+    Shape s -> f_shape s
+
+fromDim :: Idx v -> Maybe (Dim v)
+fromDim (Dim d) = pure d
+fromDim _ = Nothing
+
+isDim :: Idx v -> Bool
+isDim = isJust . fromDim
+
+fromShape :: Idx v -> Maybe (Shape v)
+fromShape (Shape s) = pure s
+fromShape _ = Nothing
+
+isShape :: Idx v -> Bool
+isShape = isJust . fromShape
 
 -- | Type index variables. These are needed for type index parameters and
 -- patterns.

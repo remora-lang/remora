@@ -103,7 +103,7 @@ intExp (TApp e ts _ _) = do
   tapply e' ts
 intExp (IApp e is _ _) = do
   e' <- intExp e
-  is' <- mapM (either (fmap pure . intDim) intShape) is
+  is' <- mapM (mapIdx (fmap pure . intDim) intShape) is
   iapply e' is'
 
 intDim :: Dim -> InterpM Int

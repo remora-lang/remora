@@ -195,7 +195,7 @@ data Exp f v
   | -- | Type application.
     TApp (Exp f v) [Type v] (f (Type v)) SourcePos
   | -- | Index application.
-    IApp (Exp f v) [Either (Dim v) (Shape v)] (f (Type v)) SourcePos
+    IApp (Exp f v) [Idx v] (f (Type v)) SourcePos
   | -- | Unboxing.
     Unbox [IVar v] v (Exp f v) (Exp f v) (f (Type v)) SourcePos
 

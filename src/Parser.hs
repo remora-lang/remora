@@ -221,7 +221,7 @@ pExp =
                       [ Array <$> (lKeyword "array" >> pShapeLit) <*> some pAtom,
                         Frame <$> (lKeyword "frame" >> pShapeLit) <*> some pExp,
                         (. const Unchecked) <$> (App <$> pExp <*> some pExp),
-                        lKeyword "i-app" >> IApp <$> pExp <*> some (Right <$> pShape),
+                        lKeyword "i-app" >> IApp <$> pExp <*> some (Syntax.Shape <$> pShape),
                         lKeyword "t-app" >> TApp <$> pExp <*> (some pType),
                         pUnbox
                       ]

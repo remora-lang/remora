@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+
 module Substitute where
 
 import Data.Bifunctor
@@ -89,16 +91,16 @@ instance (Ord v, Substitute v (Shape v) c) => Substitute (IVar v) (Shape v) c wh
       unpack (DVar v) = v
       unpack (SVar v) = v
 
-instance (Ord v, Substitute v a c, Substitute v b c) => Substitute v (Either a b) c where
+instance (Ord v, Substitute v (Dim z) c, Substitute v (Shape z) c) => Substitute v (Idx z) c where
   substitute subst c =
-    substitute substRight $ substitute substLeft c
+    substitute substShape $ substitute substDim c
     where
-      substLeft =
-        M.map (fromLeft (error "")) $
-          M.filter isLeft subst
-      substRight =
-        M.map (fromRight (error "")) $
-          M.filter isRight subst
+      substDim =
+        M.map (fromJust . fromDim) $
+          M.filter isDim subst
+      substShape =
+        M.map (fromJust . fromShape) $
+          M.filter isShape subst
 
 instance (Ord v) => Substitute v (Dim v) (Type v) where
   substitute subst (TArr t s) = TArr t (substitute subst s)
