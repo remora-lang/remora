@@ -5,6 +5,7 @@ module Interpreter.Value
     prefix,
     split,
     rep,
+    arrayifyVal,
   )
 where
 
@@ -26,36 +27,9 @@ type TVar = Syntax.TVar VName
 
 type IVar = Syntax.IVar VName
 
--- data ValShape
---  = ValDim Int
---  | ValShape [ValShape]
---  deriving (Show, Eq)
---
--- instance Pretty ValShape where
---  pretty (ValDim d) = pretty d
---  pretty (ValShape s) = parens $ hsep ("shape" : map pretty s)
---
--- instance Semigroup ValShape where
---  s <> t = ValShape [s, t]
---
--- instance Monoid ValShape where
---  mempty = ValShape []
---
--- normValShape :: ValShape -> ValShape
--- normValShape (ValDim n) = ValDim n
--- normValShape (ValShape ss) =
---  case merged of
---    [s] -> s
---    _ -> ValShape merged
---  where
---    merged =
---      concatMap
---        ( \s ->
---            case normValShape s of
---              ValShape ss' -> ss'
---              s' -> [s']
---        )
---        ss
+arrayifyVal :: Val m -> Val m
+arrayifyVal v@ValArray {} = v
+arrayifyVal v = ValArray mempty [v]
 
 data Val m
   = ValVar VName
@@ -76,7 +50,7 @@ instance Pretty (Val m) where
   pretty (ValBase b) = pretty b
   pretty (ValArray [] [v]) =
     pretty v
-  pretty (ValArray shape vs) =
+  pretty v@(ValArray shape vs) =
     group $ encloseSep "[" "]" ("," <> line) (map pretty vs)
   pretty (ValLambda pts e) =
     let pArgs =

@@ -148,7 +148,7 @@ intsToShape ds = Concat $ map (ShapeDim . DimN) ds
 
 -- | @s .<= t@ is true if @s@ is a suffix of @t@.
 (.<=.) :: (Eq v, Show v) => Shape v -> Shape v -> Bool
-s .<=. t = isJust $ s \\ t
+s .<=. t = isJust $ t \\ s
 
 -- | Returns the largest shape from a collection of shapes with a common prefix.
 -- Unsafe to use if the shapes do not have a common prefix.
@@ -161,3 +161,4 @@ maximumShape =
           else shape
     )
     mempty
+    . foldMap ((\x -> [x]) . normShape)

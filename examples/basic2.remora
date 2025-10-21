@@ -1,0 +1,2 @@
+; add two vectors
+(+ [1 2] [3 4])

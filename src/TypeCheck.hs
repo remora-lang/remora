@@ -198,7 +198,7 @@ checkExp expr@(EmptyFrame ns t _ pos) = do
 checkExp expr@(App f args _ pos) = do
   f' <- checkExp f
   args' <- mapM checkExp args
-  case typeOf f' of
+  case arrayifyType $ typeOf f' of
     TArr (pts :-> ret) frame_f -> do
       let check_args pt arg =
             case normShape (shapeOf arg) \\ normShape (shapeOf pt) of

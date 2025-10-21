@@ -20,6 +20,7 @@ module Syntax
     normType,
     HasShape (..),
     HasSrcPos (..),
+    arrayifyType,
   )
 where
 
@@ -343,3 +344,7 @@ instance HasSrcPos (Exp f v) where
   posOf (TApp _ _ _ pos) = pos
   posOf (IApp _ _ _ pos) = pos
   posOf (Unbox _ _ _ _ _ pos) = pos
+
+arrayifyType :: Type VName -> Type VName
+arrayifyType t@(TArr {}) = t
+arrayifyType t = TArr t mempty

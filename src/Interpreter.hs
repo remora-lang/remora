@@ -90,9 +90,9 @@ intExp (EmptyFrame shape _ _ _) =
   pure $ ValArray shape mempty
 intExp (App f es (Typed (r, principal)) _) = do
   shape_p <- intShape principal
-  f' <- intExp f
+  f' <- arrayifyVal <$> intExp f
   es' <- mapM intExp es
-  case typeOf f of
+  case arrayifyType $ typeOf f of
     TArr (arg_ts :-> _) _ -> do
       shape_is <- mapM (intShape . shapeOf) arg_ts
       let (f'', es'') = lift' shape_p shape_is f' es'
@@ -215,3 +215,4 @@ lift' shape_p shape_is (ValArray shape_fs fs) args =
       where
         nae = product shape_p `div` product (prefix shape_arg shape_param)
         nac = product shape_param
+lift' shape_p shape_is v args = error $ prettyString v
