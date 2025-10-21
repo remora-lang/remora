@@ -61,10 +61,6 @@ instance (Show v, Pretty v) => Pretty (Shape v) where
   pretty (Concat []) = "•"
   pretty (Concat is) = parens $ hsep ("++" : map pretty is)
 
--- TODO: Remove
-instance (Show v, Pretty v) => Pretty (Either (Dim v) (Shape v)) where
-  pretty = either pretty pretty
-
 -- | An type index. Since shape variables and dimension variables can be
 -- statically distinguished, we don't need a constructor for type index
 -- variables here.

@@ -27,10 +27,8 @@ type TVar = Syntax.TVar VName
 
 type IVar = Syntax.IVar VName
 
-arrayifyVal :: Val m -> Val m
-arrayifyVal v@ValArray {} = v
-arrayifyVal v = ValArray mempty [v]
-
+-- | Values. Parameterized by a monad @m@ over which function bodies are
+-- evaluated.
 data Val m
   = ValVar VName
   | ValBase Base
@@ -43,7 +41,17 @@ data Val m
   | ValTFun ([Type] -> m (Val m))
   | ValIFun ([[Int]] -> m (Val m))
 
-instance Show (Val m)
+instance Show (Val m) where
+  show (ValVar v) = "ValVar " <> show v
+  show (ValBase b) = "ValBase " <> show b
+  show (ValArray ns vs) = "ValArray " <> show ns <> " " <> show vs
+  show (ValLambda pts e) = "ValLambda " <> show pts <> " " <> show e
+  show (ValTLambda pts e) = "ValTLambda " <> show pts <> " " <> show e
+  show (ValILambda pts e) = "ValILambda " <> show pts <> " " <> show e
+  show (ValBox shapes v t) = "ValBox " <> show shapes <> " " <> show v <> " " <> show t
+  show ValFun {} = "ValFun <#fun>"
+  show ValTFun {} = "ValTFun <#tfun>"
+  show ValIFun {} = "ValIFun <#ifun>"
 
 instance Pretty (Val m) where
   pretty (ValVar v) = pretty v
@@ -83,6 +91,10 @@ instance Pretty (Val m) where
 shapeOf :: Val m -> [Int]
 shapeOf (ValArray s _) = s
 shapeOf _ = mempty
+
+arrayifyVal :: Val m -> Val m
+arrayifyVal v@ValArray {} = v
+arrayifyVal v = ValArray mempty [v]
 
 lift :: [Int] -> Val m -> Val m
 lift [] v = v

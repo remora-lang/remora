@@ -2,8 +2,6 @@
 
 module Substitute where
 
-import Data.Bifunctor
-import Data.Either
 import Data.Map (Map)
 import Data.Map qualified as M
 import Data.Maybe
@@ -50,7 +48,7 @@ instance (Ord v) => Substitute v (Shape v) (Dim v) where
     case normShape <$> subst M.!? v of
       Just (ShapeDim d) -> substitute subst d
       _ -> DimVar v
-  substitute subst (DimN d) = DimN d
+  substitute _ (DimN d) = DimN d
   substitute subst (Add ds) = Add $ map (substitute subst) ds
 
 instance (Ord v) => Substitute v (Dim v) (Shape v) where

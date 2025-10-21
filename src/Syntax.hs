@@ -210,7 +210,7 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Exp f v) where
       parens $
         "Array"
           <+> parens (hsep (map pretty shape))
-          <+> group (encloseSep "[" "]" ("," <> line) (map pretty as))
+          <+> group (encloseSep "[" "]" line (map pretty as))
   pretty (EmptyArray shape t _ _) =
     group $
       parens $
@@ -222,7 +222,7 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Exp f v) where
       parens $
         "Frame"
           <+> parens (hsep (map pretty shape))
-          <+> group (encloseSep "[" "]" ("," <> line) (map pretty es))
+          <+> group (encloseSep "[" "]" line (map pretty es))
   pretty (EmptyFrame shape t _ _) =
     group $
       parens $
