@@ -29,16 +29,11 @@ library
       Interpreter.Value
       TypeCheck
       VName
-      SymTable
-      Prop
       Util
       CLI
       CLI.REPL
       RemoraPrelude
       Substitute
-      --Symbolic
-      Free
-      --Reason
       SExp
     -- other-modules:
     -- other-extensions:
@@ -52,7 +47,6 @@ library
       transformers,
       cmdargs,
       haskeline,
-      --sbv ^>= 12.2
 
     hs-source-dirs:   src
 
