@@ -83,7 +83,12 @@ keywords =
     "shape",
     "fn",
     "t-fn",
-    "i-fn"
+    "i-fn",
+    "A",
+    "->",
+    "forall",
+    "prod",
+    "exists"
   ]
 
 lKeyword :: Text -> Parser ()
@@ -136,10 +141,15 @@ pIVar =
 pType :: Parser Type
 pType =
   choice
-    [ "Bool" >> pure Bool,
+    [ Syntax.TVar <$> pTVar,
+      "Bool" >> pure Bool,
       "Int" >> pure Int,
       "FLoat" >> pure Float,
-      Syntax.TVar <$> pTVar
+      parens $ TArr <$> (lKeyword "A" >> pType) <*> pShape,
+      parens $ (:->) <$> (lKeyword "->" >> parens (many pType)) <*> pType,
+      parens $ Forall <$> (lKeyword "forall" >> parens (many pTVar)) <*> pType,
+      parens $ Prod <$> (lKeyword "prod" >> parens (many pIVar)) <*> pType,
+      parens $ Exists <$> (lKeyword "exists" >> parens (many pIVar)) <*> pType
     ]
 
 pBase :: Parser Base
