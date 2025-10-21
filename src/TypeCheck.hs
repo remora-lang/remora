@@ -62,7 +62,7 @@ lookupIVar v = lookupEnv v $ (M.!? v) . envIVarMap
 
 lookupIVar' :: (MonadCheck m) => IVar Text -> m (IVar VName)
 lookupIVar' ivar = do
-  vname <- lookupTVar (unIVar ivar)
+  vname <- lookupIVar (unIVar ivar)
   pure $ const vname <$> ivar
 
 lookupType :: (MonadCheck m) => VName -> m (Type VName)
