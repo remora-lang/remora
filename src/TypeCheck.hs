@@ -82,7 +82,7 @@ lookupTVar v = lookupEnv v $ (M.!? v) . envTVarMap
 lookupTVar' :: (MonadCheck m) => TVar Text -> m (TVar VName)
 lookupTVar' tvar = do
   vname <- lookupTVar (unTVar tvar)
-  pure $ const vname <$> tvar
+  pure $ vname <$ tvar
 
 -- | Lookup a source idx var's 'VName'.
 lookupIVar :: (MonadCheck m) => Text -> m VName
@@ -91,7 +91,7 @@ lookupIVar v = lookupEnv v $ (M.!? v) . envIVarMap
 lookupIVar' :: (MonadCheck m) => IVar Text -> m (IVar VName)
 lookupIVar' ivar = do
   vname <- lookupIVar (unIVar ivar)
-  pure $ const vname <$> ivar
+  pure $ vname <$ ivar
 
 -- | Lookup a variable's type.
 lookupType :: (MonadCheck m) => VName -> m (Type VName)
@@ -122,7 +122,7 @@ bindTypeParam tvar m = do
     ( \env ->
         env {envTVarMap = M.insert (unTVar tvar) vname $ envTVarMap env}
     )
-    (m $ const vname <$> tvar)
+    (m $ vname <$ tvar)
 
 -- | Bind a source idx parameter into a local environment.
 bindIdxParam :: (MonadCheck m) => IVar Text -> (IVar VName -> m a) -> m a
@@ -132,7 +132,7 @@ bindIdxParam ivar m = do
     ( \env ->
         env {envIVarMap = M.insert (unIVar ivar) vname $ envIVarMap env}
     )
-    (m $ const vname <$> ivar)
+    (m $ vname <$ ivar)
 
 -- | Do many binds.
 binds :: (a -> (c -> x) -> x) -> [a] -> ([c] -> x) -> x
@@ -168,12 +168,12 @@ TArr t s ~= TArr y x =
   (t ~= y) ^&& pure (s @= x)
 (ps :-> r) ~= (qs :-> t)
   | length ps == length qs =
-      (andM $ zipWith (~=) ps qs) ^&& (r ~= t)
+      andM (zipWith (~=) ps qs) ^&& (r ~= t)
 Forall ps r ~= Forall qs t
   | length ps == length qs = do
       xs <- forM ps $ \p -> do
         vname <- newVName $ prettyText p
-        pure $ const vname <$> p
+        pure $ vname <$ p
       let subst_ps = M.fromList $ zip ps xs
           subst_qs = M.fromList $ zip qs xs
       substitute subst_ps r ~= substitute subst_qs t
@@ -181,7 +181,7 @@ Prod ps r ~= Prod qs t
   | length ps == length qs = do
       xs <- forM ps $ \p -> do
         vname <- newVName $ prettyText p
-        pure $ const vname <$> p
+        pure $ vname <$ p
       let subst_ps = M.fromList $ zip ps xs
           subst_qs = M.fromList $ zip qs xs
       substitute subst_ps r ~= substitute subst_qs t
@@ -189,7 +189,7 @@ Exists ps r ~= Exists qs t
   | length ps == length qs = do
       xs <- forM ps $ \p -> do
         vname <- newVName $ prettyText p
-        pure $ const vname <$> p
+        pure $ vname <$ p
       let subst_ps = M.fromList $ zip ps xs
           subst_qs = M.fromList $ zip qs xs
       substitute subst_ps r ~= substitute subst_qs t
@@ -348,7 +348,7 @@ checkExp expr@(TApp f ts _ pos) = do
                         "in",
                         prettyText expr
                       ]
-      void $ zipWithM check_args pts ts'
+      zipWithM_ check_args pts ts'
       let r' = substitute' (zip pts ts') r
       pure $ TApp f' ts' (Typed r') pos
     _ ->
