@@ -1,6 +1,6 @@
 ; add two arrays
 ((fn ((x (A Int (shape 2))) (y (A Int (shape 2))))
-    ([+] x y)
+    (+ x y)
     )
  [1 2]
  [2 4]

@@ -1,0 +1,7 @@
+; let vals
+(let (((x Int) 5)
+      ((y Int) 10)
+      (add ((x_ Int) (y_ Int)) Int (+ x_ y_))
+      )
+  (add x y)
+  )

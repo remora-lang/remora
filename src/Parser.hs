@@ -17,6 +17,7 @@ import Text.Megaparsec
     getSourcePos,
     many,
     notFollowedBy,
+    option,
     satisfy,
     single,
     some,
@@ -88,7 +89,8 @@ keywords =
     "->",
     "forall",
     "prod",
-    "exists"
+    "exists",
+    "let"
   ]
 
 lKeyword :: Text -> Parser ()
@@ -144,7 +146,7 @@ pType =
     [ Syntax.TVar <$> pTVar,
       symbol "Bool" >> pure Bool,
       symbol "Int" >> pure Int,
-      symbol "FLoat" >> pure Float,
+      symbol "Float" >> pure Float,
       parens $ TArr <$> (lKeyword "A" >> pType) <*> pShape,
       parens $ (:->) <$> (lKeyword "->" >> parens (many pType)) <*> pType,
       parens $ Forall <$> (lKeyword "forall" >> parens (many pTVar)) <*> pType,
@@ -212,6 +214,7 @@ pExp =
       between (symbol "[") (symbol "]") $ do
         es <- some pExp
         flattenExp <$> withSrcPos (withUnchecked $ pure $ Frame [length es] es),
+      try pLet, -- fix
       withSrcPos
         ( withUnchecked
             ( choice
@@ -237,6 +240,46 @@ pExp =
         <*> lId
         <*> (pExp <* symbol ")")
         <*> pExp
+
+    pParam :: Parser (Text, Type)
+    pParam = parens $ (,) <$> lId <*> pType
+
+    pValBind :: Parser ((Text, Type), Exp)
+    pValBind =
+      (,) <$> pParam <*> pExp
+
+    pFunBind :: Parser ((Text, Type), Exp)
+    pFunBind = do
+      f <- lId
+      params <- parens $ some pParam
+      ret_t <- pType
+      body <- pExp
+      pos <- getSourcePos
+      pure
+        ( (f, map snd params :-> ret_t),
+          Array mempty [Lambda params body Unchecked pos] Unchecked pos
+        )
+
+    pBind :: Parser ((Text, Type), Exp)
+    pBind = parens $ pValBind <|> pFunBind
+    bindToApp :: ((Text, Type), Exp) -> Exp -> Exp
+    bindToApp ((param, e)) body =
+      App
+        ( Array
+            mempty
+            [Lambda [param] body Unchecked (posOf e)]
+            Unchecked
+            (posOf e)
+        )
+        [e]
+        Unchecked
+        (posOf e)
+
+    pLet = parens $ do
+      lKeyword "let"
+      binds <- parens $ many pBind
+      body <- pExp
+      pure $ foldr bindToApp body binds
 
 pDim :: Parser Dim
 pDim =
