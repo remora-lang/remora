@@ -321,8 +321,16 @@ checkAtom (Lambda ps e _ pos) = do
     xs' <- mapM lookupVName xs
     e' <- checkExp e
     pure $ Lambda (zip xs' pts') e' (Typed $ pts' :-> typeOf e') pos
-checkAtom (TLambda ps e _ pos) = error "todo"
-checkAtom (ILambda ps e _ pos) = error "todo"
+checkAtom (TLambda ps e _ pos) =
+  checkTypeParams ps $ do
+    ps' <- mapM lookupTVar' ps
+    e' <- checkExp e
+    pure $ TLambda ps' e' (Typed $ Forall ps' $ typeOf e') pos
+checkAtom (ILambda ps e _ pos) =
+  checkIdxParams ps $ do
+    ps' <- mapM lookupIVar' ps
+    e' <- checkExp e
+    pure $ ILambda ps' e' (Typed $ Prod ps' $ typeOf e') pos
 checkAtom atom@(Box shapes e box_t pos) = do
   shapes' <- mapM checkShape shapes
   e' <- checkExp e
