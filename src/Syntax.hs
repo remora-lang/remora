@@ -8,6 +8,7 @@ module Syntax
     TVar (..),
     unTVar,
     Type (..),
+    elemType,
     atomKind,
     arrayKind,
     Base (..),
@@ -26,7 +27,7 @@ where
 
 import Prettyprinter
 import Shape
-import Text.Megaparsec.Pos (SourcePos)
+import Text.Megaparsec.Pos (Pos, SourcePos (..), unPos)
 import VName
 
 -- | An annotation for source expressions whose type we haven't filled in
@@ -108,6 +109,11 @@ instance (Show v, Pretty v) => Pretty (Type v) where
       "Σ"
         <+> parens (hsep (map pretty xs))
         <+> pretty t
+
+-- | Get the element type.
+elemType :: Type v -> Type v
+elemType (TArr t _) = t
+elemType t = t
 
 -- | Does this type have Array kind?
 arrayKind :: Type v -> Bool
@@ -210,25 +216,25 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Exp f v) where
   pretty (Array shape as _ _) =
     group $
       parens $
-        "Array"
+        "array"
           <+> parens (hsep (map pretty shape))
           <+> group (encloseSep "[" "]" line (map pretty as))
   pretty (EmptyArray shape t _ _) =
     group $
       parens $
-        "EmptyArray"
+        "empty-array"
           <+> parens (hsep (map pretty shape))
           <+> pretty t
   pretty (Frame shape es _ _) =
     group $
       parens $
-        "Frame"
+        "frame"
           <+> parens (hsep (map pretty shape))
           <+> group (encloseSep "[" "]" line (map pretty es))
   pretty (EmptyFrame shape t _ _) =
     group $
       parens $
-        "EmptyFrame"
+        "empty-frame"
           <+> parens (hsep (map pretty shape))
           <+> pretty t
   pretty (App f es _ _) =
@@ -350,3 +356,10 @@ instance HasSrcPos (Exp f v) where
 arrayifyType :: Type VName -> Type VName
 arrayifyType t@(TArr {}) = t
 arrayifyType t = TArr t mempty
+
+instance Pretty Pos where
+  pretty = pretty . unPos
+
+instance Pretty SourcePos where
+  pretty (SourcePos file line col) =
+    pretty file <> ":" <> pretty line <> ":" <> pretty col

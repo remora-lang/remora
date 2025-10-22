@@ -38,6 +38,9 @@ instance (Ord v) => Substitute (TVar v) (Type v) (Type v) where
   substitute subst (Exists pts t) = Exists pts $ substitute subst t
   substitute _ t = t
 
+instance (Eq v, Ord v) => Substitute (TVar v) (TVar v) (Type v) where
+  substitute subst = substitute $ M.fromList [(unTVar k, unTVar v) | (k, v) <- M.toList subst]
+
 instance (Ord v) => Substitute v v v where
   substitute subst v = fromMaybe v (subst M.!? v)
 
@@ -54,6 +57,9 @@ instance (Eq v, Ord v) => Substitute v v (Shape v) where
   substitute subst (ShapeDim d) = ShapeDim $ substitute subst d
   substitute subst (Concat shapes) = Concat $ map (substitute subst) shapes
 
+instance (Eq v, Ord v) => Substitute (IVar v) (IVar v) (Shape v) where
+  substitute subst = substitute $ M.fromList [(unIVar k, unIVar v) | (k, v) <- M.toList subst]
+
 instance (Eq v, Ord v) => Substitute v v (Type v) where
   substitute subst (TVar tvar) = TVar $ substitute subst tvar
   substitute subst (TArr t s) = TArr (substitute subst t) (substitute subst s)
@@ -64,6 +70,18 @@ instance (Eq v, Ord v) => Substitute v v (Type v) where
     Prod pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unIVar pts) subst) t
   substitute subst (Exists pts t) =
     Exists pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unIVar pts) subst) t
+  substitute _ t = t
+
+instance (Eq v, Ord v) => Substitute (IVar v) (IVar v) (Type v) where
+  substitute _ (TVar tvar) = TVar tvar
+  substitute subst (TArr t s) = TArr (substitute subst t) (substitute subst s)
+  substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
+  substitute subst (Forall pts t) =
+    Forall pts $ substitute subst t
+  substitute subst (Prod pts t) =
+    Prod pts $ substitute (M.filterWithKey (\k _ -> k `notElem` pts) subst) t
+  substitute subst (Exists pts t) =
+    Exists pts $ substitute (M.filterWithKey (\k _ -> k `notElem` pts) subst) t
   substitute _ t = t
 
 instance (Ord v) => Substitute v (Dim v) (Dim v) where
@@ -123,7 +141,7 @@ instance (Ord v, Substitute v (Dim z) c, Substitute v (Shape z) c) => Substitute
           M.filter isShape subst
 
 instance (Ord v) => Substitute v (Dim v) (Type v) where
-  substitute subst (TArr t s) = TArr t (substitute subst s)
+  substitute subst (TArr t s) = TArr (substitute subst t) (substitute subst s)
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
   substitute subst (Forall pts t) = Forall pts $ substitute subst t
   substitute subst (Prod pts t) =
@@ -133,7 +151,7 @@ instance (Ord v) => Substitute v (Dim v) (Type v) where
   substitute _ t = t
 
 instance (Ord v) => Substitute v (Shape v) (Type v) where
-  substitute subst (TArr t s) = TArr t (substitute subst s)
+  substitute subst (TArr t s) = TArr (substitute subst t) (substitute subst s)
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
   substitute subst (Forall pts t) = Forall pts $ substitute subst t
   substitute subst (Prod pts t) =

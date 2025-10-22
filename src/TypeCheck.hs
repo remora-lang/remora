@@ -22,15 +22,16 @@ data Env = Env
     envTypeMap :: Map VName (Type VName)
   }
 
-withPos :: (Pretty x) => SourcePos -> x -> Text
-withPos pos x =
-  T.unlines
-    [ "At " <> prettyText (show pos),
-      prettyText x
-    ]
-
 initEnv :: Env
 initEnv = Env mempty mempty mempty mempty
+
+throwErrorPos :: (MonadError Text m) => SourcePos -> Text -> m a
+throwErrorPos pos t =
+  throwError $
+    T.unlines
+      [ prettyText pos <> ": error:",
+        t
+      ]
 
 lookupEnv ::
   ( MonadReader env m,
@@ -128,6 +129,46 @@ newtype CheckM a = CheckM {runCheckM :: ExceptT Error (RWS Env () Tag) a}
       MonadError Error
     )
 
+-- Just the naive thing for now.
+(@=) :: (MonadCheck m) => Shape VName -> Shape VName -> m Bool
+s @= t = pure $ normShape s == normShape t
+
+infix 4 @=
+
+(~=) :: (MonadCheck m) => Type VName -> Type VName -> m Bool
+TArr t s ~= TArr y x =
+  (&&) <$> (t ~= y) <*> (s @= x)
+(ps :-> r) ~= (qs :-> t)
+  | length ps == length qs =
+      (&&) <$> (and <$> zipWithM (~=) ps qs) <*> (r ~= t)
+Forall ps r ~= Forall qs t
+  | length ps == length qs = do
+      xs <- forM ps $ \p -> do
+        vname <- newVName $ prettyText p
+        pure $ const vname <$> p
+      let subst_ps = M.fromList $ zip ps xs
+          subst_qs = M.fromList $ zip qs xs
+      substitute subst_ps r ~= substitute subst_qs t
+Prod ps r ~= Prod qs t
+  | length ps == length qs = do
+      xs <- forM ps $ \p -> do
+        vname <- newVName $ prettyText p
+        pure $ const vname <$> p
+      let subst_ps = M.fromList $ zip ps xs
+          subst_qs = M.fromList $ zip qs xs
+      substitute subst_ps r ~= substitute subst_qs t
+Exists ps r ~= Exists qs t
+  | length ps == length qs = do
+      xs <- forM ps $ \p -> do
+        vname <- newVName $ prettyText p
+        pure $ const vname <$> p
+      let subst_ps = M.fromList $ zip ps xs
+          subst_qs = M.fromList $ zip qs xs
+      substitute subst_ps r ~= substitute subst_qs t
+t ~= r = pure $ t == r
+
+infix 4 ~=
+
 check ::
   (Monad m) =>
   Exp Unchecked Text ->
@@ -143,76 +184,76 @@ checkExp expr@(Array ns as _ pos) = do
   as' <- mapM checkAtom as
   case as' of
     [] ->
-      throwError $
-        withPos pos $
-          "Empty array constructed without type: " <> prettyText expr
+      throwErrorPos pos $
+        "Empty array constructed without type: " <> prettyText expr
     (a' : _) -> do
       unless (all (\a'' -> typeOf a'' == typeOf a') as') $
-        throwError $
-          withPos pos $
-            "Atoms in array have different types: " <> prettyText expr
+        throwErrorPos pos $
+          "Atoms in array have different types: " <> prettyText expr
       unless (product ns == length as') $
-        throwError $
-          withPos pos $
-            "Array shape doesn't match number of elements: " <> prettyText expr
+        throwErrorPos pos $
+          "Array shape doesn't match number of elements: " <> prettyText expr
       pure $ Array ns as' (Typed $ TArr (typeOf a') (intsToShape ns)) pos
 checkExp expr@(EmptyArray ns t _ pos) = do
   t' <- checkType t
   unless (product ns == 0) $
-    throwError $
-      withPos pos $
-        "Empty array has a non-empty shape: " <> prettyText expr
+    throwErrorPos pos $
+      "Empty array has a non-empty shape: " <> prettyText expr
   pure $ EmptyArray ns t' (Typed $ TArr t' (intsToShape ns)) pos
 checkExp expr@(Frame ns es _ pos) = do
   es' <- mapM checkExp es
   case es' of
     [] ->
-      throwError $
-        withPos pos $
-          "Empty frame constructed without type: " <> prettyText expr
+      throwErrorPos pos $
+        "Empty frame constructed without type: " <> prettyText expr
     (e' : _) -> do
       unless (all (\e'' -> typeOf e'' == typeOf e') es') $
-        throwError $
-          withPos pos $
-            "Expressions in frame have different types: " <> prettyText expr
+        throwErrorPos pos $
+          "Expressions in frame have different types: " <> prettyText expr
       unless (product ns == length es') $
-        throwError $
-          withPos pos $
-            "Frame shape doesn't match number of elements: " <> prettyText expr
+        throwErrorPos pos $
+          "Frame shape doesn't match number of elements: " <> prettyText expr
       pure $ Frame ns es' (Typed $ TArr (typeOf e') (intsToShape ns)) pos
 checkExp expr@(EmptyFrame ns t _ pos) = do
   t' <- checkType t
   unless (product ns == 0) $
-    throwError $
-      withPos pos $
-        "Empty frame has a non-empty shape: " <> prettyText expr
+    throwErrorPos pos $
+      "Empty frame has a non-empty shape: " <> prettyText expr
   pure $ EmptyFrame ns t' (Typed $ TArr t' (intsToShape ns)) pos
 checkExp expr@(App f args _ pos) = do
   f' <- checkExp f
   args' <- mapM checkExp args
   case arrayifyType $ typeOf f' of
     TArr (pts :-> ret) frame_f -> do
-      let check_args pt arg =
-            case normShape (shapeOf arg) \\ normShape (shapeOf pt) of
+      let check_args pt arg = do
+            unless (elemType (normType pt) == elemType (typeOf arg)) $
+              throwErrorPos pos $
+                T.unlines
+                  [ "Ill-typed application:",
+                    "Parameter elem type: " <> prettyText (elemType (normType pt)),
+                    "Argument elem type: " <> prettyText (elemType (typeOf arg)),
+                    "in",
+                    prettyText expr
+                  ]
+
+            case shapeOf arg \\ shapeOf pt of
               Nothing ->
-                throwError $
-                  withPos pos $
-                    T.unlines
-                      [ "Ill-shaped application:",
-                        "Parameter type: " <> prettyText pt,
-                        "Argument: " <> prettyText arg,
-                        "in",
-                        prettyText expr
-                      ]
+                throwErrorPos pos $
+                  T.unlines
+                    [ "Ill-shaped application:",
+                      "Parameter type: " <> prettyText pt,
+                      "Argument: " <> prettyText arg,
+                      "in",
+                      prettyText expr
+                    ]
               Just frame_a -> pure frame_a
       frames <- zipWithM check_args pts args'
       let principal = maximumShape $ map (frame_f <>) frames
           ret' = TArr ret principal
       pure $ App f' args' (Typed (ret', principal)) pos
     _ ->
-      throwError $
-        withPos pos $
-          "Expected an array of functions in application: " <> prettyText expr
+      throwErrorPos pos $
+        "Expected an array of functions in application: " <> prettyText expr
 checkExp expr@(TApp f ts _ pos) = do
   f' <- checkExp f
   ts' <- mapM checkType ts
@@ -224,25 +265,23 @@ checkExp expr@(TApp f ts _ pos) = do
                     AtomTVar {} -> atomKind
                     ArrayTVar {} -> arrayKind
              in unless (same_kind t) $
-                  throwError $
-                    withPos pos $
-                      T.unlines
-                        [ "Ill-kinded application:",
-                          "Parameter type: " <> prettyText pt,
-                          "Argument: " <> prettyText t,
-                          "in",
-                          prettyText expr
-                        ]
+                  throwErrorPos pos $
+                    T.unlines
+                      [ "Ill-kinded application:",
+                        "Parameter type: " <> prettyText pt,
+                        "Argument: " <> prettyText t,
+                        "in",
+                        prettyText expr
+                      ]
       void $ zipWithM check_args pts ts'
       let r' = substitute' (zip pts ts') r
       pure $ TApp f' ts' (Typed r') pos
     _ ->
-      throwError $
-        withPos pos $
-          T.unlines
-            [ "Expected a forall exprressions in type application:",
-              prettyText expr
-            ]
+      throwErrorPos pos $
+        T.unlines
+          [ "Expected a forall exprressions in type application:",
+            prettyText expr
+          ]
 checkExp expr@(IApp f is _ pos) = do
   f' <- checkExp f
   is' <- mapM (mapIdx (fmap Dim . checkDim) (fmap Shape . checkShape)) is
@@ -255,25 +294,23 @@ checkExp expr@(IApp f is _ pos) = do
           check_args (DVar v) (Shape s)
             | Just d <- coerceToDim s = pure (DVar v, Dim d)
           check_args pt i =
-            throwError $
-              withPos pos $
-                T.unlines
-                  [ "Ill-sorted application:",
-                    "Parameter type: " <> prettyText pt,
-                    "Argument: " <> prettyText i,
-                    "in",
-                    prettyText expr
-                  ]
+            throwErrorPos pos $
+              T.unlines
+                [ "Ill-sorted application:",
+                  "Parameter type: " <> prettyText pt,
+                  "Argument: " <> prettyText i,
+                  "in",
+                  prettyText expr
+                ]
       (pts', is'') <- unzip <$> zipWithM check_args pts is'
       let r' = substitute' (zip pts' is'') r
       pure $ IApp f' is'' (Typed r') pos
     _ ->
-      throwError $
-        withPos pos $
-          T.unlines
-            [ "Expected a prod expressions in idx application:",
-              prettyText expr
-            ]
+      throwErrorPos pos $
+        T.unlines
+          [ "Expected a prod expressions in idx application:",
+            prettyText expr
+          ]
 checkExp expr@(Unbox is x_e box body _ pos) = do
   binds bindIdxParam is $ \is' -> do
     let is'' = map unIVar is'
@@ -287,19 +324,17 @@ checkExp expr@(Unbox is x_e box body _ pos) = do
             TArr t_b shape_b ->
               pure $ Unbox is' x_e' box' body' (Typed $ TArr t_b (shapeOf box' <> shape_b)) pos
             _ ->
-              throwError $
-                withPos pos $
-                  T.unlines
-                    [ "Wrong body type for unbox",
-                      prettyText expr
-                    ]
+              throwErrorPos pos $
+                T.unlines
+                  [ "Wrong body type for unbox",
+                    prettyText expr
+                  ]
       _ ->
-        throwError $
-          withPos pos $
-            T.unlines
-              [ "Expected an existentially typed expression in unbox:",
-                prettyText expr
-              ]
+        throwErrorPos pos $
+          T.unlines
+            [ "Expected an existentially typed expression in unbox:",
+              prettyText expr
+            ]
 
 checkAtom :: (MonadCheck m) => Atom Unchecked Text -> m (Atom Typed VName)
 checkAtom (Base b _ pos) =
@@ -326,23 +361,21 @@ checkAtom atom@(Box shapes e box_t pos) = do
     Exists is t -> do
       let subst = M.fromList $ zip is shapes'
       unless (typeOf e' == substitute subst t) $
-        throwError $
-          withPos pos $
-            T.unlines
-              [ "Wrong box type.",
-                "Expected:",
-                prettyText $ typeOf e',
-                "But got:",
-                prettyText $ substitute subst t
-              ]
+        throwErrorPos pos $
+          T.unlines
+            [ "Wrong box type.",
+              "Expected:",
+              prettyText $ typeOf e',
+              "But got:",
+              prettyText $ substitute subst t
+            ]
       pure $ Box shapes' e' box_t' pos
     _ ->
-      throwError $
-        withPos pos $
-          T.unlines
-            [ "Non-existential box type:",
-              prettyText atom
-            ]
+      throwErrorPos pos $
+        T.unlines
+          [ "Non-existential box type:",
+            prettyText atom
+          ]
 
 checkType :: (MonadCheck m) => Type Text -> m (Type VName)
 checkType = fmap normType . checkType'
