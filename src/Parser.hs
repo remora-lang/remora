@@ -147,11 +147,14 @@ pType =
       symbol "Bool" >> pure Bool,
       symbol "Int" >> pure Int,
       symbol "Float" >> pure Float,
-      parens $ TArr <$> (lKeyword "A" >> pType) <*> pShape,
-      parens $ (:->) <$> (lKeyword "->" >> parens (many pType)) <*> pType,
-      parens $ Forall <$> (lKeyword "forall" >> parens (many pTVar)) <*> pType,
-      parens $ Prod <$> (lKeyword "prod" >> parens (many pIVar)) <*> pType,
-      parens $ Exists <$> (lKeyword "exists" >> parens (many pIVar)) <*> pType
+      parens $
+        choice
+          [ TArr <$> (lKeyword "A" >> pType) <*> pShape,
+            (:->) <$> (lKeyword "->" >> parens (many pType)) <*> pType,
+            Forall <$> (lKeyword "forall" >> parens (many pTVar)) <*> pType,
+            Prod <$> (lKeyword "prod" >> parens (many pIVar)) <*> pType,
+            Exists <$> (lKeyword "exists" >> parens (many pIVar)) <*> pType
+          ]
     ]
 
 pBase :: Parser Base
