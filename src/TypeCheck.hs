@@ -15,16 +15,39 @@ import Syntax
 import Util
 import VName
 
+-- | Type check a program.
+check ::
+  (Monad m) =>
+  Exp Unchecked Text ->
+  Either Error (Prelude VName m, Exp Typed VName)
+check e =
+  fst $
+    evalRWS
+      ( runExceptT $
+          runCheckM $
+            withPrelude $
+              checkExp e
+      )
+      initEnv
+      initTag
+
+-- | The typechecker environment.
 data Env = Env
-  { envVarMap :: Map Text VName,
+  { -- | Source var names to 'VName's.
+    envVarMap :: Map Text VName,
+    -- | Source type var names to 'VName's.
     envTVarMap :: Map Text VName,
+    -- | Source idx var names to 'VName's.
     envIVarMap :: Map Text VName,
+    -- | Term variables to their types.
     envTypeMap :: Map VName (Type VName)
   }
 
+-- | The initial environment. (It's just empty.)
 initEnv :: Env
 initEnv = Env mempty mempty mempty mempty
 
+-- | Throw an error with source position information.
 throwErrorPos :: (MonadError Text m) => SourcePos -> Text -> m a
 throwErrorPos pos t =
   throwError $
@@ -33,6 +56,7 @@ throwErrorPos pos t =
         t
       ]
 
+-- | Lookup something in the environment.
 lookupEnv ::
   ( MonadReader env m,
     MonadError Error m,
@@ -47,9 +71,11 @@ lookupEnv a look = do
     Nothing -> throwError $ "Unknown lookup: " <> prettyText a
     Just b -> pure b
 
+-- | Lookup a source variable's 'VName'.
 lookupVName :: (MonadCheck m) => Text -> m VName
 lookupVName v = lookupEnv v $ (M.!? v) . envVarMap
 
+-- | Lookup a source type var's 'VName'.
 lookupTVar :: (MonadCheck m) => Text -> m VName
 lookupTVar v = lookupEnv v $ (M.!? v) . envTVarMap
 
@@ -58,6 +84,7 @@ lookupTVar' tvar = do
   vname <- lookupTVar (unTVar tvar)
   pure $ const vname <$> tvar
 
+-- | Lookup a source idx var's 'VName'.
 lookupIVar :: (MonadCheck m) => Text -> m VName
 lookupIVar v = lookupEnv v $ (M.!? v) . envIVarMap
 
@@ -66,6 +93,7 @@ lookupIVar' ivar = do
   vname <- lookupIVar (unIVar ivar)
   pure $ const vname <$> ivar
 
+-- | Lookup a variable's type.
 lookupType :: (MonadCheck m) => VName -> m (Type VName)
 lookupType v = do
   mt <- asks $ (M.!? v) . envTypeMap
@@ -73,6 +101,7 @@ lookupType v = do
     Nothing -> throwError $ "Unknown type for var: " <> prettyText v
     Just t -> pure t
 
+-- | Bind a source parameter into a local environment.
 bindParam :: (MonadCheck m) => (Text, Type VName) -> (VName -> m a) -> m a
 bindParam (v, t) m = do
   vname <- newVName v
@@ -85,6 +114,7 @@ bindParam (v, t) m = do
     )
     (m vname)
 
+-- | Bind a source type parameter into a local environment.
 bindTypeParam :: (MonadCheck m) => TVar Text -> (TVar VName -> m a) -> m a
 bindTypeParam tvar m = do
   vname <- newVName $ unTVar tvar
@@ -94,6 +124,7 @@ bindTypeParam tvar m = do
     )
     (m $ const vname <$> tvar)
 
+-- | Bind a source idx parameter into a local environment.
 bindIdxParam :: (MonadCheck m) => IVar Text -> (IVar VName -> m a) -> m a
 bindIdxParam ivar m = do
   vname <- newVName $ unIVar ivar
@@ -103,6 +134,7 @@ bindIdxParam ivar m = do
     )
     (m $ const vname <$> ivar)
 
+-- | Do many binds.
 binds :: (a -> (c -> x) -> x) -> [a] -> ([c] -> x) -> x
 binds bind ps m = binds' ps mempty
   where
@@ -119,6 +151,7 @@ type MonadCheck m =
     MonadError Error m
   )
 
+-- | The typechecker monad.
 newtype CheckM a = CheckM {runCheckM :: ExceptT Error (RWS Env () Tag) a}
   deriving
     ( Functor,
@@ -129,6 +162,7 @@ newtype CheckM a = CheckM {runCheckM :: ExceptT Error (RWS Env () Tag) a}
       MonadError Error
     )
 
+-- | Type equality according to Chapter 4 of Justin's thesis.
 (~=) :: (MonadCheck m) => Type VName -> Type VName -> m Bool
 TArr t s ~= TArr y x =
   (t ~= y) ^&& pure (s @= x)
@@ -163,12 +197,45 @@ t ~= r = pure $ t == r
 
 infix 4 ~=
 
-check ::
-  (Monad m) =>
-  Exp Unchecked Text ->
-  Either Error (Prelude VName m, Exp Typed VName)
-check e = fst $ evalRWS (runExceptT $ runCheckM $ withPrelude $ checkExp e) initEnv initTag
+-- | Check a 'Dim'.
+checkDim :: (MonadCheck m) => Dim Text -> m (Dim VName)
+checkDim = fmap normDim . checkDim'
+  where
+    checkDim' (DimVar v) = DimVar <$> lookupIVar v
+    checkDim' (DimN d) = pure $ DimN d
+    checkDim' (Add ds) = Add <$> mapM checkDim' ds
 
+-- | Check a 'Shape'.
+checkShape :: (MonadCheck m) => Shape Text -> m (Shape VName)
+checkShape = fmap normShape . checkShape'
+  where
+    checkShape' (ShapeVar v) = ShapeVar <$> lookupIVar v
+    checkShape' (ShapeDim d) = ShapeDim <$> checkDim d
+    checkShape' (Concat ss) = Concat <$> mapM checkShape' ss
+
+-- | Check a 'Type'.
+checkType :: (MonadCheck m) => Type Text -> m (Type VName)
+checkType = fmap normType . checkType'
+  where
+    checkType' (TVar tvar) = TVar <$> lookupTVar' tvar
+    checkType' Bool = pure Bool
+    checkType' Int = pure Int
+    checkType' Float = pure Float
+    checkType' (TArr t shape) =
+      TArr <$> checkType' t <*> checkShape shape
+    checkType' (as :-> b) =
+      (:->) <$> mapM checkType' as <*> checkType' b
+    checkType' (Forall pts t) =
+      binds bindTypeParam pts $ \pts' ->
+        Forall pts' <$> checkType t
+    checkType' (Prod pts t) =
+      binds bindIdxParam pts $ \pts' ->
+        Prod pts' <$> checkType t
+    checkType' (Exists pts t) = do
+      binds bindIdxParam pts $ \pts' -> do
+        Exists pts' <$> checkType t
+
+-- | Type check an unchecked 'Exp'.
 checkExp :: (MonadCheck m) => Exp Unchecked Text -> m (Exp Typed VName)
 checkExp (Var v _ pos) = do
   vname <- lookupVName v
@@ -344,6 +411,7 @@ checkExp expr@(Unbox is x_e box body _ pos) = do
               prettyText expr
             ]
 
+-- | Type check an unchecked 'Atom'.
 checkAtom :: (MonadCheck m) => Atom Unchecked Text -> m (Atom Typed VName)
 checkAtom (Base b _ pos) =
   pure $ Base b (Typed $ typeOf b) pos
@@ -385,41 +453,7 @@ checkAtom atom@(Box shapes e box_t pos) = do
             prettyText atom
           ]
 
-checkType :: (MonadCheck m) => Type Text -> m (Type VName)
-checkType = fmap normType . checkType'
-  where
-    checkType' (TVar tvar) = TVar <$> lookupTVar' tvar
-    checkType' Bool = pure Bool
-    checkType' Int = pure Int
-    checkType' Float = pure Float
-    checkType' (TArr t shape) =
-      TArr <$> checkType' t <*> checkShape shape
-    checkType' (as :-> b) =
-      (:->) <$> mapM checkType' as <*> checkType' b
-    checkType' (Forall pts t) =
-      binds bindTypeParam pts $ \pts' ->
-        Forall pts' <$> checkType t
-    checkType' (Prod pts t) =
-      binds bindIdxParam pts $ \pts' ->
-        Prod pts' <$> checkType t
-    checkType' (Exists pts t) = do
-      binds bindIdxParam pts $ \pts' -> do
-        Exists pts' <$> checkType t
-
-checkDim :: (MonadCheck m) => Dim Text -> m (Dim VName)
-checkDim = fmap normDim . checkDim'
-  where
-    checkDim' (DimVar v) = DimVar <$> lookupIVar v
-    checkDim' (DimN d) = pure $ DimN d
-    checkDim' (Add ds) = Add <$> mapM checkDim' ds
-
-checkShape :: (MonadCheck m) => Shape Text -> m (Shape VName)
-checkShape = fmap normShape . checkShape'
-  where
-    checkShape' (ShapeVar v) = ShapeVar <$> lookupIVar v
-    checkShape' (ShapeDim d) = ShapeDim <$> checkDim d
-    checkShape' (Concat ss) = Concat <$> mapM checkShape' ss
-
+-- | Binds prelude bindings into the local environment.
 withPrelude :: (MonadCheck m, Monad n) => m a -> m (Prelude VName n, a)
 withPrelude m = checkPrelude prelude mempty
   where
