@@ -198,8 +198,6 @@ data Exp f v
     IApp (Exp f v) [Idx v] (f (Type v)) SourcePos
   | -- | Unboxing.
     Unbox [IVar v] v (Exp f v) (Exp f v) (f (Type v)) SourcePos
-  | -- | Let.
-    Let v (Exp f v) (Exp f v) (f (Type v)) SourcePos
 
 deriving instance (Show v) => Show (Exp Unchecked v)
 
@@ -239,8 +237,6 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Exp f v) where
     parens $ "i-app" <+> pretty e <+> hsep (map pretty is)
   pretty (Unbox vs v e b _ _) =
     parens $ "unbox" <+> parens (hsep (map pretty vs ++ [pretty v, pretty e])) <+> pretty b
-  pretty (Let v e b _ _) =
-    parens $ "let" <+> parens (pretty v <+> pretty e) <+> pretty b
 
 -- | Gets the 'Atom's of an 'Array' literal.
 arrayElems :: Exp f v -> Maybe [Atom f v]
@@ -297,7 +293,6 @@ instance HasType (Exp Typed VName) where
   typeOf_ (TApp _ _ (Typed t) _) = t
   typeOf_ (IApp _ _ (Typed t) _) = t
   typeOf_ (Unbox _ _ _ _ (Typed t) _) = t
-  typeOf_ (Let _ _ _ (Typed t) _) = t
 
 -- | Normalizes a type by normalizing its constiuent shapes.
 normType :: (Ord v, Eq v) => Type v -> Type v
