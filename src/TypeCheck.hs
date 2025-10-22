@@ -88,11 +88,6 @@ lookupTVar' tvar = do
 lookupIVar :: (MonadCheck m) => Text -> m VName
 lookupIVar v = lookupEnv v $ (M.!? v) . envIVarMap
 
-lookupIVar' :: (MonadCheck m) => IVar Text -> m (IVar VName)
-lookupIVar' ivar = do
-  vname <- lookupIVar (unIVar ivar)
-  pure $ vname <$ ivar
-
 -- | Lookup a variable's type.
 lookupType :: (MonadCheck m) => VName -> m (Type VName)
 lookupType v = do
