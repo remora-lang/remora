@@ -279,10 +279,37 @@ checkExp expr@(IApp f is _ pos) = do
       throwError $
         withPos pos $
           T.unlines
-            [ "Expected a prod exprressions in idx application:",
+            [ "Expected a prod expressions in idx application:",
               prettyText expr
             ]
-checkExp expr@(Unbox is x_e e box _ pos) = error "todo"
+checkExp expr@(Unbox is x_e box body _ pos) = do
+  checkIdxParams is $ do
+    is' <- mapM lookupIVar' is
+    let is'' = map unIVar is'
+    box' <- checkExp box
+    case typeOf box' of
+      Exists ps t -> do
+        let t' = flip substitute t $ M.fromList $ zip (map unIVar ps) is''
+        checkParam x_e t' $ do
+          x_e' <- lookupVName x_e
+          body' <- checkExp body
+          case typeOf body' of
+            TArr t_b shape_b ->
+              pure $ Unbox is' x_e' box' body' (Typed $ TArr t_b (shapeOf box' <> shape_b)) pos
+            _ ->
+              throwError $
+                withPos pos $
+                  T.unlines
+                    [ "Wrong body type for unbox",
+                      prettyText expr
+                    ]
+      _ ->
+        throwError $
+          withPos pos $
+            T.unlines
+              [ "Expected an existentially typed expression in unbox:",
+                prettyText expr
+              ]
 
 checkAtom :: (MonadCheck m) => Atom Unchecked Text -> m (Atom Typed VName)
 checkAtom (Base b _ pos) =

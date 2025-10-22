@@ -38,6 +38,34 @@ instance (Ord v) => Substitute (TVar v) (Type v) (Type v) where
   substitute subst (Exists pts t) = Exists pts $ substitute subst t
   substitute _ t = t
 
+instance (Ord v) => Substitute v v v where
+  substitute subst v = fromMaybe v (subst M.!? v)
+
+instance (Ord v) => Substitute v v (TVar v) where
+  substitute subst = fmap (substitute subst)
+
+instance (Eq v, Ord v) => Substitute v v (Dim v) where
+  substitute subst (DimVar v) = DimVar $ substitute subst v
+  substitute _ (DimN d) = DimN d
+  substitute subst (Add ds) = Add $ map (substitute subst) ds
+
+instance (Eq v, Ord v) => Substitute v v (Shape v) where
+  substitute subst (ShapeVar v) = ShapeVar $ substitute subst v
+  substitute subst (ShapeDim d) = ShapeDim $ substitute subst d
+  substitute subst (Concat shapes) = Concat $ map (substitute subst) shapes
+
+instance (Eq v, Ord v) => Substitute v v (Type v) where
+  substitute subst (TVar tvar) = TVar $ substitute subst tvar
+  substitute subst (TArr t s) = TArr (substitute subst t) (substitute subst s)
+  substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
+  substitute subst (Forall pts t) =
+    Forall pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unTVar pts) subst) t
+  substitute subst (Prod pts t) =
+    Prod pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unIVar pts) subst) t
+  substitute subst (Exists pts t) =
+    Exists pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unIVar pts) subst) t
+  substitute _ t = t
+
 instance (Ord v) => Substitute v (Dim v) (Dim v) where
   substitute subst (DimVar v) = fromMaybe (DimVar v) $ subst M.!? v
   substitute _ (DimN d) = DimN d
