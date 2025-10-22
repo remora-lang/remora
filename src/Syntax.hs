@@ -118,7 +118,7 @@ elemType t = t
 -- | Does this type have Array kind?
 arrayKind :: Type v -> Bool
 arrayKind (TVar ArrayTVar {}) = True
-arrayKind TArr {} = True
+arrayKind (TArr t _) = atomKind t
 arrayKind _ = False
 
 -- | Does this type have Atom kind?

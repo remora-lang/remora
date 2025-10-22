@@ -129,18 +129,12 @@ newtype CheckM a = CheckM {runCheckM :: ExceptT Error (RWS Env () Tag) a}
       MonadError Error
     )
 
--- Just the naive thing for now.
-(@=) :: (MonadCheck m) => Shape VName -> Shape VName -> m Bool
-s @= t = pure $ normShape s == normShape t
-
-infix 4 @=
-
 (~=) :: (MonadCheck m) => Type VName -> Type VName -> m Bool
 TArr t s ~= TArr y x =
-  (&&) <$> (t ~= y) <*> (s @= x)
+  (t ~= y) ^&& pure (s @= x)
 (ps :-> r) ~= (qs :-> t)
   | length ps == length qs =
-      (&&) <$> (and <$> zipWithM (~=) ps qs) <*> (r ~= t)
+      (andM $ zipWith (~=) ps qs) ^&& (r ~= t)
 Forall ps r ~= Forall qs t
   | length ps == length qs = do
       xs <- forM ps $ \p -> do
@@ -187,18 +181,25 @@ checkExp expr@(Array ns as _ pos) = do
       throwErrorPos pos $
         "Empty array constructed without type: " <> prettyText expr
     (a' : _) -> do
-      unless (all (\a'' -> typeOf a'' == typeOf a') as') $
+      unlessM (allM (\a'' -> typeOf a'' ~= typeOf a') as') $
         throwErrorPos pos $
           "Atoms in array have different types: " <> prettyText expr
       unless (product ns == length as') $
         throwErrorPos pos $
           "Array shape doesn't match number of elements: " <> prettyText expr
-      pure $ Array ns as' (Typed $ TArr (typeOf a') (intsToShape ns)) pos
+      let t = typeOf a'
+      unless (atomKind t) $
+        throwErrorPos pos $
+          "Non-atom-kinded array elements of type: " <> prettyText t
+      pure $ Array ns as' (Typed $ TArr t (intsToShape ns)) pos
 checkExp expr@(EmptyArray ns t _ pos) = do
   t' <- checkType t
   unless (product ns == 0) $
     throwErrorPos pos $
       "Empty array has a non-empty shape: " <> prettyText expr
+  unless (atomKind t') $
+    throwErrorPos pos $
+      "Non-atom-kinded array elements of type: " <> prettyText t'
   pure $ EmptyArray ns t' (Typed $ TArr t' (intsToShape ns)) pos
 checkExp expr@(Frame ns es _ pos) = do
   es' <- mapM checkExp es
@@ -207,18 +208,25 @@ checkExp expr@(Frame ns es _ pos) = do
       throwErrorPos pos $
         "Empty frame constructed without type: " <> prettyText expr
     (e' : _) -> do
-      unless (all (\e'' -> typeOf e'' == typeOf e') es') $
+      unlessM (allM (\e'' -> typeOf e'' ~= typeOf e') es') $
         throwErrorPos pos $
           "Expressions in frame have different types: " <> prettyText expr
       unless (product ns == length es') $
         throwErrorPos pos $
           "Frame shape doesn't match number of elements: " <> prettyText expr
-      pure $ Frame ns es' (Typed $ TArr (typeOf e') (intsToShape ns)) pos
+      let t = typeOf e'
+      unless (arrayKind t) $
+        throwErrorPos pos $
+          "Non-array-kinded frame elements of type: " <> prettyText t
+      pure $ Frame ns es' (Typed $ TArr t (intsToShape ns)) pos
 checkExp expr@(EmptyFrame ns t _ pos) = do
   t' <- checkType t
   unless (product ns == 0) $
     throwErrorPos pos $
       "Empty frame has a non-empty shape: " <> prettyText expr
+  unless (arrayKind t') $
+    throwErrorPos pos $
+      "Non-array-kinded frame elements of type: " <> prettyText t'
   pure $ EmptyFrame ns t' (Typed $ TArr t' (intsToShape ns)) pos
 checkExp expr@(App f args _ pos) = do
   f' <- checkExp f
@@ -226,7 +234,7 @@ checkExp expr@(App f args _ pos) = do
   case arrayifyType $ typeOf f' of
     TArr (pts :-> ret) frame_f -> do
       let check_args pt arg = do
-            unless (elemType (normType pt) == elemType (typeOf arg)) $
+            unlessM (elemType (normType pt) ~= elemType (typeOf arg)) $
               throwErrorPos pos $
                 T.unlines
                   [ "Ill-typed application:",
@@ -326,7 +334,7 @@ checkExp expr@(Unbox is x_e box body _ pos) = do
             _ ->
               throwErrorPos pos $
                 T.unlines
-                  [ "Wrong body type for unbox",
+                  [ "Wrong body type for unbox:",
                     prettyText expr
                   ]
       _ ->
@@ -360,7 +368,7 @@ checkAtom atom@(Box shapes e box_t pos) = do
   case box_t' of
     Exists is t -> do
       let subst = M.fromList $ zip is shapes'
-      unless (typeOf e' == substitute subst t) $
+      unlessM (typeOf e' ~= substitute subst t) $
         throwErrorPos pos $
           T.unlines
             [ "Wrong box type.",

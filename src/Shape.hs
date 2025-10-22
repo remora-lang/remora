@@ -12,6 +12,7 @@ module Shape
     coerceToDim,
     normDim,
     normShape,
+    (@=),
     (\\),
     intsToShape,
     (.<=.),
@@ -156,17 +157,23 @@ normShape (Concat ss) =
           Concat ss' -> ss'
           s' -> pure s'
 
+-- | Shape equality. Just the naive thing for now.
+(@=) :: (Ord v) => Shape v -> Shape v -> Bool
+s @= t = normShape s == normShape t
+
+infix 4 @=
+
 -- | Shape suffix subtraction; given shapes @(++ s1 s2)@ and @t@ if @t == s2@ then
 -- returns @Just s1@. Otherwise fails with @Nothing@.
-(\\) :: (Eq v, Show v) => Shape v -> Shape v -> Maybe (Shape v)
+(\\) :: (Eq v, Ord v, Show v) => Shape v -> Shape v -> Maybe (Shape v)
 s \\ t
-  | s == t = Just mempty
+  | s @= t = Just mempty
 Concat [] \\ _ = Nothing
 s \\ Concat [] = pure s
 (Concat ss) \\ (Concat ts)
-  | last ss == last ts = Concat (init ss) \\ Concat (init ts)
+  | last ss @= last ts = Concat (init ss) \\ Concat (init ts)
 (Concat ss) \\ t
-  | last ss == t = pure $ Concat $ init ss
+  | last ss @= t = pure $ Concat $ init ss
 s \\ t = error $ show (s, t)
 
 -- | Turns an explicit list of dimensions into a 'Shape'.
@@ -174,7 +181,7 @@ intsToShape :: [Int] -> Shape v
 intsToShape ds = Concat $ map (ShapeDim . DimN) ds
 
 -- | @s .<= t@ is true if @s@ is a suffix of @t@.
-(.<=.) :: (Eq v, Show v) => Shape v -> Shape v -> Bool
+(.<=.) :: (Eq v, Ord v, Show v) => Shape v -> Shape v -> Bool
 s .<=. t = isJust $ t \\ s
 
 -- | Returns the largest shape from a collection of shapes with a common prefix.
