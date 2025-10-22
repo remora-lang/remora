@@ -169,25 +169,19 @@ Forall ps r ~= Forall qs t
       xs <- forM ps $ \p -> do
         vname <- newVName $ prettyText p
         pure $ vname <$ p
-      let subst_ps = M.fromList $ zip ps xs
-          subst_qs = M.fromList $ zip qs xs
-      substitute subst_ps r ~= substitute subst_qs t
+      substitute' (zip ps xs) r ~= substitute' (zip qs xs) t
 Prod ps r ~= Prod qs t
   | length ps == length qs = do
       xs <- forM ps $ \p -> do
         vname <- newVName $ prettyText p
         pure $ vname <$ p
-      let subst_ps = M.fromList $ zip ps xs
-          subst_qs = M.fromList $ zip qs xs
-      substitute subst_ps r ~= substitute subst_qs t
+      substitute' (zip ps xs) r ~= substitute' (zip qs xs) t
 Exists ps r ~= Exists qs t
   | length ps == length qs = do
       xs <- forM ps $ \p -> do
         vname <- newVName $ prettyText p
         pure $ vname <$ p
-      let subst_ps = M.fromList $ zip ps xs
-          subst_qs = M.fromList $ zip qs xs
-      substitute subst_ps r ~= substitute subst_qs t
+      substitute' (zip ps xs) r ~= substitute' (zip qs xs) t
 t ~= r = pure $ t == r
 
 infix 4 ~=
@@ -387,7 +381,7 @@ checkExp expr@(Unbox is x_e box body _ pos) = do
     box' <- checkExp box
     case typeOf box' of
       Exists ps t -> do
-        let t' = flip substitute t $ M.fromList $ zip (map unIVar ps) is''
+        let t' = flip substitute' t $ zip (map unIVar ps) is''
         bindParam (x_e, t') $ \x_e' -> do
           body' <- checkExp body
           case typeOf body' of
@@ -430,15 +424,15 @@ checkAtom atom@(Box shapes e box_t pos) = do
   box_t' <- checkType box_t
   case box_t' of
     Exists is t -> do
-      let subst = M.fromList $ zip is shapes'
-      unlessM (typeOf e' ~= substitute subst t) $
+      let t' = substitute' (zip is shapes') t
+      unlessM (typeOf e' ~= t') $
         throwErrorPos pos $
           T.unlines
             [ "Wrong box type.",
               "Expected:",
               prettyText $ typeOf e',
               "But got:",
-              prettyText $ substitute subst t
+              prettyText t'
             ]
       pure $ Box shapes' e' box_t' pos
     _ ->
