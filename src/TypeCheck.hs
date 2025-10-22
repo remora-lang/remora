@@ -72,8 +72,8 @@ lookupType v = do
     Nothing -> throwError $ "Unknown type for var: " <> prettyText v
     Just t -> pure t
 
-checkParam :: (MonadCheck m) => Text -> Type VName -> m a -> m a
-checkParam v t m = do
+bindParam :: (MonadCheck m) => (Text, Type VName) -> (VName -> m a) -> m a
+bindParam (v, t) m = do
   vname <- newVName v
   local
     ( \env ->
@@ -82,40 +82,32 @@ checkParam v t m = do
             envTypeMap = M.insert vname t $ envTypeMap env
           }
     )
-    m
+    (m vname)
 
-checkParams :: (MonadCheck m) => [(Text, Type VName)] -> m a -> m a
-checkParams [] m = m
-checkParams ((v, t) : vs) m =
-  checkParam v t $ checkParams vs m
-
-checkTypeParam :: (MonadCheck m) => TVar Text -> m a -> m a
-checkTypeParam tvar m = do
+bindTypeParam :: (MonadCheck m) => TVar Text -> (TVar VName -> m a) -> m a
+bindTypeParam tvar m = do
   vname <- newVName $ unTVar tvar
   local
     ( \env ->
         env {envTVarMap = M.insert (unTVar tvar) vname $ envTVarMap env}
     )
-    m
+    (m $ const vname <$> tvar)
 
-checkTypeParams :: (MonadCheck m) => [TVar Text] -> m a -> m a
-checkTypeParams [] m = m
-checkTypeParams (tvar : tvars) m =
-  checkTypeParam tvar $ checkTypeParams tvars m
-
-checkIdxParam :: (MonadCheck m) => IVar Text -> m a -> m a
-checkIdxParam ivar m = do
+bindIdxParam :: (MonadCheck m) => IVar Text -> (IVar VName -> m a) -> m a
+bindIdxParam ivar m = do
   vname <- newVName $ unIVar ivar
   local
     ( \env ->
         env {envIVarMap = M.insert (unIVar ivar) vname $ envIVarMap env}
     )
-    m
+    (m $ const vname <$> ivar)
 
-checkIdxParams :: (MonadCheck m) => [IVar Text] -> m a -> m a
-checkIdxParams [] m = m
-checkIdxParams (ivar : ivars) m =
-  checkIdxParam ivar $ checkIdxParams ivars m
+binds :: (a -> (c -> x) -> x) -> [a] -> ([c] -> x) -> x
+binds bind ps m = binds' ps mempty
+  where
+    binds' [] cs = m $ reverse cs
+    binds' (a : as) cs =
+      bind a $ \c -> binds' as (c : cs)
 
 type Error = Text
 
@@ -283,15 +275,13 @@ checkExp expr@(IApp f is _ pos) = do
               prettyText expr
             ]
 checkExp expr@(Unbox is x_e box body _ pos) = do
-  checkIdxParams is $ do
-    is' <- mapM lookupIVar' is
+  binds bindIdxParam is $ \is' -> do
     let is'' = map unIVar is'
     box' <- checkExp box
     case typeOf box' of
       Exists ps t -> do
         let t' = flip substitute t $ M.fromList $ zip (map unIVar ps) is''
-        checkParam x_e t' $ do
-          x_e' <- lookupVName x_e
+        bindParam (x_e, t') $ \x_e' -> do
           body' <- checkExp body
           case typeOf body' of
             TArr t_b shape_b ->
@@ -317,18 +307,15 @@ checkAtom (Base b _ pos) =
 checkAtom (Lambda ps e _ pos) = do
   let (xs, pts) = unzip ps
   pts' <- mapM checkType pts
-  checkParams (zip xs pts') $ do
-    xs' <- mapM lookupVName xs
+  binds bindParam (zip xs pts') $ \xs' -> do
     e' <- checkExp e
     pure $ Lambda (zip xs' pts') e' (Typed $ pts' :-> typeOf e') pos
 checkAtom (TLambda ps e _ pos) =
-  checkTypeParams ps $ do
-    ps' <- mapM lookupTVar' ps
+  binds bindTypeParam ps $ \ps' -> do
     e' <- checkExp e
     pure $ TLambda ps' e' (Typed $ Forall ps' $ typeOf e') pos
 checkAtom (ILambda ps e _ pos) =
-  checkIdxParams ps $ do
-    ps' <- mapM lookupIVar' ps
+  binds bindIdxParam ps $ \ps' -> do
     e' <- checkExp e
     pure $ ILambda ps' e' (Typed $ Prod ps' $ typeOf e') pos
 checkAtom atom@(Box shapes e box_t pos) = do
@@ -364,23 +351,19 @@ checkType = fmap normType . checkType'
     checkType' Bool = pure Bool
     checkType' Int = pure Int
     checkType' Float = pure Float
-    checkType' (TArr t shape) = TArr <$> checkType' t <*> checkShape shape
-    checkType' (as :-> b) = (:->) <$> mapM checkType' as <*> checkType' b
+    checkType' (TArr t shape) =
+      TArr <$> checkType' t <*> checkShape shape
+    checkType' (as :-> b) =
+      (:->) <$> mapM checkType' as <*> checkType' b
     checkType' (Forall pts t) =
-      checkTypeParams pts $ do
-        pts' <- mapM lookupTVar' pts
-        t' <- checkType' t
-        pure $ Forall pts' t'
+      binds bindTypeParam pts $ \pts' ->
+        Forall pts' <$> checkType t
     checkType' (Prod pts t) =
-      checkIdxParams pts $ do
-        pts' <- mapM lookupIVar' pts
-        t' <- checkType' t
-        pure $ Prod pts' t'
+      binds bindIdxParam pts $ \pts' ->
+        Prod pts' <$> checkType t
     checkType' (Exists pts t) = do
-      checkIdxParams pts $ do
-        pts' <- mapM lookupIVar' pts
-        t' <- checkType' t
-        pure $ Exists pts' t'
+      binds bindIdxParam pts $ \pts' -> do
+        Exists pts' <$> checkType t
 
 checkDim :: (MonadCheck m) => Dim Text -> m (Dim VName)
 checkDim = fmap normDim . checkDim'
@@ -405,10 +388,8 @@ withPrelude m = checkPrelude prelude mempty
       case p of
         PreludeVal f t v -> do
           t' <- checkType t
-          checkParam f t' $ do
-            f' <- lookupVName f
+          bindParam (f, t') $ \f' ->
             checkPrelude ps (PreludeVal f' t' v : prelude')
         PreludeType tvar ->
-          checkTypeParam tvar $ do
-            tvar' <- lookupTVar' tvar
+          bindTypeParam tvar $ \tvar' -> do
             checkPrelude ps (PreludeType tvar' : prelude')
