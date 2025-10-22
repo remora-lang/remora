@@ -208,7 +208,7 @@ pAtom =
           <$> (lKeyword "t-fn" >> (parens $ many pTVar))
           <*> pExp
     pBox =
-      Box <$> (many pShape) <*> pExp <*> pType
+      Box <$> (lKeyword "box" >> (many pShape)) <*> pExp <*> pType
 
 pExp :: Parser Exp
 pExp =
@@ -239,7 +239,7 @@ pExp =
     pShapeLit = parens $ many pDecimal
     pUnbox =
       Unbox
-        <$> (symbol "(" >> (many (pIVar <* notFollowedBy (symbol ")"))))
+        <$> (lKeyword "unbox" >> (symbol "(" >> (many (pIVar <* notFollowedBy (symbol ")")))))
         <*> lId
         <*> (pExp <* symbol ")")
         <*> pExp

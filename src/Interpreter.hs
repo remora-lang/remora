@@ -32,11 +32,12 @@ type Type = Syntax.Type VName
 
 data Env = Env
   { envMap :: Map VName Val,
-    envTMap :: Map VName Type
+    envTMap :: Map VName Type,
+    envIMap :: Map VName [Int]
   }
 
 initEnv :: Prelude VName InterpM -> Env
-initEnv prelude = Env m tm
+initEnv prelude = Env m tm mempty
   where
     m =
       M.fromList $
@@ -105,6 +106,9 @@ intExp (IApp e is _ _) = do
   e' <- intExp e
   is' <- mapM (mapIdx (fmap pure . intDim) intShape) is
   iapply e' is'
+intExp (Unbox is x_e boxes e _ _) = do
+  boxes' <- intExp boxes
+  unbox is x_e boxes' e
 
 intDim :: Dim -> InterpM Int
 intDim = pure . intDim'
@@ -139,6 +143,15 @@ tbinds :: [(VName, Type)] -> InterpM a -> InterpM a
 tbinds [] m = m
 tbinds ((v, t) : vts) m =
   tbind v t $ tbinds vts m
+
+ibind :: VName -> [Int] -> InterpM a -> InterpM a
+ibind v i =
+  local (\env -> env {envIMap = M.insert v i $ envIMap env})
+
+ibinds :: [(VName, [Int])] -> InterpM a -> InterpM a
+ibinds [] m = m
+ibinds ((v, t) : vts) m =
+  ibind v t $ ibinds vts m
 
 iapply :: Val -> [[Int]] -> InterpM Val
 iapply (ValIFun f) shapes = f shapes
@@ -216,3 +229,12 @@ lift' shape_p shape_is (ValArray shape_fs fs) args =
         nae = product shape_p `div` product (prefix shape_arg shape_param)
         nac = product shape_param
 lift' shape_p shape_is v args = error $ prettyString v
+
+unbox :: [IVar VName] -> VName -> Val -> Exp -> InterpM Val
+unbox is x_e (ValArray ns boxes) e = do
+  elems <- forM boxes $ \(ValBox shapes v _) -> do
+    shapes' <- mapM intShape shapes
+    ibinds (zip (map unIVar is) shapes') $
+      bind x_e v $
+        intExp e
+  pure $ ValArray (length elems : ns) elems

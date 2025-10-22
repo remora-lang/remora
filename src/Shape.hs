@@ -35,7 +35,7 @@ data Dim v
   deriving (Show, Eq, Ord)
 
 instance (Show v, Pretty v) => Pretty (Dim v) where
-  pretty (DimVar v) = pretty v
+  pretty (DimVar v) = "$" <> pretty v
   pretty (DimN d) = pretty d
   pretty (Add ds) = parens $ hsep ("+" : map pretty ds)
 
@@ -56,7 +56,7 @@ instance Monoid (Shape v) where
   mempty = Concat []
 
 instance (Show v, Pretty v) => Pretty (Shape v) where
-  pretty (ShapeVar v) = pretty v
+  pretty (ShapeVar v) = "@" <> pretty v
   pretty (ShapeDim d) = pretty d
   pretty (Concat []) = "•"
   pretty (Concat is) = parens $ hsep ("++" : map pretty is)

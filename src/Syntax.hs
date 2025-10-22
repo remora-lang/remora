@@ -198,6 +198,8 @@ data Exp f v
     IApp (Exp f v) [Idx v] (f (Type v)) SourcePos
   | -- | Unboxing.
     Unbox [IVar v] v (Exp f v) (Exp f v) (f (Type v)) SourcePos
+  | -- | Let.
+    Let v (Exp f v) (Exp f v) (f (Type v)) SourcePos
 
 deriving instance (Show v) => Show (Exp Unchecked v)
 

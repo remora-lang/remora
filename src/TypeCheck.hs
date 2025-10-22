@@ -330,7 +330,7 @@ checkAtom atom@(Box shapes e box_t pos) = do
   case box_t' of
     Exists is t -> do
       let subst = M.fromList $ zip is shapes'
-      unless (typeOf e' == substitute subst box_t') $
+      unless (typeOf e' == substitute subst t) $
         throwError $
           withPos pos $
             T.unlines
@@ -338,7 +338,7 @@ checkAtom atom@(Box shapes e box_t pos) = do
                 "Expected:",
                 prettyText $ typeOf e',
                 "But got:",
-                prettyText $ substitute subst box_t'
+                prettyText $ substitute subst t
               ]
       pure $ Box shapes' e' box_t' pos
     _ ->
@@ -368,7 +368,11 @@ checkType = fmap normType . checkType'
         pts' <- mapM lookupIVar' pts
         t' <- checkType' t
         pure $ Prod pts' t'
-    checkType' (Exists {}) = error "todo"
+    checkType' (Exists pts t) = do
+      checkIdxParams pts $ do
+        pts' <- mapM lookupIVar' pts
+        t' <- checkType' t
+        pure $ Exists pts' t'
 
 checkDim :: (MonadCheck m) => Dim Text -> m (Dim VName)
 checkDim = fmap normDim . checkDim'

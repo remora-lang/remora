@@ -107,13 +107,7 @@ instance (Ord v, Substitute v (Shape v) c) => Substitute (IVar v) (Shape v) c wh
   substitute subst c = substitute subst' c
     where
       subst' =
-        M.mapKeys unpack $
-          M.filterWithKey
-            ( \k _ -> case k of
-                DVar {} -> False
-                SVar {} -> True
-            )
-            subst
+        M.mapKeys unpack $ subst
       unpack (DVar v) = v
       unpack (SVar v) = v
 
