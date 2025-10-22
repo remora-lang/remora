@@ -323,7 +323,31 @@ checkAtom (Lambda ps e _ pos) = do
     pure $ Lambda (zip xs' pts') e' (Typed $ pts' :-> typeOf e') pos
 checkAtom (TLambda ps e _ pos) = error "todo"
 checkAtom (ILambda ps e _ pos) = error "todo"
-checkAtom (Box is e t pos) = error "todo"
+checkAtom atom@(Box shapes e box_t pos) = do
+  shapes' <- mapM checkShape shapes
+  e' <- checkExp e
+  box_t' <- checkType box_t
+  case box_t' of
+    Exists is t -> do
+      let subst = M.fromList $ zip is shapes'
+      unless (typeOf e' == substitute subst box_t') $
+        throwError $
+          withPos pos $
+            T.unlines
+              [ "Wrong box type.",
+                "Expected:",
+                prettyText $ typeOf e',
+                "But got:",
+                prettyText $ substitute subst box_t'
+              ]
+      pure $ Box shapes' e' box_t' pos
+    _ ->
+      throwError $
+        withPos pos $
+          T.unlines
+            [ "Non-existential box type:",
+              prettyText atom
+            ]
 
 checkType :: (MonadCheck m) => Type Text -> m (Type VName)
 checkType = fmap normType . checkType'
