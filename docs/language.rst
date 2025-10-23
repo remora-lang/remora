@@ -27,6 +27,17 @@ These changes add a couple of productions to the `exp` non-terminal:
 .. productionlist::
    exp : ... | `atom` | "[" `exp`+ "]"
 
+The language is also extended with a ``let``-expression:
+
+.. productionlist::
+   val_bind : "(" `val_param` `exp` ")"
+   fun_bind : "(" `id` "(" val_param * ")" `type` `exp` ")"
+   exp : ... | "(" ("let" "(" (`val_bind` | `fun_bind`)* ")" `exp` ")"
+
+which is syntactic sugar for a nest of function applications applied to the
+let-bound values and functions to introduce them into the scope of the `let`'s
+body.
+
 =========================
 Sugar-free Source Grammar
 =========================
@@ -65,7 +76,7 @@ Types and Kinds
       : | "(" "forall" "(" `type_var`* ")" `type` ")"
       : | "(" "prod" "(" `idx_var`* ")" `type` ")"
       : | "(" "exists" "(" `idx_var`* ")" `type` ")"
-   base_type : `Int` | `Bool` | `Float`
+   base_type : "Int" | "Bool" | "Float"
 
 --------------------------------
 Patterns, Atoms, and Expressions
@@ -75,7 +86,6 @@ Patterns, Atoms, and Expressions
    pat : `id`
    val_param : "(" `id` `type` ")"
    atom : `base`
-      : | `op`
       : | "(" "fn" "(" val_param* ")" `exp` ")"
       : | "(" "t-fn" "(" type_var* ")" `exp` ")"
       : | "(" "i-fn" "(" idx_var* ")" `exp` ")"
@@ -89,7 +99,6 @@ Patterns, Atoms, and Expressions
      : | "(" "t-app" `exp` `type`* ")"
      : | "(" "i-app" `exp` `idx`* ")"
      : | "(" "unbox" "(" `pat`* `pat` `exp` ")" `exp` ")"
-   op : "+" | "-" | "iota" | ...
 
 -----------
 Identifiers
