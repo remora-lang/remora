@@ -78,7 +78,7 @@ instance (Ord v) => Substitute v (Dim v) (Dim v) where
 
 instance (Ord v) => Substitute v (Shape v) (Shape v) where
   substitute subst (ShapeVar v) = fromMaybe (ShapeVar v) $ subst M.!? v
-  substitute subst (ShapeDim d) = ShapeDim $ substitute subst d
+  substitute subst (ShapeDim d) = ShapeDim d
   substitute subst (Concat shapes) = Concat $ map (substitute subst) shapes
 
 instance (Eq v, Ord v) => Substitute v v (Dim v) where
@@ -95,14 +95,6 @@ instance (Ord v) => Substitute v (Dim v) (Shape v) where
   substitute _ (ShapeVar v) = ShapeVar v
   substitute subst (ShapeDim d) = ShapeDim $ substitute subst d
   substitute subst (Concat shapes) = Concat $ map (substitute subst) shapes
-
-instance (Ord v) => Substitute v (Shape v) (Dim v) where
-  substitute subst (DimVar v) =
-    case normShape <$> subst M.!? v of
-      Just (ShapeDim d) -> substitute subst d
-      _ -> DimVar v
-  substitute _ (DimN d) = DimN d
-  substitute subst (Add ds) = Add $ map (substitute subst) ds
 
 instance (Ord v) => Substitute v (Shape v) (Type v) where
   substitute subst (TArr t s) = TArr (substitute subst t) (substitute subst s)

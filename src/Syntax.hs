@@ -152,7 +152,7 @@ data Atom f v
     TLambda [TVar v] (Exp f v) (f (Type v)) SourcePos
   | -- | Index lambda.
     ILambda [IVar v] (Exp f v) (f (Type v)) SourcePos
-  | -- | Boxed expression.
+  | -- | Boxed expression. TODO: This should be a list of `Idx v`, not `Shape v`.
     Box [Shape v] (Exp f v) (Type v) SourcePos
 
 deriving instance (Show v) => Show (Atom Unchecked v)
