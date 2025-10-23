@@ -1,4 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Syntax
   ( module Shape,
@@ -364,5 +365,5 @@ instance Pretty Pos where
   pretty = pretty . unPos
 
 instance Pretty SourcePos where
-  pretty (SourcePos file line col) =
-    pretty file <> ":" <> pretty line <> ":" <> pretty col
+  pretty (SourcePos file l col) =
+    pretty file <> ":" <> pretty l <> ":" <> pretty col

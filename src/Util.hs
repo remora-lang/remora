@@ -15,9 +15,7 @@ where
 
 import Control.Applicative
 import Control.Monad
-import Data.Foldable
 import Data.Text (Text)
-import Data.Text qualified as T
 import Prettyprinter
 import Prettyprinter.Render.String
 import Prettyprinter.Render.Text

@@ -155,6 +155,13 @@ instance SExpable (Exp Unchecked Text) Text where
         toSExp ts,
         toSExp pos
       ]
+  toSExp (IApp e is _ pos) =
+    SList
+      [ "i-app",
+        toSExp e,
+        toSExp is,
+        toSExp pos
+      ]
   toSExp (Unbox vs v_e x_e e _ pos) =
     SList
       [ "unbox",
@@ -186,6 +193,18 @@ instance SExpable (IVar Text) Text where
   toSExp (DVar v) =
     SList
       [ "dim-ivar",
+        toSExp v
+      ]
+
+instance SExpable (Idx Text) Text where
+  toSExp (Dim v) =
+    SList
+      [ "idx-dim",
+        toSExp v
+      ]
+  toSExp (Shape v) =
+    SList
+      [ "idx-shape",
         toSExp v
       ]
 

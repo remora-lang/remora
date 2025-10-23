@@ -1,10 +1,9 @@
+{-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module VName where
 
 import Control.Monad.State
-import Data.Map (Map)
-import Data.Map qualified as M
 import Data.Text (Text)
 import Prettyprinter
 

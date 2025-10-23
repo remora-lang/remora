@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 module RemoraPrelude
   ( prelude,
     Prelude,
@@ -5,11 +7,9 @@ module RemoraPrelude
   )
 where
 
-import Control.Monad
 import Data.Text (Text)
 import Interpreter.Value
 import Syntax
-import VName
 
 type Prelude v m = [PreludeVal v m]
 
@@ -61,7 +61,7 @@ prelude =
       ( ValTFun $ \[_t] ->
           pure $ ValIFun $ \[_d, _s] ->
             pure $ ValFun $ \[ValArray (d : ds) vs] ->
-              pure $ ValArray (d - 1 : ds) $ tail vs
+              pure $ ValArray (d - 1 : ds) $ drop 1 vs
       ),
     PreludeVal
       "length"
@@ -151,6 +151,7 @@ prelude =
       ( let valSum :: Val m -> Int
             valSum (ValBase (IntVal x)) = x
             valSum (ValArray _ vs) = sum $ map valSum vs
+            valSum _ = error "valSum"
          in ValIFun $ \[_s] ->
               pure $ ValFun $ \[xs] ->
                 pure $ ValArray mempty [ValBase $ IntVal $ valSum xs]

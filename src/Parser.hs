@@ -1,7 +1,7 @@
 module Parser (parse) where
 
 import Control.Monad (void)
-import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
+import Data.Char (isAlphaNum, isDigit, isSpace)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Void
@@ -17,9 +17,7 @@ import Text.Megaparsec
     getSourcePos,
     many,
     notFollowedBy,
-    option,
     satisfy,
-    single,
     some,
     try,
     (<|>),
