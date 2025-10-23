@@ -37,8 +37,7 @@ instance SExpable Int Text where
   toSExp = SAtom . T.pack . show
 
 instance SExpable Pos Text where
-  toSExp p =
-    SList ["pos", toSExp $ unPos p]
+  toSExp = toSExp . unPos
 
 instance SExpable Text Text where
   toSExp = SAtom
