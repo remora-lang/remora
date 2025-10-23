@@ -152,11 +152,8 @@ compileExp (Array [] [x] _ _) = compileAtom x
 compileExp (Array [_] elems _ _) = do
   elems' <- mapM compileAtom elems
   pure $ "[" <> mconcat (punctuate "," elems') <> "]"
-compileExp (Var v _ _)
-  | varName v `elem` operators = pure $ pretty $ varName v
-  | otherwise = pure $ parens $ pretty v
-  where
-    operators = ["+", "-"]
+compileExp (Var v _ _) =
+  pure $ pretty v
 compileExp (App (Var v _ _) [x, y] (Typed (t, _)) _)
   | Just v' <- lookup (varName v, t) binops = do
       x' <- compileExp x
@@ -172,7 +169,11 @@ compileExp (App f xs (Typed (t, _)) _) = do
   f' <- compileExp f
   xs' <- traverse compileExp xs
   t' <- compileType t
-  bind t' $ "apply" <+> f' <+> hsep xs'
+  bind t' $
+    vsep
+      [ "apply" <+> f' <+> parens (mconcat $ punctuate "," xs'),
+        ":" <+> braces t'
+      ]
 compileExp e = error $ "compileExp: unhandled:\n" ++ show e
 
 wrapInMain :: (FutharkVar, State) -> T.Text
