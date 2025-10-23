@@ -4,8 +4,6 @@ import Control.Monad.Error.Class
 import Control.Monad.Reader hiding (lift)
 import Control.Monad.State hiding (State)
 import Control.Monad.Trans.Except
-import Data.Bifunctor
-import Data.List qualified as L
 import Data.Text qualified as T
 import Prettyprinter
 import Prettyprinter.Render.Text
@@ -88,10 +86,10 @@ bind t e = do
   emit $ "let" <+> braces (v <> ":" <+> t) <+> "=" <+> e
   pure v
 
-mkBody :: FutharkM FutharkVar -> FutharkM FutharkBody
+mkBody :: FutharkM [FutharkVar] -> FutharkM FutharkBody
 mkBody m = do
-  (v, stms) <- collect m
-  pure $ vsep [stms, "in" <+> v]
+  (vs, stms) <- collect m
+  pure $ vsep [stms, "in" <+> braces (mconcat $ punctuate ", " vs)]
 
 addFunction :: FutharkFun -> FutharkM ()
 addFunction fun = modify $ \s -> s {stateFuns = stateFuns s ++ [fun]}
@@ -104,7 +102,7 @@ findRet t = t
 liftLambda :: [(VName, Type)] -> Exp -> Type -> FutharkM FutharkVar
 liftLambda params body ret = do
   params' <- mapM compileParam params
-  body' <- mkBody $ compileExp body
+  body' <- mkBody $ pure <$> compileExp body
   ret' <- compileType $ findRet ret
   fname <- newVar
   addFunction $
@@ -183,7 +181,7 @@ wrapInMain (e, State stms _ funs) =
     vcat $
       funs
         ++ [ "entry (\"main\", {}, {i32}) entry_main () : {i32} = {",
-             indent 2 (vcat [stms, "in" <+> e]),
+             indent 2 (vcat [stms, "in" <+> braces e]),
              "}"
            ]
 
