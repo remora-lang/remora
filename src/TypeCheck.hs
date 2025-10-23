@@ -202,6 +202,10 @@ checkShape = fmap normShape . checkShape'
     checkShape' (ShapeDim d) = ShapeDim <$> checkDim d
     checkShape' (Concat ss) = Concat <$> mapM checkShape' ss
 
+-- | Check an `Idx`.
+checkIdx :: (MonadCheck m) => Idx Text -> m (Idx VName)
+checkIdx = mapIdx (fmap Dim . checkDim) (fmap Shape . checkShape)
+
 -- | Check a 'Type'.
 checkType :: (MonadCheck m) => Type Text -> m (Type VName)
 checkType = fmap normType . checkType'
@@ -418,13 +422,13 @@ checkAtom (ILambda ps e _ pos) =
   binds bindIdxParam ps $ \ps' -> do
     e' <- checkExp e
     pure $ ILambda ps' e' (Typed $ Prod ps' $ typeOf e') pos
-checkAtom atom@(Box shapes e box_t pos) = do
-  shapes' <- mapM checkShape shapes
+checkAtom atom@(Box idx e box_t pos) = do
+  idx' <- mapM checkIdx idx
   e' <- checkExp e
   box_t' <- checkType box_t
   case box_t' of
     Exists is t -> do
-      let t' = substitute' (zip is shapes') t
+      let t' = substitute' (zip is idx') t
       unlessM (typeOf e' ~= t') $
         throwErrorPos pos $
           T.unlines
@@ -434,7 +438,7 @@ checkAtom atom@(Box shapes e box_t pos) = do
               "But got:",
               prettyText t'
             ]
-      pure $ Box shapes' e' box_t' pos
+      pure $ Box idx' e' box_t' pos
     _ ->
       throwErrorPos pos $
         T.unlines

@@ -5,7 +5,7 @@ import Data.Char (isAlphaNum, isDigit, isSpace)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Void
-import Syntax hiding (Atom, Dim, Exp, IVar, Shape, TVar, Type)
+import Syntax hiding (Atom, Dim, Exp, IVar, Idx, Shape, TVar, Type)
 import Syntax qualified
 import Text.Megaparsec
   ( Parsec,
@@ -48,6 +48,8 @@ type Type = Syntax.Type Text
 type TVar = Syntax.TVar Text
 
 type IVar = Syntax.IVar Text
+
+type Idx = Syntax.Idx Text
 
 parse :: FilePath -> Text -> Either Text Exp
 parse fname s =
@@ -213,7 +215,14 @@ pAtom =
           <$> (lKeyword "t-fn" >> (manyLisp pTVar))
           <*> pExp
     pBox =
-      Box <$> (lKeyword "box" >> (many pShape)) <*> pExp <*> pType
+      Box <$> (lKeyword "box" >> many pIdx) <*> pExp <*> pType
+
+pIdx :: Parser Idx
+pIdx =
+  choice
+    [ Syntax.Dim <$> pDim,
+      Syntax.Shape <$> pShape
+    ]
 
 pExp :: Parser Exp
 pExp =
@@ -232,7 +241,7 @@ pExp =
                       [ Array <$> (lKeyword "array" >> pShapeLit) <*> some pAtom,
                         Frame <$> (lKeyword "frame" >> pShapeLit) <*> some pExp,
                         (. const Unchecked) <$> (App <$> pExp <*> some pExp),
-                        lKeyword "i-app" >> IApp <$> pExp <*> some (Syntax.Shape <$> pShape),
+                        lKeyword "i-app" >> IApp <$> pExp <*> some pIdx,
                         lKeyword "t-app" >> TApp <$> pExp <*> (some pType),
                         pUnbox
                       ]

@@ -9,14 +9,14 @@ module Interpreter.Value
 where
 
 import Prettyprinter
-import Syntax hiding (Atom, Exp, HasShape (..), IVar, Shape, TVar, Type, (\\))
+import Syntax hiding (Atom, Exp, HasShape (..), IVar, Idx, Shape, TVar, Type, (\\))
 import Syntax qualified
 import Util
 import VName
 
-type Shape = Syntax.Shape VName
-
 type Type = Syntax.Type VName
+
+type Idx = Syntax.Idx VName
 
 -- | Values. Parameterized by a monad @m@ over which function bodies are
 -- evaluated.
@@ -28,13 +28,13 @@ data Val m
   | -- | Array value.
     ValArray [Int] [Val m]
   | -- | Box.
-    ValBox [Shape] (Val m) Type
+    ValBox [Idx] (Val m) Type
   | -- | Function.
     ValFun ([Val m] -> m (Val m))
   | -- | Type function.
     ValTFun ([Type] -> m (Val m))
   | -- | Index function.
-    ValIFun ([[Int]] -> m (Val m))
+    ValIFun ([Either Int [Int]] -> m (Val m))
 
 instance Show (Val m) where
   show (ValVar v) = "ValVar " <> show v
@@ -55,7 +55,7 @@ instance Pretty (Val m) where
   pretty (ValArray shape vs) =
     pretty $ splitvs shape vs
     where
-      splitvs [d] vs = ValArray [d] vs
+      splitvs [d] vs' = ValArray [d] vs'
       splitvs (d : ds) vs' =
         ValArray [d] $ map (splitvs ds) $ split d vs'
       splitvs x y = error $ unlines [show x, show y, show (ValArray shape vs)]

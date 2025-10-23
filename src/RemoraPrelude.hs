@@ -100,7 +100,7 @@ prelude =
           )
       )
       ( ValTFun $ \[_t] ->
-          pure $ ValIFun $ \[[m], [n], s] ->
+          pure $ ValIFun $ \[Left m, Left n, Right s] ->
             pure $ ValFun $ \[ValArray _ xs, ValArray _ ys] ->
               pure $ ValArray (m + n : s) (xs ++ ys)
       ),
@@ -121,7 +121,7 @@ prelude =
           )
       )
       ( ValTFun $ \[_t] ->
-          pure $ ValIFun $ \[[_d], _s] ->
+          pure $ ValIFun $ \[Left _d, Right _s] ->
             pure $ ValFun $ \[ValArray shape xs] ->
               pure $ ValArray shape (reverse xs)
       ),

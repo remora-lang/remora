@@ -11,7 +11,7 @@ import Data.Text (Text)
 import Interpreter.Value hiding (Val)
 import Interpreter.Value qualified as Value
 import RemoraPrelude (Prelude, PreludeVal (..))
-import Syntax hiding (Atom, Dim, Exp, Shape, Type, (\\))
+import Syntax hiding (Atom, Dim, Exp, Idx, Shape, Type, (\\))
 import Syntax qualified
 import Util
 import VName
@@ -27,6 +27,8 @@ type Atom = Syntax.Atom Typed VName
 type Shape = Syntax.Shape VName
 
 type Type = Syntax.Type VName
+
+type Idx = Syntax.Idx VName
 
 -- | Interpret a program. Takes a type checked prelude to populate the initial
 -- environment with.
@@ -122,9 +124,11 @@ tbind v t =
   local (\env -> env {envTMap = M.insert v t $ envTMap env})
 
 -- | Locally bind an index variable to a shape literal.
-ibind :: VName -> [Int] -> InterpM a -> InterpM a
-ibind v i =
-  local (\env -> env {envSMap = M.insert v i $ envSMap env})
+ibind :: VName -> Either Int [Int] -> InterpM a -> InterpM a
+ibind v (Left d) =
+  local (\env -> env {envDMap = M.insert v d $ envDMap env})
+ibind v (Right s) =
+  local (\env -> env {envSMap = M.insert v s $ envSMap env})
 
 -- | Many binds.
 binds :: (v -> val -> a -> a) -> [(v, val)] -> a -> a
@@ -184,11 +188,11 @@ intExp expr@(TApp e ts _ _) =
           ]
 intExp expr@(IApp e is _ _) = do
   e' <- intExp e
-  is' <- mapM (mapIdx (fmap pure . intDim) intShape) is
+  is' <- mapM intIdx is
   iapply e' is'
   where
-    iapply :: Val -> [[Int]] -> InterpM Val
-    iapply (ValIFun f) shapes = f shapes
+    iapply :: Val -> [Either Int [Int]] -> InterpM Val
+    iapply (ValIFun f) idxs = f idxs
     iapply (ValArray shape fs) shapes = do
       ValArray shape <$> mapM (`iapply` shapes) fs
     iapply _ _ =
@@ -203,9 +207,9 @@ intExp expr@(Unbox is x_e box e _ _) = do
     elems <- mapM unbox boxes
     pure $ ValArray (length elems : ns) elems
   where
-    unbox (ValBox shapes v _) = do
-      shapes' <- mapM intShape shapes
-      binds ibind (zip (map unIVar is) shapes') $
+    unbox (ValBox idxs v _) = do
+      idxs' <- mapM intIdx idxs
+      binds ibind (zip (map unIVar is) idxs') $
         bind x_e v $
           intExp e
     unbox v =
@@ -229,6 +233,10 @@ intShape (ShapeVar s) = lookupShape s
 intShape (ShapeDim d) = pure <$> intDim d
 intShape (Concat ss) = concat <$> mapM intShape ss
 
+-- | Interpret an 'Idx'.
+intIdx :: Idx -> InterpM (Either Int [Int])
+intIdx = mapIdx (fmap Left . intDim) (fmap Right . intShape)
+
 -- | Interpret an 'Atom'.
 intAtom :: Atom -> InterpM Val
 intAtom (Base b _ _) = pure $ ValBase b
@@ -246,9 +254,9 @@ intAtom (TLambda ps e _ _) = do
         intExp e
 intAtom (ILambda ps e _ _) = do
   env <- ask
-  pure $ ValIFun $ \shapes ->
+  pure $ ValIFun $ \idxs ->
     local (const env) $
-      binds ibind (zip (map unIVar ps) shapes) $
+      binds ibind (zip (map unIVar ps) idxs) $
         intExp e
 intAtom (Box is e t _) =
   ValBox is <$> intExp e <*> pure t
