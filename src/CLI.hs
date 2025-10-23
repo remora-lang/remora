@@ -8,6 +8,7 @@ import Data.Maybe
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
+import Futhark qualified
 import Interpreter qualified
 import Parser qualified
 import SExp
@@ -19,6 +20,10 @@ import Prelude hiding (exp)
 data RemoraMode
   = REPL
   | Interpret
+      { file :: Maybe FilePath,
+        expr :: Maybe String
+      }
+  | Futhark
       { file :: Maybe FilePath,
         expr :: Maybe String
       }
@@ -57,12 +62,25 @@ interpret =
         "If neither -f nor -e is passed, will read input from stdin."
       ]
 
+futhark :: RemoraMode
+futhark =
+  Futhark
+    { file = Nothing &= help "Turn the passed file into Futhark.",
+      expr = Nothing &= help "Turn the passed expression into Futhark."
+    }
+    &= details
+      [ "Turn a Remora program into Futhark.",
+        "",
+        "If neither -f nor -e is passed, will read input from stdin."
+      ]
+
 mode :: Mode (CmdArgs RemoraMode)
 mode =
   cmdArgsMode $
     modes
       [ REPL &= details ["DO NOT USE: remora repl is a broken WIP."],
         interpret,
+        futhark,
         parse
       ]
       &= program "remora"
@@ -78,6 +96,15 @@ main = do
             expr <- doParse mfile input
             (prelude, expr') <- check expr
             Interpreter.interpret prelude expr'
+      case m of
+        Left err -> T.putStrLn err
+        Right v -> T.putStrLn $ prettyText v
+    Futhark mfile mexpr -> do
+      input <- handleInput mfile mexpr
+      let m = do
+            expr <- doParse mfile input
+            (prelude, expr') <- check expr
+            Futhark.compile prelude expr'
       case m of
         Left err -> T.putStrLn err
         Right v -> T.putStrLn $ prettyText v

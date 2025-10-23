@@ -27,6 +27,7 @@ library
       Parser
       Interpreter
       Interpreter.Value
+      Futhark
       TypeCheck
       VName
       Util
