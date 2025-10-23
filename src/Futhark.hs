@@ -177,10 +177,11 @@ compileExp (App f xs (Typed (t, _)) _) = do
 compileExp e = error $ "compileExp: unhandled:\n" ++ show e
 
 wrapInMain :: (FutharkVar, State) -> T.Text
-wrapInMain (e, State stms _ funs) =
+wrapInMain (e, State stms counter funs) =
   renderStrict . layoutPretty defaultLayoutOptions $
     vcat $
-      funs
+      "name_source" <+> braces (pretty counter)
+        : funs
         ++ [ "entry (\"main\", {}, {i32}) entry_main () : {i32} = {",
              indent 2 (vcat [stms, "in" <+> braces e]),
              "}"
