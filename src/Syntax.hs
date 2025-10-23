@@ -304,7 +304,14 @@ instance HasType (Exp Typed VName) where
 
 -- | Normalizes a type by normalizing its constiuent shapes.
 normType :: (Ord v, Eq v) => Type v -> Type v
-normType (TArr t s) = TArr (normType t) (normShape s)
+normType (TArr t s) =
+  let t'' =
+        case normType t of
+          TArr t' s' -> TArr t' (normShape s <> s')
+          t' -> TArr t' (normShape s)
+   in case t'' of
+        TArr t''' (Concat []) -> t''' -- gross, fix
+        _ -> t''
 normType (ts :-> r) = map normType ts :-> normType r
 normType (Forall pts t) = Forall pts $ normType t
 normType (Prod pts t) = Prod pts $ normType t
