@@ -1,23 +1,20 @@
 module Interpreter.Value
   ( Val (..),
-    lift,
-    liftTo,
-    prefix,
+    arrayifyVal,
+    arrayValView,
     split,
     rep,
-    arrayifyVal,
+    (\\),
   )
 where
 
-import Data.List qualified as L
 import Prettyprinter
-import Syntax hiding (Atom, Exp, HasShape (..), IVar, Shape, TVar, Type)
+import Syntax hiding (Atom, Exp, HasShape (..), IVar, Shape, TVar, Type, (\\))
 import Syntax qualified
+import Util
 import VName
 
 type Exp = Syntax.Exp Typed VName
-
-type Atom = Syntax.Atom Typed VName
 
 type Shape = Syntax.Shape VName
 
@@ -30,16 +27,26 @@ type IVar = Syntax.IVar VName
 -- | Values. Parameterized by a monad @m@ over which function bodies are
 -- evaluated.
 data Val m
-  = ValVar VName
-  | ValBase Base
-  | ValArray [Int] [Val m]
-  | ValLambda [(VName, Type)] Exp
-  | ValTLambda [TVar] Exp
-  | ValILambda [IVar] Exp
-  | ValBox [Shape] (Val m) Type
-  | ValFun ([Val m] -> m (Val m))
-  | ValTFun ([Type] -> m (Val m))
-  | ValIFun ([[Int]] -> m (Val m))
+  = -- | Variables.
+    ValVar VName
+  | -- | Base values.
+    ValBase Base
+  | -- | Array value.
+    ValArray [Int] [Val m]
+  | -- | Lambda.
+    ValLambda [(VName, Type)] Exp
+  | -- | Type lambda.
+    ValTLambda [TVar] Exp
+  | -- | Index lambda.
+    ValILambda [IVar] Exp
+  | -- | Box.
+    ValBox [Shape] (Val m) Type
+  | -- | Function.
+    ValFun ([Val m] -> m (Val m))
+  | -- | Type function.
+    ValTFun ([Type] -> m (Val m))
+  | -- | Index function.
+    ValIFun ([[Int]] -> m (Val m))
 
 instance Show (Val m) where
   show (ValVar v) = "ValVar " <> show v
@@ -58,15 +65,15 @@ instance Pretty (Val m) where
   pretty (ValBase b) = pretty b
   pretty (ValArray [] [v]) =
     pretty v
-  pretty v@(ValArray shape vs) =
-    group $ encloseSep "[" "]" ("," <> line) (map pretty vs)
+  pretty (ValArray _ vs) =
+    group $ encloseSep "[" "]" line (map pretty vs)
   pretty (ValLambda pts e) =
     let pArgs =
           parens $
             hsep $
               map
                 ( \(v, t) ->
-                    tupled $ [pretty v, pretty t]
+                    tupled [pretty v, pretty t]
                 )
                 pts
      in parens $ "λ" <+> pArgs <+> pretty e
@@ -88,35 +95,38 @@ instance Pretty (Val m) where
   pretty ValTFun {} = "#<tfun>"
   pretty ValIFun {} = "#<ifun>"
 
-shapeOf :: Val m -> [Int]
-shapeOf (ValArray s _) = s
-shapeOf _ = mempty
-
+-- | Lifts a scalar value into an arry.
 arrayifyVal :: Val m -> Val m
 arrayifyVal v@ValArray {} = v
 arrayifyVal v = ValArray mempty [v]
 
-lift :: [Int] -> Val m -> Val m
-lift [] v = v
-lift shape@(d : ds) v =
-  ValArray (shape <> shapeOf v) $ replicate d elems
-  where
-    elems = lift ds v
+-- | An array view on a value.
+arrayValView :: Val m -> (([Int], [Val m]) -> a) -> a
+arrayValView (ValArray shape vs) m = m (shape, vs)
+arrayValView v m = m (mempty, [v])
 
-liftTo :: [Int] -> Val m -> Val m
-liftTo shape v = lift (take (length shape - length (shapeOf v)) shape) v
-
+-- | @split n xs@ splits @xs@ into @n@-sized chunks.
 split :: Int -> [a] -> [[a]]
 split _ [] = []
 split n as = take n as : split n (drop n as)
 
+-- | A flattened 'replicate'.
 rep :: Int -> [a] -> [a]
-rep n = concat . replicate n
+rep n = concatMap $ replicate n
 
-prefix :: [Int] -> [Int] -> [Int]
-prefix as bs = prefix' [] as
+-- | Shape suffix subtraction (see function of the same name in the "Shape"
+-- module).
+(\\) :: [Int] -> [Int] -> [Int]
+(\\) as bs = reverse $ prefix' (reverse as) (reverse bs)
   where
-    prefix' as [] = as
-    prefix' as' (a : as)
-      | (a : as) `L.isPrefixOf` bs = as'
-      | otherwise = prefix' (as' ++ [a]) as
+    prefix' as' [] = as'
+    prefix' [] _ =
+      error $
+        unlines
+          [ "\\ called on non sub-shape:",
+            prettyString as,
+            prettyString bs
+          ]
+    prefix' (a : as') (b : bs')
+      | a == b = prefix' as' bs'
+      | otherwise = a : as'

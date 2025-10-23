@@ -448,12 +448,7 @@ withPrelude m = checkPrelude prelude mempty
   where
     checkPrelude [] prelude' =
       (reverse prelude',) <$> m
-    checkPrelude (p : ps) prelude' = do
-      case p of
-        PreludeVal f t v -> do
-          t' <- checkType t
-          bindParam (f, t') $ \f' ->
-            checkPrelude ps (PreludeVal f' t' v : prelude')
-        PreludeType tvar ->
-          bindTypeParam tvar $ \tvar' -> do
-            checkPrelude ps (PreludeType tvar' : prelude')
+    checkPrelude (PreludeVal f t v : ps) prelude' = do
+      t' <- checkType t
+      bindParam (f, t') $ \f' ->
+        checkPrelude ps (PreludeVal f' t' v : prelude')

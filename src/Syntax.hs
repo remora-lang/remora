@@ -22,6 +22,7 @@ module Syntax
     HasShape (..),
     HasSrcPos (..),
     arrayifyType,
+    arrayTypeView,
   )
 where
 
@@ -352,8 +353,12 @@ instance HasSrcPos (Exp f v) where
   posOf (Unbox _ _ _ _ _ pos) = pos
 
 arrayifyType :: Type VName -> Type VName
-arrayifyType t@(TArr {}) = t
+arrayifyType t@TArr {} = t
 arrayifyType t = TArr t mempty
+
+arrayTypeView :: Type v -> ((Type v, Shape v) -> a) -> a
+arrayTypeView (TArr t s) m = m (t, s)
+arrayTypeView t m = m (t, mempty)
 
 instance Pretty Pos where
   pretty = pretty . unPos

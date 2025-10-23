@@ -1,4 +1,9 @@
-module RemoraPrelude (prelude, Prelude, PreludeDef (..)) where
+module RemoraPrelude
+  ( prelude,
+    Prelude,
+    PreludeVal (..),
+  )
+where
 
 import Control.Monad
 import Data.Text (Text)
@@ -6,11 +11,9 @@ import Interpreter.Value
 import Syntax
 import VName
 
-type Prelude v m = [PreludeDef v m]
+type Prelude v m = [PreludeVal v m]
 
-data PreludeDef v m
-  = PreludeVal v (Type v) (Val m)
-  | PreludeType (TVar v)
+data PreludeVal v m = PreludeVal v (Type v) (Val m)
 
 prelude :: (Monad m) => Prelude Text m
 prelude =
