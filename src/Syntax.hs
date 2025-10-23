@@ -167,7 +167,7 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Atom f v) where
             hsep $
               map
                 ( \(v, t) ->
-                    tupled [pretty v, pretty t]
+                    pretty v <+> pretty t
                 )
                 args
      in parens $ "λ" <+> pArgs <+> pretty e

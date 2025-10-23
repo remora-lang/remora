@@ -75,11 +75,13 @@ lookupVal :: VName -> InterpM Val
 lookupVal v = do
   mval <- asks ((M.!? v) . envMap)
   case mval of
-    Nothing ->
+    Nothing -> do
+      m <- asks envMap
       error $
         unlines
           [ "lookupVal: unknown vname",
-            prettyString v
+            prettyString v,
+            prettyString $ M.keys m
           ]
     Just val -> pure val
 
@@ -161,12 +163,9 @@ intExp expr@(TApp e ts _ _) =
   tApply =<< intExp e
   where
     tApply :: Val -> InterpM Val
-    tApply (ValTLambda pts body) =
-      binds tbind (zip (map unTVar pts) ts) $ intExp body
     tApply (ValVar f) = do
       f' <- lookupVal f
       case f' of
-        ValTLambda {} -> tApply f'
         ValTFun func -> func ts
         _ ->
           error $
@@ -233,9 +232,24 @@ intShape (Concat ss) = concat <$> mapM intShape ss
 -- | Interpret an 'Atom'.
 intAtom :: Atom -> InterpM Val
 intAtom (Base b _ _) = pure $ ValBase b
-intAtom (Lambda ps e _ _) = pure $ ValLambda ps e
-intAtom (TLambda ps e _ _) = pure $ ValTLambda ps e
-intAtom (ILambda ps e _ _) = pure $ ValILambda ps e
+intAtom (Lambda ps e _ _) = do
+  env <- ask
+  pure $ ValFun $ \vs ->
+    local (const env) $
+      binds bind (zip (map fst ps) vs) $
+        intExp e
+intAtom (TLambda ps e _ _) = do
+  env <- ask
+  pure $ ValTFun $ \ts ->
+    local (const env) $
+      binds tbind (zip (map unTVar ps) ts) $
+        intExp e
+intAtom (ILambda ps e _ _) = do
+  env <- ask
+  pure $ ValIFun $ \shapes ->
+    local (const env) $
+      binds ibind (zip (map unIVar ps) shapes) $
+        intExp e
 intAtom (Box is e t _) =
   ValBox is <$> intExp e <*> pure t
 
@@ -292,13 +306,9 @@ apMap v (sparams, argvs) =
         split (product shape_param) . snd
 
     apply :: Val -> [Val] -> InterpM Val
-    apply (ValLambda pts e) args =
-      binds bind (zip (map fst pts) args) $
-        intExp e
     apply (ValVar f) args = do
       f' <- lookupVal f
       case f' of
-        ValLambda {} -> apply f' args
         ValFun func -> func args
         _ -> throwError $ "cannot apply: " <> prettyText f'
     apply (ValArray shape fs) args = do

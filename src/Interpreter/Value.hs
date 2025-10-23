@@ -14,15 +14,9 @@ import Syntax qualified
 import Util
 import VName
 
-type Exp = Syntax.Exp Typed VName
-
 type Shape = Syntax.Shape VName
 
 type Type = Syntax.Type VName
-
-type TVar = Syntax.TVar VName
-
-type IVar = Syntax.IVar VName
 
 -- | Values. Parameterized by a monad @m@ over which function bodies are
 -- evaluated.
@@ -33,12 +27,6 @@ data Val m
     ValBase Base
   | -- | Array value.
     ValArray [Int] [Val m]
-  | -- | Lambda.
-    ValLambda [(VName, Type)] Exp
-  | -- | Type lambda.
-    ValTLambda [TVar] Exp
-  | -- | Index lambda.
-    ValILambda [IVar] Exp
   | -- | Box.
     ValBox [Shape] (Val m) Type
   | -- | Function.
@@ -52,9 +40,6 @@ instance Show (Val m) where
   show (ValVar v) = "ValVar " <> show v
   show (ValBase b) = "ValBase " <> show b
   show (ValArray ns vs) = "ValArray " <> show ns <> " " <> show vs
-  show (ValLambda pts e) = "ValLambda " <> show pts <> " " <> show e
-  show (ValTLambda pts e) = "ValTLambda " <> show pts <> " " <> show e
-  show (ValILambda pts e) = "ValILambda " <> show pts <> " " <> show e
   show (ValBox shapes v t) = "ValBox " <> show shapes <> " " <> show v <> " " <> show t
   show ValFun {} = "ValFun <#fun>"
   show ValTFun {} = "ValTFun <#tfun>"
@@ -67,28 +52,6 @@ instance Pretty (Val m) where
     pretty v
   pretty (ValArray _ vs) =
     group $ encloseSep "[" "]" line (map pretty vs)
-  pretty (ValLambda pts e) =
-    let pArgs =
-          parens $
-            hsep $
-              map
-                ( \(v, t) ->
-                    tupled [pretty v, pretty t]
-                )
-                pts
-     in parens $ "λ" <+> pArgs <+> pretty e
-  pretty (ValTLambda pts e) =
-    let pArgs =
-          parens $
-            hsep $
-              map pretty pts
-     in parens $ "Tλ" <+> pArgs <+> pretty e
-  pretty (ValILambda pts e) =
-    let pArgs =
-          parens $
-            hsep $
-              map pretty pts
-     in parens $ "Iλ" <+> pArgs <+> pretty e
   pretty (ValBox is v t) =
     parens $ "box" <+> hsep (map pretty is) <+> pretty v <+> pretty t
   pretty ValFun {} = "#<fun>"
