@@ -50,8 +50,15 @@ instance Pretty (Val m) where
   pretty (ValBase b) = pretty b
   pretty (ValArray [] [v]) =
     pretty v
-  pretty (ValArray _ vs) =
+  pretty (ValArray [_] vs) =
     group $ encloseSep "[" "]" line (map pretty vs)
+  pretty (ValArray shape vs) =
+    pretty $ splitvs shape vs
+    where
+      splitvs [d] vs = ValArray [d] vs
+      splitvs (d : ds) vs' =
+        ValArray [d] $ map (splitvs ds) $ split d vs'
+      splitvs x y = error $ unlines [show x, show y, show (ValArray shape vs)]
   pretty (ValBox is v t) =
     parens $ "box" <+> hsep (map pretty is) <+> pretty v <+> pretty t
   pretty ValFun {} = "#<fun>"
