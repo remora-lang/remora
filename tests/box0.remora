@@ -1,6 +1,6 @@
 ; box
-(let (((my-box (exists ($d) (A Int (shape $d))))
-       (box (shape 3) [1 2 3] (exists ($d) (A Int (shape $d)))))
+(let (((my-box (exists $d (A Int (shape $d))))
+       (box (shape 3) [1 2 3] (exists $d (A Int (shape $d)))))
       )
       (unbox ($d xs my-box) xs)
 )

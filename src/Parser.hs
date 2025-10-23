@@ -108,6 +108,13 @@ withSrcPos p = do
 withUnchecked :: Parser (Unchecked (Syntax.Type Text) -> a) -> Parser a
 withUnchecked = fmap ($ Unchecked)
 
+manyLisp :: Parser a -> Parser [a]
+manyLisp p =
+  choice
+    [ pure <$> try p,
+      parens $ many p
+    ]
+
 lId :: Parser Text
 lId = lexeme $ try $ do
   c <- satisfy (\c -> not (isDigit c) && not (isDisallowed c))
@@ -148,10 +155,10 @@ pType =
       parens $
         choice
           [ TArr <$> (lKeyword "A" >> pType) <*> pShape,
-            (:->) <$> (lKeyword "->" >> parens (many pType)) <*> pType,
-            Forall <$> (lKeyword "forall" >> parens (many pTVar)) <*> pType,
-            Prod <$> (lKeyword "prod" >> parens (many pIVar)) <*> pType,
-            Exists <$> (lKeyword "exists" >> parens (many pIVar)) <*> pType
+            (:->) <$> (lKeyword "->" >> manyLisp pType) <*> pType,
+            Forall <$> (lKeyword "forall" >> manyLisp pTVar) <*> pType,
+            Prod <$> (lKeyword "prod" >> manyLisp pIVar) <*> pType,
+            Exists <$> (lKeyword "exists" >> manyLisp pIVar) <*> pType
           ]
     ]
 
@@ -193,17 +200,17 @@ pAtom =
       let pArg = parens $ (,) <$> lId <*> pType
        in withUnchecked $
             Lambda
-              <$> (lKeyword "fn" >> (parens $ many pArg))
+              <$> (lKeyword "fn" >> (manyLisp pArg))
               <*> pExp
     pILambda =
       withUnchecked $
         ILambda
-          <$> (lKeyword "i-fn" >> (parens $ many pIVar))
+          <$> (lKeyword "i-fn" >> (manyLisp pIVar))
           <*> pExp
     pTLambda =
       withUnchecked $
         TLambda
-          <$> (lKeyword "t-fn" >> (parens $ many pTVar))
+          <$> (lKeyword "t-fn" >> (manyLisp pTVar))
           <*> pExp
     pBox =
       Box <$> (lKeyword "box" >> (many pShape)) <*> pExp <*> pType
@@ -252,7 +259,7 @@ pExp =
     pFunBind :: Parser ((Text, Type), Exp)
     pFunBind = do
       f <- lId
-      params <- parens $ some pParam
+      params <- manyLisp pParam
       ret_t <- pType
       body <- pExp
       pos <- getSourcePos
@@ -278,7 +285,7 @@ pExp =
 
     pLet = parens $ do
       lKeyword "let"
-      binds <- parens $ many pBind
+      binds <- manyLisp pBind
       body <- pExp
       pure $ foldr bindToApp body binds
 
