@@ -65,6 +65,7 @@ instance (Eq v, Ord v) => Substitute v v (Type v) where
     Exists pts $ substitute subst t
   substitute _ t = t
 
+-- This is risky; probably should define the proper instance.
 instance (Eq v, Ord v, Substitute v v c) => Substitute (TVar v) (TVar v) c where
   substitute subst = substitute' [(unTVar k, unTVar v) | (k, v) <- M.toList subst]
 
@@ -78,7 +79,14 @@ instance (Ord v) => Substitute v (Dim v) (Dim v) where
 
 instance (Ord v) => Substitute v (Shape v) (Shape v) where
   substitute subst (ShapeVar v) = fromMaybe (ShapeVar v) $ subst M.!? v
-  substitute subst (ShapeDim d) = ShapeDim d
+  substitute subst (ShapeDim (DimVar v)) =
+    case normShape <$> (subst M.!? v) of
+      Just (ShapeDim d) -> ShapeDim d
+      Just _ ->
+        error $
+          "substitute: invalid substition maps dimension variable to a shape"
+      Nothing -> ShapeDim (DimVar v)
+  substitute _ (ShapeDim d) = ShapeDim d
   substitute subst (Concat shapes) = Concat $ map (substitute subst) shapes
 
 instance (Eq v, Ord v) => Substitute v v (Dim v) where
@@ -116,11 +124,28 @@ instance (Ord v) => Substitute v (Dim v) (Type v) where
     Exists pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unIVar pts) subst) t
   substitute _ t = t
 
-instance (Eq v, Ord v, Substitute v b c) => Substitute (IVar v) b c where
-  substitute subst = substitute $ M.mapKeys unIVar subst
+instance (Ord v) => Substitute (IVar v) (IVar v) (Shape v) where
+  substitute subst = substitute' [(unIVar k, unIVar v) | (k, v) <- M.toList subst]
 
-instance (Eq v, Ord v, Substitute v v c) => Substitute v (IVar v) c where
-  substitute subst = substitute $ M.map unIVar subst
+instance (Ord v) => Substitute (IVar v) (IVar v) (Type v) where
+  substitute subst (TArr t s) = TArr (substitute subst t) (substitute subst s)
+  substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
+  substitute subst (Forall pts t) = Forall pts $ substitute subst t
+  substitute subst (Prod pts t) =
+    Prod pts $ substitute (M.filterWithKey (\k _ -> k `notElem` pts) subst) t
+  substitute subst (Exists pts t) =
+    Exists pts $ substitute (M.filterWithKey (\k _ -> k `notElem` pts) subst) t
+  substitute _ t = t
+
+instance (Ord v) => Substitute (IVar v) (Idx v) (Type v) where
+  substitute subst (TArr t s) = TArr (substitute subst t) (substitute subst s)
+  substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
+  substitute subst (Forall pts t) = Forall pts $ substitute subst t
+  substitute subst (Prod pts t) =
+    Prod pts $ substitute (M.filterWithKey (\k _ -> k `notElem` pts) subst) t
+  substitute subst (Exists pts t) =
+    Exists pts $ substitute (M.filterWithKey (\k _ -> k `notElem` pts) subst) t
+  substitute _ t = t
 
 instance (Ord v, Substitute v (Dim v) c, Substitute v (Shape v) c) => Substitute v (Idx v) c where
   substitute subst c =
@@ -132,3 +157,6 @@ instance (Ord v, Substitute v (Dim v) c, Substitute v (Shape v) c) => Substitute
       substShape =
         M.map (fromJust . fromShape) $
           M.filter isShape subst
+
+instance (Ord v) => Substitute (IVar v) (Idx v) (Shape v) where
+  substitute subst = substitute $ M.mapKeys unIVar subst
