@@ -147,14 +147,46 @@ compileAtom (Lambda params body (Typed t) _) = do
   liftLambda params body t
 compileAtom e = error $ "compileAtom: unhandled:\n" ++ show e
 
+map1 :: Int -> Type -> FutharkVar -> [FutharkVar] -> FutharkType -> FutharkM FutharkVar
+map1 dim (pts :-> r) f xss@[_, _] t = do
+  x' <- newVar
+  y' <- newVar
+  pts' <- mapM compileType pts
+  r' <- compileType r
+  body <-
+    mkBody $ pure <$> bind r' ("add32" <> parens (x' <> "," <> y'))
+  bind t $
+    vsep
+      [ "map"
+          <> parens
+            ( vsep
+                [ pretty dim <> "i64,",
+                  braces (hsep (punctuate "," xss)) <> ",",
+                  "\\"
+                    <+> braces
+                      ( vsep
+                          ( punctuate
+                              ","
+                              (zipWith (\x xt -> x <+> ":" <+> xt) [x', y'] pts')
+                          )
+                      ),
+                  ":" <+> braces r' <+> "->",
+                  body
+                ]
+            )
+      ]
+
 compileExp :: Exp -> FutharkM FutharkVar
 compileExp (Array [] [x] _ _) = compileAtom x
-compileExp (Array [_] elems _ _) = do
+compileExp e@(Array [_] elems (Typed (TArr elem_t _)) _) = do
   elems' <- mapM compileAtom elems
-  pure $ "[" <> mconcat (punctuate "," elems') <> "]"
+  t <- compileType $ typeOf e
+  elem_t' <- compileType elem_t
+  bind t $
+    "[" <> mconcat (punctuate "," elems') <> "]" <+> ":" <+> "[]" <> elem_t'
 compileExp (Var v _ _) =
   pure $ pretty v
-compileExp (App (Var v _ _) [x, y] (Typed (t, _)) _)
+compileExp (App (Var v _ _) [x, y] (Typed (t, pframe)) _)
   | Just v' <- lookup (varName v, t) binops = do
       x' <- compileExp x
       y' <- compileExp y
@@ -165,15 +197,29 @@ compileExp (App (Var v _ _) [x, y] (Typed (t, _)) _)
       [ (("+", TArr Int (Concat [])), "add32"),
         (("-", TArr Int (Concat [])), "sub32")
       ]
-compileExp (App f xs (Typed (t, _)) _) = do
+compileExp e@(App f xs (Typed (t, pframe)) _) = do
   f' <- compileExp f
   xs' <- traverse compileExp xs
   t' <- compileType t
-  bind t' $
-    vsep
-      [ "apply" <+> f' <+> parens (mconcat $ punctuate "," xs'),
-        ":" <+> braces t'
-      ]
+  case intShape $ normShape pframe of
+    [] ->
+      bind t' $
+        vsep
+          [ "apply" <+> f' <+> parens (mconcat $ punctuate "," xs'),
+            ":" <+> braces t'
+          ]
+    [d] -> map1 d (typeOf f) f' xs' t'
+    _ -> error $ "compileExp: unhandled:\n" ++ show e
+  where
+    intDim :: Dim -> Int
+    intDim (DimVar d) = error "intDim: AAAAAAAAAAAAAAAAAAA"
+    intDim (DimN d) = d
+    intDim (Add ds) = sum $ map intDim ds
+
+    intShape :: Shape -> [Int]
+    intShape (ShapeVar s) = error "intShape: AAAAAAAAAAAAAAAAAAA"
+    intShape (ShapeDim d) = pure $ intDim d
+    intShape (Concat ss) = concat $ map intShape ss
 compileExp e = error $ "compileExp: unhandled:\n" ++ show e
 
 wrapInMain :: (FutharkVar, State) -> T.Text
