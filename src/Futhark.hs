@@ -26,9 +26,29 @@ type FutharkExp = Doc ()
 
 type FutharkParam = Doc ()
 
-type FutharkType = Doc ()
+data FutharkType
+  = FutharkBool
+  | Int32
+  | Int64
+  | Float64
+  | FutharkArray [FutharkDim] FutharkType
+  deriving (Show)
 
-type FutharkShape = Doc ()
+prettyType :: FutharkType -> Doc ()
+prettyType FutharkBool = "bool"
+prettyType Int32 = "i32"
+prettyType Int64 = "i64"
+prettyType Float64 = "f64"
+prettyType (FutharkArray shape t) =
+  hsep (map brackets shape) <> prettyType t
+
+prettyTypeNoDims :: FutharkType -> Doc ()
+prettyTypeNoDims FutharkBool = "bool"
+prettyTypeNoDims Int32 = "i32"
+prettyTypeNoDims Int64 = "i64"
+prettyTypeNoDims Float64 = "f64"
+prettyTypeNoDims (FutharkArray shape t) =
+  hsep (map (const "[]") shape) <> prettyTypeNoDims t
 
 type FutharkDim = Doc ()
 
@@ -83,7 +103,7 @@ newVar = do
 bind :: FutharkType -> FutharkExp -> FutharkM FutharkVar
 bind t e = do
   v <- newVar
-  emit $ "let" <+> braces (v <> ":" <+> t) <+> "=" <+> e
+  emit $ "let" <+> braces (v <> ":" <+> prettyType t) <+> "=" <+> e
   pure v
 
 mkBody :: FutharkM [FutharkVar] -> FutharkM FutharkBody
@@ -108,7 +128,7 @@ liftLambda params body ret = do
   addFunction $
     vsep
       [ "fun" <+> fname <+> parens (mconcat $ punctuate ", " params'),
-        "  :" <+> braces ret' <+> "= {",
+        "  :" <+> braces (prettyType ret') <+> "= {",
         indent 2 body',
         "}"
       ]
@@ -118,25 +138,25 @@ compileDim :: Dim -> FutharkM FutharkDim
 compileDim (DimN x) = pure $ pretty x <> "i64"
 compileDim d = error $ "compileDim: unhandled:\n" ++ show d
 
-compileShape :: Shape -> FutharkM FutharkShape
-compileShape (ShapeDim d) = brackets <$> compileDim d
-compileShape (Concat ds) = mconcat <$> mapM compileShape ds
+compileShape :: Shape -> FutharkM [FutharkDim]
+compileShape (ShapeDim d) = pure <$> compileDim d
+compileShape (Concat ds) = concat <$> mapM compileShape ds
 compileShape s = error $ "compileShape: unhandled:\n" ++ show s
 
 compileType :: Type -> FutharkM FutharkType
-compileType Bool = pure "bool"
-compileType Int = pure "i32"
-compileType Float = pure "f64"
+compileType Bool = pure FutharkBool
+compileType Int = pure Int32
+compileType Float = pure Float64
 compileType (TArr t shape) = do
   t' <- compileType t
   shape' <- compileShape shape
-  pure $ shape' <> t'
+  pure $ FutharkArray shape' t'
 compileType t = error $ "compileType: unhandled:\n" ++ show t
 
 compileParam :: (VName, Type) -> FutharkM FutharkParam
 compileParam (v, t) = do
   t' <- compileType t
-  pure $ pretty v <> ":" <+> t'
+  pure $ pretty v <> ":" <+> prettyType t'
 
 compileAtom :: Atom -> FutharkM FutharkExp
 compileAtom (Base (BoolVal True) _ _) = pure "true"
@@ -167,10 +187,10 @@ map1 dim (pts :-> r) f xss@[_, _] t = do
                       ( vsep
                           ( punctuate
                               ","
-                              (zipWith (\x xt -> x <+> ":" <+> xt) [x', y'] pts')
+                              (zipWith (\x xt -> x <+> ":" <+> prettyType xt) [x', y'] pts')
                           )
                       ),
-                  ":" <+> braces r' <+> "->",
+                  ":" <+> braces (prettyType r') <+> "->",
                   body
                 ]
             )
@@ -183,7 +203,12 @@ compileExp e@(Array [_] elems (Typed (TArr elem_t _)) _) = do
   t <- compileType $ typeOf e
   elem_t' <- compileType elem_t
   bind t $
-    "[" <> mconcat (punctuate "," elems') <> "]" <+> ":" <+> "[]" <> elem_t'
+    "["
+      <> mconcat (punctuate "," elems')
+      <> "]"
+      <+> ":"
+      <+> "[]"
+      <> prettyType elem_t'
 compileExp (Var v _ _) =
   pure $ pretty v
 compileExp (App (Var v _ _) [x, y] (Typed (t, pframe)) _)
@@ -206,7 +231,7 @@ compileExp e@(App f xs (Typed (t, pframe)) _) = do
       bind t' $
         vsep
           [ "apply" <+> f' <+> parens (mconcat $ punctuate "," xs'),
-            ":" <+> braces t'
+            ":" <+> braces (prettyType t')
           ]
     [d] -> map1 d (typeOf f) f' xs' t'
     _ -> error $ "compileExp: unhandled:\n" ++ show e
@@ -222,13 +247,17 @@ compileExp e@(App f xs (Typed (t, pframe)) _) = do
     intShape (Concat ss) = concat $ map intShape ss
 compileExp e = error $ "compileExp: unhandled:\n" ++ show e
 
-wrapInMain :: (FutharkVar, State) -> T.Text
-wrapInMain (e, State stms counter funs) =
+wrapInMain :: ((FutharkVar, FutharkType), State) -> T.Text
+wrapInMain ((e, ret), State stms counter funs) =
   renderStrict . layoutPretty defaultLayoutOptions $
     vcat $
       "name_source" <+> braces (pretty counter)
         : funs
-        ++ [ "entry (\"main\", {}, {i32}) entry_main () : {i32} = {",
+        ++ [ "entry (\"main\", {}, {"
+               <> prettyTypeNoDims ret
+               <> "}) entry_main () : {"
+               <> prettyType ret
+               <> "} = {",
              indent 2 (vcat [stms, "in" <+> braces e]),
              "}"
            ]
@@ -239,7 +268,15 @@ compile _prelude e =
   wrapInMain
     <$> runExcept
       ( runReaderT
-          (runStateT (runFutharkM (compileExp e)) initialState)
+          ( runStateT
+              ( runFutharkM
+                  ( (,)
+                      <$> compileExp e
+                      <*> compileType (typeOf e)
+                  )
+              )
+              initialState
+          )
           Env
       )
   where
