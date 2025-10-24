@@ -5,9 +5,11 @@ module Interpreter.Value
     split,
     rep,
     (\\),
+    transpose,
   )
 where
 
+import Data.List qualified as L
 import Prettyprinter
 import Syntax hiding (Atom, Exp, HasShape (..), IVar, Idx, Shape, TVar, Type, (\\))
 import Syntax qualified
@@ -100,3 +102,8 @@ rep n = concatMap $ replicate n
     prefix' (a : as') (b : bs')
       | a == b = prefix' as' bs'
       | otherwise = a : as'
+
+transpose :: Val m -> Val m
+transpose (ValArray (m : n : ss) vss) =
+  ValArray (m : n : ss) $ concat $ L.transpose $ split m vss
+transpose v = v
