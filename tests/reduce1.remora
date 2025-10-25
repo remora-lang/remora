@@ -1,0 +1,8 @@
+;; sum
+(let (((reduce3 (-> ((A (-> ((A Float (shape)) (A Float (shape))) (A Float (shape))) (shape))
+                     (A Float (shape 3)))
+                    (A Float (shape))))
+                (i-app (t-app reduce Float) 2 (shape)))
+      )
+     (reduce3 f.+ [1.0 2.0 3.0] )
+  )
