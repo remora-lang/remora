@@ -1,0 +1,29 @@
+; N-body simulation based on the one from Futhark:
+; https://github.com/diku-dk/futhark-benchmarks/tree/master/accelerate/nbody
+; which is based on the one from Accelerate:
+; https://github.com/AccelerateHS/accelerate-examples/tree/master/examples/n-body
+
+(let (((reduce3 (-> ((A (-> ((A Float (shape)) (A Float (shape))) (A Float (shape))) (shape))
+                     (A Float (shape 3)))
+                    (A Float (shape))))
+       (i-app (t-app reduce Float) 2 (shape)))
+      (dot3 ((x (A Float (shape 3)))
+             (y (A Float (shape 3)))
+            )
+        Float
+        (reduce3 f.+ (f.* x y)))
+      (accel ((epsilon Float)
+              (x_pos (A Float (shape 3)))
+              (x_mass Float)
+              (y_pos (A Float (shape 3)))
+              (y_mass Float))
+             (A Float (shape 3))
+             (let (((r (A Float (shape 3))) (f.- x_pos y_pos))
+                   ((rsqr Float) (f.+ (dot3 r r) (f.* epsilon epsilon)))
+                   ((invr Float) (f./ 1.0 (sqrt rsqr)))
+                   ((invr3 Float) (f.* invr invr invr))
+                   ((s Float) (f.* y_mass invr3)))
+               (f.* s r)))
+      )
+      (accel [1.0 2.0 3.0] [4.0 5.0 6.0])
+      )
