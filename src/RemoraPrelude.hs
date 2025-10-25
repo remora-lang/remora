@@ -172,8 +172,10 @@ prelude =
     PreludeVal
       "f.+"
       ([TArr Float mempty, TArr Float mempty] :-> TArr Float mempty)
-      ( ValFun $ \[ValArray _ [ValBase (FloatVal x)], ValArray _ [ValBase (FloatVal y)]] ->
-          pure $ ValArray mempty [ValBase $ FloatVal $ x + y]
+      ( ValFun $ \[x, y] ->
+          arrayValView x $ \(_, [ValBase (FloatVal x)]) ->
+            arrayValView y $ \(_, [ValBase (FloatVal y)]) ->
+              pure $ ValArray mempty [ValBase $ FloatVal $ x + y]
       ),
     PreludeVal
       "f.-"

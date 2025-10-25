@@ -274,23 +274,15 @@ lift pframe (ValArray fsshape fs) (sparams, argvs) =
     lifted_argvs = zipWith liftArg sparams argvs
 
     liftArg :: [Int] -> Val -> Val
-    liftArg shape_param (ValArray shapeArg as) =
-      ValArray
-        (pframe <> shape_param)
-        (concat $ rep n_arg_reps $ split n_arg_cell as)
-      where
+    liftArg shape_param arg =
+      arrayValView arg $ \(shapeArg, as) ->
         -- Number of cells the argument expects.
-        n_arg_cell = product shape_param
-        -- Number of times the argument needs to be replicated.
-        n_arg_reps = product pframe `div` product (shapeArg \\ shape_param)
-    liftArg _ v =
-      error $
-        unlines
-          [ "liftArg: non-array value",
-            prettyString v,
-            "in",
-            prettyString argvs
-          ]
+        let n_arg_cell = product shape_param
+            -- Number of times the argument needs to be replicated.
+            n_arg_reps = product pframe `div` product (shapeArg \\ shape_param)
+         in ValArray
+              (pframe <> shape_param)
+              (concat $ rep n_arg_reps $ split n_arg_cell as)
 lift _ v _ = error $ prettyString v
 
 -- | Performs a function application between an array
