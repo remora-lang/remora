@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+
 module SExp where
 
 import Data.String
@@ -78,106 +80,134 @@ instance (IsString s) => SExpable Base s where
         toSExp $ prettyText x
       ]
 
-instance (IsString s, SExpable v s, SExpable (f v) s) => SExpable (Atom f v) s where
-  toSExp (Base b _ pos) =
+instance
+  ( IsString s,
+    SExpable v s,
+    SExpable (f (Type v)) s,
+    SExpable (f (Type v, Shape v)) s
+  ) =>
+  SExpable (Atom f v) s
+  where
+  toSExp (Base b t pos) =
     SList
       [ "base",
         toSExp b,
+        toSExp t,
         toSExp pos
       ]
-  toSExp (Lambda params e _ pos) =
+  toSExp (Lambda params e t pos) =
     SList
       [ "fn",
         toSExp params,
         toSExp e,
+        toSExp t,
         toSExp pos
       ]
-  toSExp (TLambda tvars e _ pos) =
+  toSExp (TLambda tvars e t pos) =
     SList
       [ "t-fn",
         toSExp tvars,
         toSExp e,
+        toSExp t,
         toSExp pos
       ]
-  toSExp (ILambda ivars e _ pos) =
+  toSExp (ILambda ivars e t pos) =
     SList
       [ "t-fn",
         toSExp ivars,
         toSExp e,
+        toSExp t,
         toSExp pos
       ]
-  toSExp (Box shapes e _ pos) =
+  toSExp (Box shapes e t pos) =
     SList
       [ "box",
         toSExp shapes,
         toSExp e,
+        toSExp t,
         toSExp pos
       ]
 
-instance (IsString s, SExpable v s, SExpable (f v) s) => SExpable (Exp f v) s where
-  toSExp (Var v _ pos) =
+instance
+  ( IsString s,
+    SExpable v s,
+    SExpable (f (Type v)) s,
+    SExpable (f (Type v, Shape v)) s
+  ) =>
+  SExpable (Exp f v) s
+  where
+  toSExp (Var v t pos) =
     SList
       [ "var",
         toSExp v,
+        toSExp t,
         toSExp pos
       ]
-  toSExp (Array shape as _ pos) =
+  toSExp (Array shape as t pos) =
     SList
       [ "array",
         SList $ "shape-lit" : map toSExp shape,
         toSExp as,
+        toSExp t,
         toSExp pos
       ]
-  toSExp (EmptyArray shape t _ pos) =
+  toSExp (EmptyArray shape t t' pos) =
     SList
       [ "empty-array",
         SList $ "shape-lit" : map toSExp shape,
         toSExp t,
+        toSExp t',
         toSExp pos
       ]
-  toSExp (Frame shape es _ pos) =
+  toSExp (Frame shape es t pos) =
     SList
       [ "frame",
         SList $ "shape-lit" : map toSExp shape,
         toSExp es,
+        toSExp t,
         toSExp pos
       ]
-  toSExp (EmptyFrame shape t _ pos) =
+  toSExp (EmptyFrame shape t t' pos) =
     SList
       [ "empty-frame",
         toSExp shape,
         SList $ "shape-lit" : map toSExp shape,
         toSExp t,
+        toSExp t',
         toSExp pos
       ]
-  toSExp (App f es _ pos) =
+  toSExp (App f es t pos) =
     SList
       [ "app",
         toSExp f,
         toSExp es,
+        toSExp t,
         toSExp pos
       ]
-  toSExp (TApp e ts _ pos) =
+  toSExp (TApp e ts t pos) =
     SList
       [ "t-app",
         toSExp e,
         toSExp ts,
+        toSExp t,
         toSExp pos
       ]
-  toSExp (IApp e is _ pos) =
+  toSExp (IApp e is t pos) =
     SList
       [ "i-app",
         toSExp e,
         toSExp is,
+        toSExp t,
         toSExp pos
       ]
-  toSExp (Unbox vs v_e x_e e _ pos) =
+  toSExp (Unbox vs v_e x_e e t pos) =
     SList
       [ "unbox",
         toSExp vs,
         toSExp v_e,
         toSExp x_e,
         toSExp e,
+        toSExp t,
         toSExp pos
       ]
 
