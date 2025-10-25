@@ -316,7 +316,7 @@ checkExp expr@(App f args _ pos) = do
                     ]
               Just frame_a -> pure frame_a
       frames <- zipWithM check_args pts args'
-      let principal = maximumShape $ map (frame_f <>) frames
+      let principal = maximumShape $ frame_f : frames
           ret' = TArr ret principal
       pure $ App f' args' (Info (ret', principal)) pos
     _ ->

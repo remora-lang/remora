@@ -268,10 +268,7 @@ lift pframe (ValArray fsshape fs) (sparams, argvs) =
   where
     -- replicate the function array to match the frame
     n_fun_reps = product pframe `div` product fsshape
-    -- fs' = concat $ rep n_fun_reps $ split 1 fs
-    -- This doesn't align with Justin's thesis, but I don't think the above
-    -- is correct (and it's equivalent to rep n_fun_reps anyway)
-    fs' = concat $ replicate n_fun_reps fs
+    fs' = concat $ rep n_fun_reps $ split 1 fs
 
     -- lift each argument to the new frame
     lifted_argvs = zipWith liftArg sparams argvs
