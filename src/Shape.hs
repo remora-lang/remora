@@ -40,6 +40,12 @@ instance (Show v, Pretty v) => Pretty (Dim v) where
   pretty (DimN d) = pretty d
   pretty (Add ds) = parens $ hsep ("+" : map pretty ds)
 
+instance Semigroup (Dim v) where
+  d <> e = Add [d, e]
+
+instance Monoid (Dim v) where
+  mempty = DimN 0
+
 -- | Shapes.
 data Shape v
   = -- | Shape variables.

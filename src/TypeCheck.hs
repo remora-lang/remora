@@ -275,9 +275,10 @@ checkExp expr@(Frame ns es _ pos) = do
         throwErrorPos pos $
           "Frame shape doesn't match number of elements: " <> prettyText expr
       let t = typeOf e'
-      unless (arrayKind t) $
-        throwErrorPos pos $
-          "Non-array-kinded frame elements of type: " <> prettyText t
+      -- TODO: fix
+      -- unless (arrayKind t) $
+      --  throwErrorPos pos $
+      --    "Non-array-kinded frame elements of type: " <> prettyText t
       pure $ Frame ns es' (Info $ TArr t (intsToShape ns)) pos
 checkExp expr@(EmptyFrame ns t _ pos) = do
   t' <- checkType t
@@ -319,9 +320,13 @@ checkExp expr@(App f args _ pos) = do
       let principal = maximumShape $ frame_f : frames
           ret' = TArr ret principal
       pure $ App f' args' (Info (ret', principal)) pos
-    _ ->
+    t ->
       throwErrorPos pos $
-        "Expected an array of functions in application: " <> prettyText expr
+        T.unlines
+          [ "Expected an array of functions in application: ",
+            prettyText expr,
+            prettyText t
+          ]
 checkExp expr@(TApp f ts _ pos) = do
   f' <- checkExp f
   ts' <- mapM checkType ts
@@ -361,6 +366,8 @@ checkExp expr@(IApp f is _ pos) = do
             pure (SVar v, Shape s)
           check_args (DVar v) (Shape s)
             | Just d <- coerceToDim s = pure (DVar v, Dim d)
+          check_args (DVar v) (Dim d) =
+            pure (DVar v, Dim d)
           check_args pt i =
             throwErrorPos pos $
               T.unlines
