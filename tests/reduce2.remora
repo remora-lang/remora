@@ -1,0 +1,13 @@
+;; dot product
+(let (((reduce3 (-> ((A (-> ((A Float (shape)) (A Float (shape))) (A Float (shape))) (shape))
+                     (A Float (shape 3)))
+                    (A Float (shape))))
+       (i-app (t-app reduce Float) 2 (shape)))
+      (dot3 ((x (A Float (shape 3)))
+             (y (A Float (shape 3)))
+            )
+        Float
+        (reduce3 f.+ (f.* x y)))
+      )
+     (dot3 [1.0 2.0 3.0] [1.0 2.0 3.0])
+  )
