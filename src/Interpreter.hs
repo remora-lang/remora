@@ -20,9 +20,9 @@ type Dim = Syntax.Dim VName
 
 type Val = Value.Val InterpM
 
-type Exp = Syntax.Exp Typed VName
+type Exp = Syntax.Exp Info VName
 
-type Atom = Syntax.Atom Typed VName
+type Atom = Syntax.Atom Info VName
 
 type Shape = Syntax.Shape VName
 
@@ -147,7 +147,7 @@ intExp (Frame shape es _ _) =
   ValArray shape <$> mapM intExp es
 intExp (EmptyFrame shape _ _ _) =
   pure $ ValArray shape mempty
-intExp expr@(App f es (Typed (_, pframe)) _) = do
+intExp expr@(App f es (Info (_, pframe)) _) = do
   pframe' <- intShape pframe
   f' <- arrayifyVal <$> intExp f
   argvs <- mapM intExp es

@@ -35,9 +35,9 @@ import Text.Megaparsec.Pos
 
 type Parser = Parsec Void Text
 
-type Exp = Syntax.Exp Unchecked Text
+type Exp = Syntax.Exp NoInfo Text
 
-type Atom = Syntax.Atom Unchecked Text
+type Atom = Syntax.Atom NoInfo Text
 
 type Dim = Syntax.Dim Text
 
@@ -107,8 +107,8 @@ withSrcPos p = do
   pos <- getSourcePos
   ($ pos) <$> p
 
-withUnchecked :: Parser (Unchecked (Syntax.Type Text) -> a) -> Parser a
-withUnchecked = fmap ($ Unchecked)
+withNoInfo :: Parser (NoInfo (Syntax.Type Text) -> a) -> Parser a
+withNoInfo = fmap ($ NoInfo)
 
 manyLisp :: Parser a -> Parser [a]
 manyLisp p =
@@ -187,7 +187,7 @@ pAtom :: Parser Atom
 pAtom =
   withSrcPos $
     choice
-      [ withUnchecked $ Base <$> pBase,
+      [ withNoInfo $ Base <$> pBase,
         try $
           parens $
             choice
@@ -200,17 +200,17 @@ pAtom =
   where
     pLambda =
       let pArg = parens $ (,) <$> lId <*> pType
-       in withUnchecked $
+       in withNoInfo $
             Lambda
               <$> (lKeyword "fn" >> (manyLisp pArg))
               <*> pExp
     pILambda =
-      withUnchecked $
+      withNoInfo $
         ILambda
           <$> (lKeyword "i-fn" >> (manyLisp pIVar))
           <*> pExp
     pTLambda =
-      withUnchecked $
+      withNoInfo $
         TLambda
           <$> (lKeyword "t-fn" >> (manyLisp pTVar))
           <*> pExp
@@ -227,20 +227,20 @@ pIdx =
 pExp :: Parser Exp
 pExp =
   choice
-    [ (withSrcPos $ withUnchecked $ (Array mempty . pure) <$> pAtom),
+    [ (withSrcPos $ withNoInfo $ (Array mempty . pure) <$> pAtom),
       between (symbol "[") (symbol "]") $ do
         es <- some pExp
-        flattenExp <$> withSrcPos (withUnchecked $ pure $ Frame [length es] es),
+        flattenExp <$> withSrcPos (withNoInfo $ pure $ Frame [length es] es),
       try pLet, -- fix
       withSrcPos
-        ( withUnchecked
+        ( withNoInfo
             ( choice
                 [ Var <$> lId,
                   parens $
                     choice
                       [ Array <$> (lKeyword "array" >> pShapeLit) <*> some pAtom,
                         Frame <$> (lKeyword "frame" >> pShapeLit) <*> some pExp,
-                        (. const Unchecked) <$> (App <$> pExp <*> some pExp),
+                        (. const NoInfo) <$> (App <$> pExp <*> some pExp),
                         lKeyword "i-app" >> IApp <$> pExp <*> some pIdx,
                         lKeyword "t-app" >> TApp <$> pExp <*> (some pType),
                         pUnbox
@@ -274,7 +274,7 @@ pExp =
       pos <- getSourcePos
       pure
         ( (f, map snd params :-> ret_t),
-          Array mempty [Lambda params body Unchecked pos] Unchecked pos
+          Array mempty [Lambda params body NoInfo pos] NoInfo pos
         )
 
     pBind :: Parser ((Text, Type), Exp)
@@ -284,12 +284,12 @@ pExp =
       App
         ( Array
             mempty
-            [Lambda [param] body Unchecked (posOf e)]
-            Unchecked
+            [Lambda [param] body NoInfo (posOf e)]
+            NoInfo
             (posOf e)
         )
         [e]
-        Unchecked
+        NoInfo
         (posOf e)
 
     pLet = parens $ do

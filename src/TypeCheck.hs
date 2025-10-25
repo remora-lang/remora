@@ -18,8 +18,8 @@ import VName
 -- | Type check a program.
 check ::
   (Monad m) =>
-  Exp Unchecked Text ->
-  Either Error (Prelude VName m, Exp Typed VName)
+  Exp NoInfo Text ->
+  Either Error (Prelude VName m, Exp Info VName)
 check e =
   fst $
     evalRWS
@@ -229,11 +229,11 @@ checkType = fmap normType . checkType'
         Exists pts' <$> checkType t
 
 -- | Type check an unchecked 'Exp'.
-checkExp :: (MonadCheck m) => Exp Unchecked Text -> m (Exp Typed VName)
+checkExp :: (MonadCheck m) => Exp NoInfo Text -> m (Exp Info VName)
 checkExp (Var v _ pos) = do
   vname <- lookupVName v
   t <- lookupType vname
-  pure $ Var vname (Typed t) pos
+  pure $ Var vname (Info t) pos
 checkExp expr@(Array ns as _ pos) = do
   as' <- mapM checkAtom as
   case as' of
@@ -251,7 +251,7 @@ checkExp expr@(Array ns as _ pos) = do
       unless (atomKind t) $
         throwErrorPos pos $
           "Non-atom-kinded array elements of type: " <> prettyText t
-      pure $ Array ns as' (Typed $ TArr t (intsToShape ns)) pos
+      pure $ Array ns as' (Info $ TArr t (intsToShape ns)) pos
 checkExp expr@(EmptyArray ns t _ pos) = do
   t' <- checkType t
   unless (product ns == 0) $
@@ -260,7 +260,7 @@ checkExp expr@(EmptyArray ns t _ pos) = do
   unless (atomKind t') $
     throwErrorPos pos $
       "Non-atom-kinded array elements of type: " <> prettyText t'
-  pure $ EmptyArray ns t' (Typed $ TArr t' (intsToShape ns)) pos
+  pure $ EmptyArray ns t' (Info $ TArr t' (intsToShape ns)) pos
 checkExp expr@(Frame ns es _ pos) = do
   es' <- mapM checkExp es
   case es' of
@@ -278,7 +278,7 @@ checkExp expr@(Frame ns es _ pos) = do
       unless (arrayKind t) $
         throwErrorPos pos $
           "Non-array-kinded frame elements of type: " <> prettyText t
-      pure $ Frame ns es' (Typed $ TArr t (intsToShape ns)) pos
+      pure $ Frame ns es' (Info $ TArr t (intsToShape ns)) pos
 checkExp expr@(EmptyFrame ns t _ pos) = do
   t' <- checkType t
   unless (product ns == 0) $
@@ -287,7 +287,7 @@ checkExp expr@(EmptyFrame ns t _ pos) = do
   unless (arrayKind t') $
     throwErrorPos pos $
       "Non-array-kinded frame elements of type: " <> prettyText t'
-  pure $ EmptyFrame ns t' (Typed $ TArr t' (intsToShape ns)) pos
+  pure $ EmptyFrame ns t' (Info $ TArr t' (intsToShape ns)) pos
 checkExp expr@(App f args _ pos) = do
   f' <- checkExp f
   args' <- mapM checkExp args
@@ -318,7 +318,7 @@ checkExp expr@(App f args _ pos) = do
       frames <- zipWithM check_args pts args'
       let principal = maximumShape $ map (frame_f <>) frames
           ret' = TArr ret principal
-      pure $ App f' args' (Typed (ret', principal)) pos
+      pure $ App f' args' (Info (ret', principal)) pos
     _ ->
       throwErrorPos pos $
         "Expected an array of functions in application: " <> prettyText expr
@@ -343,7 +343,7 @@ checkExp expr@(TApp f ts _ pos) = do
                       ]
       zipWithM_ check_args pts ts'
       let r' = substitute' (zip pts ts') r
-      pure $ TApp f' ts' (Typed r') pos
+      pure $ TApp f' ts' (Info r') pos
     _ ->
       throwErrorPos pos $
         T.unlines
@@ -372,7 +372,7 @@ checkExp expr@(IApp f is _ pos) = do
                 ]
       (pts', is'') <- unzip <$> zipWithM check_args pts is'
       let r' = substitute' (zip pts' is'') r
-      pure $ IApp f' is'' (Typed r') pos
+      pure $ IApp f' is'' (Info r') pos
     _ ->
       throwErrorPos pos $
         T.unlines
@@ -390,7 +390,7 @@ checkExp expr@(Unbox is x_e box body _ pos) = do
           body' <- checkExp body
           case typeOf body' of
             TArr t_b shape_b ->
-              pure $ Unbox is' x_e' box' body' (Typed $ TArr t_b (shapeOf box' <> shape_b)) pos
+              pure $ Unbox is' x_e' box' body' (Info $ TArr t_b (shapeOf box' <> shape_b)) pos
             _ ->
               throwErrorPos pos $
                 T.unlines
@@ -405,23 +405,23 @@ checkExp expr@(Unbox is x_e box body _ pos) = do
             ]
 
 -- | Type check an unchecked 'Atom'.
-checkAtom :: (MonadCheck m) => Atom Unchecked Text -> m (Atom Typed VName)
+checkAtom :: (MonadCheck m) => Atom NoInfo Text -> m (Atom Info VName)
 checkAtom (Base b _ pos) =
-  pure $ Base b (Typed $ typeOf b) pos
+  pure $ Base b (Info $ typeOf b) pos
 checkAtom (Lambda ps e _ pos) = do
   let (xs, pts) = unzip ps
   pts' <- mapM checkType pts
   binds bindParam (zip xs pts') $ \xs' -> do
     e' <- checkExp e
-    pure $ Lambda (zip xs' pts') e' (Typed $ pts' :-> typeOf e') pos
+    pure $ Lambda (zip xs' pts') e' (Info $ pts' :-> typeOf e') pos
 checkAtom (TLambda ps e _ pos) =
   binds bindTypeParam ps $ \ps' -> do
     e' <- checkExp e
-    pure $ TLambda ps' e' (Typed $ Forall ps' $ typeOf e') pos
+    pure $ TLambda ps' e' (Info $ Forall ps' $ typeOf e') pos
 checkAtom (ILambda ps e _ pos) =
   binds bindIdxParam ps $ \ps' -> do
     e' <- checkExp e
-    pure $ ILambda ps' e' (Typed $ Prod ps' $ typeOf e') pos
+    pure $ ILambda ps' e' (Info $ Prod ps' $ typeOf e') pos
 checkAtom atom@(Box idx e box_t pos) = do
   idx' <- mapM checkIdx idx
   e' <- checkExp e

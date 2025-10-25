@@ -14,9 +14,9 @@ import VName
 
 type Dim = Syntax.Dim VName
 
-type Exp = Syntax.Exp Typed VName
+type Exp = Syntax.Exp Info VName
 
-type Atom = Syntax.Atom Typed VName
+type Atom = Syntax.Atom Info VName
 
 type Shape = Syntax.Shape VName
 
@@ -163,7 +163,7 @@ compileAtom (Base (BoolVal True) _ _) = pure "true"
 compileAtom (Base (BoolVal False) _ _) = pure "false"
 compileAtom (Base (IntVal x) _ _) = pure $ pretty x <> "i32"
 compileAtom (Base (FloatVal x) _ _) = pure $ pretty x <> "f64"
-compileAtom (Lambda params body (Typed t) _) = do
+compileAtom (Lambda params body (Info t) _) = do
   liftLambda params body t
 compileAtom e = error $ "compileAtom: unhandled:\n" ++ show e
 
@@ -198,7 +198,7 @@ map1 dim (pts :-> r) f xss@[_, _] t = do
 
 compileExp :: Exp -> FutharkM FutharkVar
 compileExp (Array [] [x] _ _) = compileAtom x
-compileExp e@(Array [_] elems (Typed (TArr elem_t _)) _) = do
+compileExp e@(Array [_] elems (Info (TArr elem_t _)) _) = do
   elems' <- mapM compileAtom elems
   t <- compileType $ typeOf e
   elem_t' <- compileType elem_t
@@ -211,7 +211,7 @@ compileExp e@(Array [_] elems (Typed (TArr elem_t _)) _) = do
       <> prettyType elem_t'
 compileExp (Var v _ _) =
   pure $ pretty v
-compileExp (App (Var v _ _) [x, y] (Typed (t, pframe)) _)
+compileExp (App (Var v _ _) [x, y] (Info (t, pframe)) _)
   | Just v' <- lookup (varName v, t) binops = do
       x' <- compileExp x
       y' <- compileExp y
@@ -222,7 +222,7 @@ compileExp (App (Var v _ _) [x, y] (Typed (t, pframe)) _)
       [ (("+", TArr Int (Concat [])), "add32"),
         (("-", TArr Int (Concat [])), "sub32")
       ]
-compileExp e@(App f xs (Typed (t, pframe)) _) = do
+compileExp e@(App f xs (Info (t, pframe)) _) = do
   f' <- compileExp f
   xs' <- traverse compileExp xs
   t' <- compileType t

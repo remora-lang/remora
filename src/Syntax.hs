@@ -4,8 +4,8 @@
 module Syntax
   ( module Shape,
     SourcePos,
-    Unchecked (..),
-    Typed (..),
+    NoInfo (..),
+    Info (..),
     TVar (..),
     unTVar,
     Type (..),
@@ -32,21 +32,22 @@ import Shape
 import Text.Megaparsec.Pos (Pos, SourcePos (..), unPos)
 import VName
 
--- | An annotation for source expressions whose type we haven't filled in
--- yet.
-data Unchecked a = Unchecked
+-- | No information functor; used as an annotation for source expressions whose
+-- type we haven't filled in yet.
+data NoInfo a = NoInfo
   deriving (Show, Eq, Functor)
 
-instance Pretty (Unchecked a) where
-  pretty Unchecked {} = ""
+instance Pretty (NoInfo a) where
+  pretty NoInfo {} = ""
 
--- | An annotation for source expressions with a type (filled in during type
--- checking).
-newtype Typed a = Typed a
+-- | Some information functor; used as an annotation for source expressions with
+-- a type (filled in during type checking) and also a principal frame in the
+-- case of applications.
+newtype Info a = Info a
   deriving (Show, Eq, Functor)
 
-instance (Pretty a) => Pretty (Typed a) where
-  pretty (Typed a) = pretty a
+instance (Pretty a) => Pretty (Info a) where
+  pretty (Info a) = pretty a
 
 -- | Type variables.
 data TVar v
@@ -141,8 +142,8 @@ instance Pretty Base where
   pretty (FloatVal f) = pretty f
 
 -- | Atoms. An @Atom f v@ is an 'Atom' whose variables have type @v@ and with
--- type annotations of type @f (Type v)@. When @f = Unchecked@, the type
--- @Unchecked (Type v)@ only has a single inhabitant (namely 'Unchecked').
+-- type annotations of type @f (Type v)@. When @f = NoInfo@, the type
+-- @NoInfo (Type v)@ only has a single inhabitant (namely 'NoInfo').
 data Atom f v
   = -- | Base values.
     Base Base (f (Type v)) SourcePos
@@ -155,9 +156,9 @@ data Atom f v
   | -- | Boxed expression.
     Box [Idx v] (Exp f v) (Type v) SourcePos
 
-deriving instance (Show v) => Show (Atom Unchecked v)
+deriving instance (Show v) => Show (Atom NoInfo v)
 
-deriving instance (Show v) => Show (Atom Typed v)
+deriving instance (Show v) => Show (Atom Info v)
 
 instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Atom f v) where
   pretty (Base b _ _) = pretty b
@@ -207,9 +208,9 @@ data Exp f v
   | -- | Unboxing.
     Unbox [IVar v] v (Exp f v) (Exp f v) (f (Type v)) SourcePos
 
-deriving instance (Show v) => Show (Exp Unchecked v)
+deriving instance (Show v) => Show (Exp NoInfo v)
 
-deriving instance (Show v) => Show (Exp Typed v)
+deriving instance (Show v) => Show (Exp Info v)
 
 instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Exp f v) where
   pretty (Var v _ _) = pretty v
@@ -284,23 +285,23 @@ instance HasType Base where
   typeOf_ IntVal {} = Int
   typeOf_ FloatVal {} = Float
 
-instance HasType (Atom Typed VName) where
-  typeOf_ (Base _ (Typed t) _) = t
-  typeOf_ (Lambda _ _ (Typed t) _) = t
-  typeOf_ (TLambda _ _ (Typed t) _) = t
-  typeOf_ (ILambda _ _ (Typed t) _) = t
+instance HasType (Atom Info VName) where
+  typeOf_ (Base _ (Info t) _) = t
+  typeOf_ (Lambda _ _ (Info t) _) = t
+  typeOf_ (TLambda _ _ (Info t) _) = t
+  typeOf_ (ILambda _ _ (Info t) _) = t
   typeOf_ (Box _ _ t _) = t
 
-instance HasType (Exp Typed VName) where
-  typeOf_ (Var _ (Typed t) _) = t
-  typeOf_ (Array _ _ (Typed t) _) = t
-  typeOf_ (EmptyArray _ _ (Typed t) _) = t
-  typeOf_ (Frame _ _ (Typed t) _) = t
-  typeOf_ (EmptyFrame _ _ (Typed t) _) = t
-  typeOf_ (App _ _ (Typed (t, _)) _) = t
-  typeOf_ (TApp _ _ (Typed t) _) = t
-  typeOf_ (IApp _ _ (Typed t) _) = t
-  typeOf_ (Unbox _ _ _ _ (Typed t) _) = t
+instance HasType (Exp Info VName) where
+  typeOf_ (Var _ (Info t) _) = t
+  typeOf_ (Array _ _ (Info t) _) = t
+  typeOf_ (EmptyArray _ _ (Info t) _) = t
+  typeOf_ (Frame _ _ (Info t) _) = t
+  typeOf_ (EmptyFrame _ _ (Info t) _) = t
+  typeOf_ (App _ _ (Info (t, _)) _) = t
+  typeOf_ (TApp _ _ (Info t) _) = t
+  typeOf_ (IApp _ _ (Info t) _) = t
+  typeOf_ (Unbox _ _ _ _ (Info t) _) = t
 
 -- | Normalizes a type by normalizing its constiuent shapes.
 normType :: (Ord v, Eq v) => Type v -> Type v

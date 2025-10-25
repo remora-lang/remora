@@ -53,13 +53,13 @@ instance (IsString s) => SExpable SourcePos s where
         SList ["col", toSExp $ sourceColumn pos]
       ]
 
-instance (IsString s) => SExpable (Unchecked a) s where
-  toSExp _ = "unchecked"
+instance (IsString s) => SExpable (NoInfo a) s where
+  toSExp _ = "no-info"
 
-instance (IsString s, SExpable a s) => SExpable (Typed a) s where
-  toSExp (Typed a) =
+instance (IsString s, SExpable a s) => SExpable (Info a) s where
+  toSExp (Info a) =
     SList
-      [ "type",
+      [ "info",
         toSExp a
       ]
 
