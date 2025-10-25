@@ -30,19 +30,19 @@ instance (SExpable a c, SExpable b c) => SExpable (a, b) c where
 instance (SExpable a c) => SExpable [a] c where
   toSExp = SList . map toSExp
 
-instance {-# OVERLAPS #-} SExpable FilePath Text where
-  toSExp = SAtom . T.pack
+instance {-# OVERLAPS #-} (IsString s) => SExpable FilePath s where
+  toSExp = SAtom . fromString
 
-instance SExpable Int Text where
-  toSExp = SAtom . T.pack . show
+instance (IsString s) => SExpable Int s where
+  toSExp = SAtom . fromString . show
 
-instance SExpable Pos Text where
+instance (IsString s) => SExpable Pos s where
   toSExp = toSExp . unPos
 
-instance SExpable Text Text where
-  toSExp = SAtom
+instance (IsString s) => SExpable Text s where
+  toSExp = SAtom . fromString . T.unpack
 
-instance SExpable SourcePos Text where
+instance (IsString s) => SExpable SourcePos s where
   toSExp pos =
     SList
       [ "source-pos",
@@ -51,7 +51,17 @@ instance SExpable SourcePos Text where
         SList ["col", toSExp $ sourceColumn pos]
       ]
 
-instance SExpable Base Text where
+instance (IsString s) => SExpable (Unchecked a) s where
+  toSExp _ = "unchecked"
+
+instance (IsString s, SExpable a s) => SExpable (Typed a) s where
+  toSExp (Typed a) =
+    SList
+      [ "type",
+        toSExp a
+      ]
+
+instance (IsString s) => SExpable Base s where
   toSExp (BoolVal b) =
     SList
       [ "bool",
@@ -68,7 +78,7 @@ instance SExpable Base Text where
         toSExp $ prettyText x
       ]
 
-instance SExpable (Atom Unchecked Text) Text where
+instance (IsString s, SExpable v s, SExpable (f v) s) => SExpable (Atom f v) s where
   toSExp (Base b _ pos) =
     SList
       [ "base",
@@ -104,7 +114,7 @@ instance SExpable (Atom Unchecked Text) Text where
         toSExp pos
       ]
 
-instance SExpable (Exp Unchecked Text) Text where
+instance (IsString s, SExpable v s, SExpable (f v) s) => SExpable (Exp f v) s where
   toSExp (Var v _ pos) =
     SList
       [ "var",
@@ -171,7 +181,7 @@ instance SExpable (Exp Unchecked Text) Text where
         toSExp pos
       ]
 
-instance SExpable (TVar Text) Text where
+instance (IsString s, SExpable v s) => SExpable (TVar v) s where
   toSExp (AtomTVar v) =
     SList
       [ "atom-tvar",
@@ -183,7 +193,7 @@ instance SExpable (TVar Text) Text where
         toSExp v
       ]
 
-instance SExpable (IVar Text) Text where
+instance (IsString s, SExpable v s) => SExpable (IVar v) s where
   toSExp (SVar v) =
     SList
       [ "shape-ivar",
@@ -195,7 +205,7 @@ instance SExpable (IVar Text) Text where
         toSExp v
       ]
 
-instance SExpable (Idx Text) Text where
+instance (IsString s, SExpable v s) => SExpable (Idx v) s where
   toSExp (Dim v) =
     SList
       [ "idx-dim",
@@ -207,7 +217,7 @@ instance SExpable (Idx Text) Text where
         toSExp v
       ]
 
-instance SExpable (Type Text) Text where
+instance (IsString s, SExpable v s) => SExpable (Type v) s where
   toSExp (TVar v) = toSExp v
   toSExp Bool = "Bool"
   toSExp Int = "Int"
@@ -243,7 +253,7 @@ instance SExpable (Type Text) Text where
         toSExp t
       ]
 
-instance SExpable (Dim Text) Text where
+instance (IsString s, SExpable v s) => SExpable (Dim v) s where
   toSExp (DimVar v) =
     SList
       [ "dim-ivar",
@@ -257,7 +267,7 @@ instance SExpable (Dim Text) Text where
   toSExp (Add ds) =
     SList $ "dim-+" : map toSExp ds
 
-instance SExpable (Shape Text) Text where
+instance (IsString s, SExpable v s) => SExpable (Shape v) s where
   toSExp (ShapeVar v) =
     SList
       [ "shape-ivar",
