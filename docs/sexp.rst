@@ -47,25 +47,29 @@ Source position, Atoms, and Expressions
    pos : "(" "source-pos" `file` `line` `col` ")"
 
 .. productionlist::
+   annot_type : "no-info" | "(" "info" `type` ")"
+   annot_type_pframe  :  "no-info" | "(" "info" "(" `type` `shape`")" ")"
+
+.. productionlist::
    val_param : "(" `id` `type` ")"
    base : "(" "int" `integer_lit` ")"
       : | "(" "float" `float_lit` ")"
       : | "#t"
       : | "#f"
-   atom : "(" "base" `base` `pos` ")"
-      : | "(" "fn" "(" `val_param`* ")" `exp` `pos` ")"
-      : | "(" "t-fn" "(" `type_var`* ")" `exp` `pos` ")"
-      : | "(" "i-fn" "(" `idx_var`* ")" `exp` `pos` ")"
-      : | "(" "box" `idx`* `exp` `type` ")"
-   exp : "(" "var" `id` `pos` ")"
-     : | "(" "array" `shape_lit` "(" `atom`+ ")" `pos` ")"
-     : | "(" "empty-array" `shape_lit` `type` `pos` ")"
-     : | "(" "frame" `shape_lit` "(" `exp`+ ")" `pos` ")"
-     : | "(" "empty-frame" `shape_lit` `type` `pos` ")"
-     : | "(" "app" `exp` "(" `exp`* ")" `pos` ")"
-     : | "(" "t-app" `exp` "(" `type`* ")" `pos` ")"
-     : | "(" "i-app" `exp` "(" `idx`* ")" `pos` ")"
-     : | "(" "unbox" "(" `idx_var`* ")" `id` `exp` ")" `exp` `pos` ")"
+   atom : "(" "base" `base` `annot_type` `pos` ")"
+      : | "(" "fn" "(" `val_param`* ")" `exp` `annot_type` `pos` ")"
+      : | "(" "t-fn" "(" `type_var`* ")" `exp` `annot_type` `pos` ")"
+      : | "(" "i-fn" "(" `idx_var`* ")" `exp` `annot_type` `pos` ")"
+      : | "(" "box" `idx`* `exp` `type` `pos` ")"
+   exp : "(" "var" `id` `annot_type` `pos` ")"
+     : | "(" "array" `shape_lit` "(" `atom`+ ")" `annot_type` `pos` ")"
+     : | "(" "empty-array" `shape_lit` `type` `annot_type` `pos` ")"
+     : | "(" "frame" `shape_lit` "(" `exp`+ ")" `annot_type` `pos` ")"
+     : | "(" "empty-frame" `shape_lit` `type` `annot_type` `pos` ")"
+     : | "(" "app" `exp` "(" `exp`* ")" `annot_type_pframe` `pos` ")"
+     : | "(" "t-app" `exp` "(" `type`* ")" `annot_type` `pos` ")"
+     : | "(" "i-app" `exp` "(" `idx`* ")" `annot_type` `pos` ")"
+     : | "(" "unbox" "(" `idx_var`* ")" `id` `exp` ")" `exp` `annot_type` `pos` ")"
 
 -----------
 Identifiers
