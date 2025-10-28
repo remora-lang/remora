@@ -1,7 +1,10 @@
 module Interpreter.Value
   ( Val (..),
     arrayifyVal,
+    baseValView,
+    baseValViews,
     arrayValView,
+    arrayValViews,
     split,
     rep,
     (\\),
@@ -67,6 +70,17 @@ instance Pretty (Val m) where
   pretty ValTFun {} = "#<tfun>"
   pretty ValIFun {} = "#<ifun>"
 
+-- TODO: shouldn't need this
+baseValView :: Val m -> (Base -> a) -> a
+baseValView v m = baseValViews [v] (m . head)
+
+baseValViews :: [Val m] -> ([Base] -> a) -> a
+baseValViews vs m = m $ map unpack vs
+  where
+    unpack (ValBase b) = b
+    unpack (ValArray [] [v]) = unpack v
+    unpack _ = error "not base"
+
 -- | Lifts a scalar value into an arry.
 arrayifyVal :: Val m -> Val m
 arrayifyVal v@ValArray {} = v
@@ -74,8 +88,14 @@ arrayifyVal v = ValArray mempty [v]
 
 -- | An array view on a value.
 arrayValView :: Val m -> (([Int], [Val m]) -> a) -> a
-arrayValView (ValArray shape vs) m = m (shape, vs)
-arrayValView v m = m (mempty, [v])
+arrayValView v m = arrayValViews [v] (m . head)
+
+-- | An array view on a values.
+arrayValViews :: [Val m] -> ([([Int], [Val m])] -> a) -> a
+arrayValViews vs m = m $ map unpack vs
+  where
+    unpack (ValArray shape vs) = (shape, vs)
+    unpack v = (mempty, [v])
 
 -- | @split n xs@ splits @xs@ into @n@-sized chunks.
 split :: Int -> [a] -> [[a]]
