@@ -5,7 +5,7 @@ import Data.Char (isAlphaNum, isDigit, isSpace)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Void
-import Syntax hiding (Atom, Dim, Exp, IVar, Idx, Shape, TVar, Type)
+import Syntax hiding (Atom, Bind, Dim, Exp, IVar, Idx, Shape, TVar, Type)
 import Syntax qualified
 import Text.Megaparsec
   ( Parsec,
@@ -51,6 +51,8 @@ type IVar = Syntax.IVar Text
 
 type Idx = Syntax.Idx Text
 
+type Bind = Syntax.Bind NoInfo Text
+
 parse :: FilePath -> Text -> Either Text Exp
 parse fname s =
   case Text.Megaparsec.parse (spaceConsumer *> pExp <* eof) fname s of
@@ -73,6 +75,9 @@ symbol = L.symbol spaceConsumer
 parens :: Parser a -> Parser a
 parens = between (symbol "(") (symbol ")")
 
+brackets :: Parser a -> Parser a
+brackets = between (symbol "[") (symbol "]")
+
 keywords :: [Text]
 keywords =
   [ "array",
@@ -83,14 +88,23 @@ keywords =
     "box",
     "shape",
     "fn",
+    "λ",
     "t-fn",
+    "tλ",
     "i-fn",
+    "iλ",
     "A",
     "->",
-    "forall",
-    "prod",
-    "exists",
-    "let"
+    "→",
+    "Forall",
+    "∀",
+    "Pi",
+    "П",
+    "Sigma",
+    "Σ",
+    "let",
+    "type",
+    "idx"
   ]
 
 lKeyword :: Text -> Parser ()
@@ -136,7 +150,7 @@ pDecimal = lexeme L.decimal
 pTVar :: Parser TVar
 pTVar =
   choice
-    [ AtomTVar <$> ("@" >> lId),
+    [ AtomTVar <$> ("&" >> lId),
       ArrayTVar <$> ("*" >> lId)
     ]
 
@@ -157,10 +171,10 @@ pType =
       parens $
         choice
           [ TArr <$> (lKeyword "A" >> pType) <*> pShape,
-            (:->) <$> (lKeyword "->" >> manyLisp pType) <*> pType,
-            Forall <$> (lKeyword "forall" >> manyLisp pTVar) <*> pType,
-            Prod <$> (lKeyword "prod" >> manyLisp pIVar) <*> pType,
-            Exists <$> (lKeyword "exists" >> manyLisp pIVar) <*> pType
+            (:->) <$> ((lKeyword "->" <|> lKeyword "→") >> manyLisp pType) <*> pType,
+            Forall <$> ((lKeyword "Forall" <|> lKeyword "∀") >> manyLisp pTVar) <*> pType,
+            Pi <$> ((lKeyword "Pi" <|> lKeyword "П") >> manyLisp pIVar) <*> pType,
+            Sigma <$> ((lKeyword "Sigma" <|> lKeyword "Σ") >> manyLisp pIVar) <*> pType
           ]
     ]
 
@@ -202,17 +216,17 @@ pAtom =
       let pArg = parens $ (,) <$> lId <*> pType
        in withNoInfo $
             Lambda
-              <$> (lKeyword "fn" >> (manyLisp pArg))
+              <$> ((lKeyword "fn" <|> lKeyword "λ") >> (manyLisp pArg))
               <*> pExp
     pILambda =
       withNoInfo $
         ILambda
-          <$> (lKeyword "i-fn" >> (manyLisp pIVar))
+          <$> ((lKeyword "i-fn" <|> lKeyword "iλ") >> (manyLisp pIVar))
           <*> pExp
     pTLambda =
       withNoInfo $
         TLambda
-          <$> (lKeyword "t-fn" >> (manyLisp pTVar))
+          <$> ((lKeyword "t-fn" <|> lKeyword "tλ") >> (manyLisp pTVar))
           <*> pExp
     pBox =
       Box <$> (lKeyword "box" >> many pIdx) <*> pExp <*> pType
@@ -231,7 +245,6 @@ pExp =
       between (symbol "[") (symbol "]") $ do
         es <- some pExp
         flattenExp <$> withSrcPos (withNoInfo $ pure $ Frame [length es] es),
-      try pLet, -- fix
       withSrcPos
         ( withNoInfo
             ( choice
@@ -244,6 +257,7 @@ pExp =
                         lKeyword "i-app" >> IApp <$> pExp <*> many pIdx,
                         lKeyword "t-app" >> TApp <$> pExp <*> (many pType),
                         pUnbox,
+                        pLet,
                         pAtFn
                       ]
                 ]
@@ -251,7 +265,7 @@ pExp =
         )
     ]
   where
-    pShapeLit = parens $ many pDecimal
+    pShapeLit = brackets $ many pDecimal
     pUnbox =
       Unbox
         <$> (lKeyword "unbox" >> (symbol "(" >> (many (pIVar <* notFollowedBy (symbol ")")))))
@@ -262,42 +276,18 @@ pExp =
     pParam :: Parser (Text, Type)
     pParam = parens $ (,) <$> lId <*> pType
 
-    pValBind :: Parser ((Text, Type), Exp)
-    pValBind =
-      (,) <$> pParam <*> pExp
-
-    pFunBind :: Parser ((Text, Type), Exp)
-    pFunBind = do
-      f <- lId
-      params <- manyLisp pParam
-      ret_t <- pType
-      body <- pExp
-      pos <- getSourcePos
-      pure
-        ( (f, map snd params :-> ret_t),
-          Array mempty [Lambda params body NoInfo pos] NoInfo pos
-        )
-
-    pBind :: Parser ((Text, Type), Exp)
-    pBind = parens $ pValBind <|> pFunBind
-    bindToApp :: ((Text, Type), Exp) -> Exp -> Exp
-    bindToApp ((param, e)) body =
-      App
-        ( Array
-            mempty
-            [Lambda [param] body NoInfo (posOf e)]
-            NoInfo
-            (posOf e)
-        )
-        [e]
-        NoInfo
-        (posOf e)
-
-    pLet = parens $ do
+    pLet =
       lKeyword "let"
-      binds <- manyLisp pBind
-      body <- pExp
-      pure $ foldr bindToApp body binds
+        >> (Let <$> manyLisp pBind <*> pExp)
+      where
+        pBind =
+          parens $
+            choice
+              [ uncurry BindVal <$> pParam <*> pExp,
+                BindFun <$> lId <*> manyLisp pParam <*> pType <*> pExp,
+                lKeyword "type" >> (BindType <$> pTVar <*> pType),
+                lKeyword "idx" >> (BindIdx <$> pIVar <*> pIdx)
+              ]
 
     pAtFn = do
       void $ symbol "@"
@@ -332,7 +322,8 @@ pShape =
       Syntax.ShapeDim <$> pDim,
       parens $
         choice
-          [ lKeyword "shape" >> Syntax.Concat <$> many (ShapeDim <$> pDim),
+          [ lKeyword "dims" >> Syntax.Concat <$> many (ShapeDim <$> pDim),
             symbol "++" >> Concat <$> many pShape
-          ]
+          ],
+      brackets $ (normShape . idxToShape) <$> pIdx
     ]

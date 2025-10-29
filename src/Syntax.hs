@@ -14,6 +14,7 @@ module Syntax
     arrayKind,
     Base (..),
     Atom (..),
+    Bind (..),
     Exp (..),
     arrayElems,
     frameElems,
@@ -83,9 +84,9 @@ data Type v
   | -- | Univerall type.
     Forall [TVar v] (Type v)
   | -- | Dependent product type.
-    Prod [IVar v] (Type v)
+    Pi [IVar v] (Type v)
   | -- | Dependent sum type.
-    Exists [IVar v] (Type v)
+    Sigma [IVar v] (Type v)
   deriving (Show, Eq)
 
 instance (Show v, Pretty v) => Pretty (Type v) where
@@ -102,12 +103,12 @@ instance (Show v, Pretty v) => Pretty (Type v) where
       "∀"
         <+> parens (hsep (map pretty xs))
         <+> pretty t
-  pretty (Prod xs t) =
+  pretty (Pi xs t) =
     parens $
       "Π"
         <+> parens (hsep (map pretty xs))
         <+> pretty t
-  pretty (Exists xs t) =
+  pretty (Sigma xs t) =
     parens $
       "Σ"
         <+> parens (hsep (map pretty xs))
@@ -177,15 +178,40 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Atom f v) where
           parens $
             hsep $
               map pretty args
-     in parens $ "Tλ" <+> pArgs <+> pretty e
+     in parens $ "tλ" <+> pArgs <+> pretty e
   pretty (ILambda args e _ _) =
     let pArgs =
           parens $
             hsep $
               map pretty args
-     in parens $ "Iλ" <+> pArgs <+> pretty e
+     in parens $ "iλ" <+> pArgs <+> pretty e
   pretty (Box is e t _) =
     parens $ "box" <+> hsep (map pretty is) <+> pretty e <+> pretty t
+
+-- | Binds
+data Bind f v
+  = BindVal v (Type v) (Exp f v)
+  | BindFun v [(v, (Type v))] (Type v) (Exp f v)
+  | BindType (TVar v) (Type v)
+  | BindIdx (IVar v) (Idx v)
+
+deriving instance (Show v) => Show (Bind NoInfo v)
+
+deriving instance (Show v) => Show (Bind Info v)
+
+instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Bind f v) where
+  pretty (BindVal v t e) =
+    parens $ pretty v <+> pretty t <+> pretty e
+  pretty (BindFun f params t body) =
+    parens $
+      pretty f
+        <+> parens (hsep (map (\(v, t) -> parens $ pretty v <+> pretty t) params))
+        <+> pretty t
+        <+> pretty body
+  pretty (BindType tvar t) =
+    parens $ pretty tvar <+> pretty t
+  pretty (BindIdx ivar idx) =
+    parens $ pretty ivar <+> pretty idx
 
 -- | Expressions.
 data Exp f v
@@ -207,6 +233,8 @@ data Exp f v
     IApp (Exp f v) [Idx v] (f (Type v)) SourcePos
   | -- | Unboxing.
     Unbox [IVar v] v (Exp f v) (Exp f v) (f (Type v)) SourcePos
+  | -- | Let
+    Let [Bind f v] (Exp f v) (f (Type v)) SourcePos
 
 deriving instance (Show v) => Show (Exp NoInfo v)
 
@@ -219,7 +247,7 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Exp f v) where
       parens $
         "array"
           <+> parens (hsep (map pretty shape))
-          <+> group (encloseSep "[" "]" line (map pretty as))
+          <+> group (brackets (hsep (map pretty as)))
   pretty (EmptyArray shape t _ _) =
     group $
       parens $
@@ -231,7 +259,7 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Exp f v) where
       parens $
         "frame"
           <+> parens (hsep (map pretty shape))
-          <+> group (encloseSep "[" "]" line (map pretty es))
+          <+> group (brackets (hsep (map pretty es)))
   pretty (EmptyFrame shape t _ _) =
     group $
       parens $
@@ -246,6 +274,8 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Exp f v) where
     parens $ "i-app" <+> pretty e <+> hsep (map pretty is)
   pretty (Unbox vs v e b _ _) =
     parens $ "unbox" <+> parens (hsep (map pretty vs ++ [pretty v, pretty e])) <+> pretty b
+  pretty (Let binds body _ _) =
+    parens $ "let" <+> hsep (map pretty binds) <+> pretty body
 
 -- | Gets the 'Atom's of an 'Array' literal.
 arrayElems :: Exp f v -> Maybe [Atom f v]
@@ -315,8 +345,8 @@ normType (TArr t s) =
         _ -> t''
 normType (ts :-> r) = map normType ts :-> normType r
 normType (Forall pts t) = Forall pts $ normType t
-normType (Prod pts t) = Prod pts $ normType t
-normType (Exists pts t) = Exists pts $ normType t
+normType (Pi pts t) = Pi pts $ normType t
+normType (Sigma pts t) = Sigma pts $ normType t
 normType t = t
 
 -- | Things that have a shape.

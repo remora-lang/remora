@@ -11,7 +11,7 @@ import Data.Text (Text)
 import Interpreter.Value hiding (Val)
 import Interpreter.Value qualified as Value
 import RemoraPrelude (Prelude, PreludeVal (..))
-import Syntax hiding (Atom, Dim, Exp, Idx, Shape, Type, (\\))
+import Syntax hiding (Atom, Bind, Dim, Exp, Idx, Shape, Type, (\\))
 import Syntax qualified
 import Util
 import VName
@@ -29,6 +29,8 @@ type Shape = Syntax.Shape VName
 type Type = Syntax.Type VName
 
 type Idx = Syntax.Idx VName
+
+type Bind = Syntax.Bind Info VName
 
 -- | Interpret a program. Takes a type checked prelude to populate the initial
 -- environment with.
@@ -220,6 +222,18 @@ intExp expr@(Unbox is x_e box e _ _) = do
             "in",
             prettyString expr
           ]
+intExp expr@(Let bs e _ _) =
+  foldl (flip intBind) (intExp e) bs
+  where
+    intBind :: Bind -> InterpM a -> InterpM a
+    intBind (BindVal v _ e) m = do
+      val <- intExp e
+      bind v val m
+    intBind (BindFun f params _ body) m = do
+      flip (bind f) m $ ValFun $ \vals ->
+        binds bind (zip (map fst params) vals) $
+          intExp body
+    intBind _ m = m
 
 -- | Interpret a 'Dim'.
 intDim :: Dim -> InterpM Int

@@ -45,8 +45,8 @@ instance (Ord v) => Substitute v (Type v) (Type v) where
   substitute subst (Forall pts t) =
     Forall pts $
       substitute (M.filterWithKey (\k _ -> k `notElem` map unTVar pts) subst) t
-  substitute subst (Prod pts t) = Prod pts $ substitute subst t
-  substitute subst (Exists pts t) = Exists pts $ substitute subst t
+  substitute subst (Pi pts t) = Pi pts $ substitute subst t
+  substitute subst (Sigma pts t) = Sigma pts $ substitute subst t
   substitute _ t = t
 
 instance (Eq v, Ord v, Substitute v c c) => Substitute (TVar v) c c where
@@ -59,10 +59,10 @@ instance (Eq v, Ord v) => Substitute v v (Type v) where
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
   substitute subst (Forall pts t) =
     Forall pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unTVar pts) subst) t
-  substitute subst (Prod pts t) =
-    Prod pts $ substitute subst t
-  substitute subst (Exists pts t) =
-    Exists pts $ substitute subst t
+  substitute subst (Pi pts t) =
+    Pi pts $ substitute subst t
+  substitute subst (Sigma pts t) =
+    Sigma pts $ substitute subst t
   substitute _ t = t
 
 -- This is risky; probably should define the proper instance.
@@ -108,20 +108,20 @@ instance (Ord v) => Substitute v (Shape v) (Type v) where
   substitute subst (TArr t s) = TArr (substitute subst t) (substitute subst s)
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
   substitute subst (Forall pts t) = Forall pts $ substitute subst t
-  substitute subst (Prod pts t) =
-    Prod pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unIVar pts) subst) t
-  substitute subst (Exists pts t) =
-    Exists pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unIVar pts) subst) t
+  substitute subst (Pi pts t) =
+    Pi pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unIVar pts) subst) t
+  substitute subst (Sigma pts t) =
+    Sigma pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unIVar pts) subst) t
   substitute _ t = t
 
 instance (Ord v) => Substitute v (Dim v) (Type v) where
   substitute subst (TArr t s) = TArr (substitute subst t) (substitute subst s)
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
   substitute subst (Forall pts t) = Forall pts $ substitute subst t
-  substitute subst (Prod pts t) =
-    Prod pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unIVar pts) subst) t
-  substitute subst (Exists pts t) =
-    Exists pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unIVar pts) subst) t
+  substitute subst (Pi pts t) =
+    Pi pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unIVar pts) subst) t
+  substitute subst (Sigma pts t) =
+    Sigma pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unIVar pts) subst) t
   substitute _ t = t
 
 instance (Ord v) => Substitute (IVar v) (IVar v) (Shape v) where
@@ -131,20 +131,20 @@ instance (Ord v) => Substitute (IVar v) (IVar v) (Type v) where
   substitute subst (TArr t s) = TArr (substitute subst t) (substitute subst s)
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
   substitute subst (Forall pts t) = Forall pts $ substitute subst t
-  substitute subst (Prod pts t) =
-    Prod pts $ substitute (M.filterWithKey (\k _ -> k `notElem` pts) subst) t
-  substitute subst (Exists pts t) =
-    Exists pts $ substitute (M.filterWithKey (\k _ -> k `notElem` pts) subst) t
+  substitute subst (Pi pts t) =
+    Pi pts $ substitute (M.filterWithKey (\k _ -> k `notElem` pts) subst) t
+  substitute subst (Sigma pts t) =
+    Sigma pts $ substitute (M.filterWithKey (\k _ -> k `notElem` pts) subst) t
   substitute _ t = t
 
 instance (Ord v) => Substitute (IVar v) (Idx v) (Type v) where
   substitute subst (TArr t s) = TArr (substitute subst t) (substitute subst s)
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
   substitute subst (Forall pts t) = Forall pts $ substitute subst t
-  substitute subst (Prod pts t) =
-    Prod pts $ substitute (M.filterWithKey (\k _ -> k `notElem` pts) subst) t
-  substitute subst (Exists pts t) =
-    Exists pts $ substitute (M.filterWithKey (\k _ -> k `notElem` pts) subst) t
+  substitute subst (Pi pts t) =
+    Pi pts $ substitute (M.filterWithKey (\k _ -> k `notElem` pts) subst) t
+  substitute subst (Sigma pts t) =
+    Sigma pts $ substitute (M.filterWithKey (\k _ -> k `notElem` pts) subst) t
   substitute _ t = t
 
 instance (Ord v, Substitute v (Dim v) c, Substitute v (Shape v) c) => Substitute v (Idx v) c where

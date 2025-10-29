@@ -41,12 +41,18 @@ data Env = Env
     -- | Source idx var names to 'VName's.
     envIVarMap :: Map Text VName,
     -- | Term variables to their types.
-    envTypeMap :: Map VName (Type VName)
+    envTypeMap :: Map VName (Type VName),
+    -- | Type vars to 'Type's. Needed for 'Let'. (TODO: fix.)
+    envTVarTypeMap :: Map (TVar VName) (Type VName),
+    -- | Dim vars to 'Dim's. Needed for 'Let'. (TODO: fix.)
+    envDimMap :: Map VName (Dim VName),
+    -- | Shape vars to 'Dim's. Needed for 'Let'. (TODO: fix.)
+    envShapeMap :: Map VName (Shape VName)
   }
 
 -- | The initial environment. (It's just empty.)
 initEnv :: Env
-initEnv = Env mempty mempty mempty mempty
+initEnv = Env mempty mempty mempty mempty mempty mempty mempty
 
 -- | Throw an error with source position information.
 throwErrorPos :: (MonadError Text m) => SourcePos -> Text -> m a
@@ -110,6 +116,19 @@ bindParam (v, t) m = do
     )
     (m vname)
 
+checkBindParam :: (MonadCheck m) => (Text, Type Text) -> ((VName, Type VName) -> m a) -> m a
+checkBindParam (v, t) m = do
+  t' <- checkType t
+  vname <- newVName v
+  local
+    ( \env ->
+        env
+          { envVarMap = M.insert v vname $ envVarMap env,
+            envTypeMap = M.insert vname t' $ envTypeMap env
+          }
+    )
+    (m (vname, t'))
+
 -- | Bind a source type parameter into a local environment.
 bindTypeParam :: (MonadCheck m) => TVar Text -> (TVar VName -> m a) -> m a
 bindTypeParam tvar m = do
@@ -171,13 +190,13 @@ Forall ps r ~= Forall qs t
         vname <- newVName $ prettyText p
         pure $ vname <$ p
       substitute' (zip ps xs) r ~= substitute' (zip qs xs) t
-Prod ps r ~= Prod qs t
+Pi ps r ~= Pi qs t
   | length ps == length qs = do
       xs <- forM ps $ \p -> do
         vname <- newVName $ prettyText p
         pure $ vname <$ p
       substitute' (zip ps xs) r ~= substitute' (zip qs xs) t
-Exists ps r ~= Exists qs t
+Sigma ps r ~= Sigma qs t
   | length ps == length qs = do
       xs <- forM ps $ \p -> do
         vname <- newVName $ prettyText p
@@ -191,7 +210,13 @@ infix 4 ~=
 checkDim :: (MonadCheck m) => Dim Text -> m (Dim VName)
 checkDim = fmap normDim . checkDim'
   where
-    checkDim' (DimVar v) = DimVar <$> lookupIVar v
+    checkDim' (DimVar v) = do
+      -- fix this
+      v' <- lookupIVar v
+      md <- asks $ (M.!? v') . envDimMap
+      case md of
+        Nothing -> pure $ DimVar v'
+        Just d -> pure d
     checkDim' (DimN d) = pure $ DimN d
     checkDim' (Add ds) = Add <$> mapM checkDim' ds
 
@@ -199,7 +224,13 @@ checkDim = fmap normDim . checkDim'
 checkShape :: (MonadCheck m) => Shape Text -> m (Shape VName)
 checkShape = fmap normShape . checkShape'
   where
-    checkShape' (ShapeVar v) = ShapeVar <$> lookupIVar v
+    checkShape' (ShapeVar v) = do
+      -- fix this
+      v' <- lookupIVar v
+      ms <- asks $ (M.!? v') . envShapeMap
+      case ms of
+        Nothing -> pure $ ShapeVar v'
+        Just s -> pure s
     checkShape' (ShapeDim d) = ShapeDim <$> checkDim d
     checkShape' (Concat ss) = Concat <$> mapM checkShape' ss
 
@@ -211,7 +242,13 @@ checkIdx = mapIdx (fmap Dim . checkDim) (fmap Shape . checkShape)
 checkType :: (MonadCheck m) => Type Text -> m (Type VName)
 checkType = fmap normType . checkType'
   where
-    checkType' (TVar tvar) = TVar <$> lookupTVar' tvar
+    checkType' (TVar tvar) = do
+      -- fix this
+      tvar' <- lookupTVar' tvar
+      mt <- asks $ (M.!? tvar') . envTVarTypeMap
+      case mt of
+        Nothing -> pure $ TVar tvar'
+        Just t -> pure t
     checkType' Bool = pure Bool
     checkType' Int = pure Int
     checkType' Float = pure Float
@@ -222,12 +259,12 @@ checkType = fmap normType . checkType'
     checkType' (Forall pts t) =
       binds bindTypeParam pts $ \pts' ->
         Forall pts' <$> checkType t
-    checkType' (Prod pts t) =
+    checkType' (Pi pts t) =
       binds bindIdxParam pts $ \pts' ->
-        Prod pts' <$> checkType t
-    checkType' (Exists pts t) = do
+        Pi pts' <$> checkType t
+    checkType' (Sigma pts t) = do
       binds bindIdxParam pts $ \pts' -> do
-        Exists pts' <$> checkType t
+        Sigma pts' <$> checkType t
 
 -- | Type check an unchecked 'Exp'.
 checkExp :: (MonadCheck m) => Exp NoInfo Text -> m (Exp Info VName)
@@ -360,7 +397,7 @@ checkExp expr@(IApp f is _ pos) = do
   f' <- checkExp f
   is' <- mapM (mapIdx (fmap Dim . checkDim) (fmap Shape . checkShape)) is
   case typeOf f' of
-    Prod pts r -> do
+    Pi pts r -> do
       let check_args (SVar v) (Dim d) =
             pure (SVar v, Shape $ ShapeDim d)
           check_args (SVar v) (Shape s) =
@@ -392,7 +429,7 @@ checkExp expr@(Unbox is x_e box body _ pos) = do
     let is'' = map unIVar is'
     box' <- checkExp box
     case typeOf box' of
-      Exists ps t -> do
+      Sigma ps t -> do
         let t' = flip substitute' t $ zip (map unIVar ps) is''
         bindParam (x_e, t') $ \x_e' -> do
           body' <- checkExp body
@@ -411,6 +448,40 @@ checkExp expr@(Unbox is x_e box body _ pos) = do
             [ "Expected an existentially typed expression in unbox:",
               prettyText expr
             ]
+checkExp (Let bs e _ pos) = do
+  binds withBind bs $ \bs' -> do
+    e' <- checkExp e
+    pure $ Let bs' e' (Info $ typeOf e') pos
+  where
+    withBind :: (MonadCheck m) => Bind NoInfo Text -> (Bind Info VName -> m a) -> m a
+    withBind (BindVal v t ve) m = do
+      ve' <- checkExp ve
+      t' <- checkType t
+      bindParam (v, t') $ \vname -> m $ BindVal vname t' ve'
+    withBind (BindFun f params ret_t body) m = do
+      ret_t' <- checkType ret_t
+      binds checkBindParam params $ \params' -> do
+        body' <- checkExp body
+        bindParam (f, map snd params' :-> ret_t') $ \f' -> do
+          m $ BindFun f' params' ret_t' body'
+    withBind (BindType tvar t) m = do
+      bindTypeParam tvar $ \tvar' -> do
+        t' <- checkType t
+        local
+          ( \env ->
+              env {envTVarTypeMap = M.insert tvar' t' $ envTVarTypeMap env}
+          )
+          (m $ BindType tvar' t')
+    withBind (BindIdx ivar idx) m = do
+      bindIdxParam ivar $ \ivar' -> do
+        idx' <- checkIdx idx
+        local
+          ( \env ->
+              case idx' of
+                Dim d -> env {envDimMap = M.insert (unIVar ivar') d $ envDimMap env}
+                Shape s -> env {envShapeMap = M.insert (unIVar ivar') s $ envShapeMap env}
+          )
+          (m $ BindIdx ivar' idx')
 
 -- | Type check an unchecked 'Atom'.
 checkAtom :: (MonadCheck m) => Atom NoInfo Text -> m (Atom Info VName)
@@ -429,13 +500,13 @@ checkAtom (TLambda ps e _ pos) =
 checkAtom (ILambda ps e _ pos) =
   binds bindIdxParam ps $ \ps' -> do
     e' <- checkExp e
-    pure $ ILambda ps' e' (Info $ Prod ps' $ typeOf e') pos
+    pure $ ILambda ps' e' (Info $ Pi ps' $ typeOf e') pos
 checkAtom atom@(Box idx e box_t pos) = do
   idx' <- mapM checkIdx idx
   e' <- checkExp e
   box_t' <- checkType box_t
   case box_t' of
-    Exists is t -> do
+    Sigma is t -> do
       let t' = substitute' (zip is idx') t
       unlessM (typeOf e' ~= t') $
         throwErrorPos pos $

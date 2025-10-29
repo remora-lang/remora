@@ -1,0 +1,7 @@
+(let ((type &MyInt Int)
+      (idx $d 3)
+      (type *IntVec3 (A &MyInt $d))
+      (add-int-vec ((x *IntVec3) (y *IntVec3)) *IntVec3 (+ x y))
+      )
+  (add-int-vec [1 2 3] [4 5 6])
+  )

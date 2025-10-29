@@ -56,7 +56,7 @@ instance Pretty (Val m) where
   pretty (ValArray [] [v]) =
     pretty v
   pretty (ValArray [_] vs) =
-    group $ encloseSep "[" "]" line (map pretty vs)
+    group $ brackets (hsep (map pretty vs))
   pretty (ValArray shape vs) =
     pretty $ splitvs shape vs
     where

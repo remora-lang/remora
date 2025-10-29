@@ -2,6 +2,7 @@ module Shape
   ( Dim (..),
     Shape (..),
     Idx (..),
+    idxToShape,
     mapIdx,
     fromDim,
     isDim,
@@ -79,6 +80,10 @@ data Idx v
 instance (Show v, Pretty v) => Pretty (Idx v) where
   pretty (Shape s) = pretty s
   pretty (Dim d) = pretty d
+
+idxToShape :: Idx v -> Shape v
+idxToShape (Dim d) = ShapeDim d
+idxToShape (Shape s) = s
 
 mapIdx :: (Dim v -> a) -> (Shape v -> a) -> Idx v -> a
 mapIdx f_dim f_shape idx =

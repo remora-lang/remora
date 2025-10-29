@@ -270,13 +270,13 @@ instance (IsString s, SExpable v s) => SExpable (Type v) s where
         toSExp vs,
         toSExp t
       ]
-  toSExp (Prod vs t) =
+  toSExp (Pi vs t) =
     SList
       [ "prod",
         toSExp vs,
         toSExp t
       ]
-  toSExp (Exists vs t) =
+  toSExp (Sigma vs t) =
     SList
       [ "exists",
         toSExp vs,
