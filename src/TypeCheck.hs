@@ -11,6 +11,7 @@ import Data.Text qualified as T
 import Prettyprinter
 import RemoraPrelude
 import Substitute
+import Symbolic qualified
 import Syntax
 import Util
 import VName
@@ -160,7 +161,7 @@ newtype CheckM a = CheckM {runCheckM :: ExceptT Error (RWS Env () Tag) a}
 -- | Type equality according to Chapter 4 of Justin's thesis.
 (~=) :: (MonadCheck m) => Type VName -> Type VName -> m Bool
 TArr t s ~= TArr y x =
-  (t ~= y) ^&& pure (s @= x)
+  (t ~= y) ^&& pure (s Symbolic.@= x)
 (ps :-> r) ~= (qs :-> t)
   | length ps == length qs =
       andM (zipWith (~=) ps qs) ^&& (r ~= t)
@@ -317,7 +318,7 @@ checkExp expr@(App f args _ pos) = do
                     ]
               Just frame_a -> pure frame_a
       frames <- zipWithM check_args pts args'
-      let principal = maximumShape $ frame_f : frames
+      let principal = Symbolic.maximumShape $ frame_f : frames
           ret' = TArr ret principal
       pure $ App f' args' (Info (ret', principal)) pos
     t ->
