@@ -240,10 +240,11 @@ pExp =
                     choice
                       [ Array <$> (lKeyword "array" >> pShapeLit) <*> some pAtom,
                         Frame <$> (lKeyword "frame" >> pShapeLit) <*> some pExp,
-                        (. const NoInfo) <$> (App <$> pExp <*> some pExp),
-                        lKeyword "i-app" >> IApp <$> pExp <*> some pIdx,
-                        lKeyword "t-app" >> TApp <$> pExp <*> (some pType),
-                        pUnbox
+                        (. const NoInfo) <$> (App <$> pExp <*> many pExp),
+                        lKeyword "i-app" >> IApp <$> pExp <*> many pIdx,
+                        lKeyword "t-app" >> TApp <$> pExp <*> (many pType),
+                        pUnbox,
+                        pAtFn
                       ]
                 ]
             )
@@ -297,6 +298,24 @@ pExp =
       binds <- manyLisp pBind
       body <- pExp
       pure $ foldr bindToApp body binds
+
+    pAtFn = do
+      void $ symbol "@"
+      f <- pExp
+      mts <- choice [Just <$> manyLisp pType, symbol "_" >> pure Nothing]
+      midx <- choice [Just <$> manyLisp pIdx, symbol "_" >> pure Nothing]
+      args <- many pExp
+      pure $
+        \_ pos ->
+          App (iApp pos midx $ tApp pos mts f) args NoInfo pos
+      where
+        iApp _ Nothing m = m
+        iApp pos (Just idxs) m =
+          IApp m idxs NoInfo pos
+
+        tApp _ Nothing m = m
+        tApp pos (Just ts) m =
+          TApp m ts NoInfo pos
 
 pDim :: Parser Dim
 pDim =

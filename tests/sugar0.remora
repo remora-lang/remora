@@ -1,0 +1,2 @@
+;; @f sugar
+(@head Int (2 (shape)) [1 2 3])
