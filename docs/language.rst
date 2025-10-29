@@ -45,8 +45,8 @@ The language is also extended with a ``let``-expression:
 .. productionlist::
    val_bind : "(" `val_param` `exp` ")"
    fun_bind : "(" `id` "(" val_param ... ")" `type` `exp` ")"
-   type_bind : "(" `type_var` `type` ")"
-   idx_bind : "(" `idx_var` `idx` ")"
+   type_bind : "(" "type" `type_var` `type` ")"
+   idx_bind : "(" "idx" `idx_var` `idx` ")"
    bind : val_bind | fun_bind | type_bind | idx_bind
    exp : ... | "(" "let" "(" bind ... ")" `exp` ")"
 
