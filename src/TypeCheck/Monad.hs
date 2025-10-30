@@ -1,18 +1,13 @@
 module TypeCheck.Monad where
 
-import Control.Monad
 import Control.Monad.Error.Class
 import Control.Monad.RWS
 import Control.Monad.Trans.Except
-import Data.Bifunctor
 import Data.Map (Map)
 import Data.Map qualified as M
 import Data.Text (Text)
 import Data.Text qualified as T
 import Prettyprinter
-import RemoraPrelude
-import Substitute
-import Symbolic qualified
 import Syntax
 import Util
 import VName
@@ -45,9 +40,11 @@ instance Monoid VNameEnv where
 data BindEnv
   = BindEnv
   { -- | Term variables to their types.
-    bindEnvVars :: Map VName (Type VName),
+    bindEnvVars :: Map VName (ArrayType VName),
     -- | Atom type vars to types.
     bindEnvAtomTypes :: Map VName (ScalarType VName),
+    -- | Array type vars to types.
+    bindEnvArrayTypes :: Map VName (ArrayType VName),
     -- | Dim vars to 'Dim's.
     bindEnvDims :: Map VName (Dim VName),
     -- | Shape vars to 'Shape's.
@@ -56,11 +53,11 @@ data BindEnv
   deriving (Eq, Show)
 
 instance Semigroup BindEnv where
-  BindEnv vs1 ts1 ds1 ss1 <> BindEnv vs2 ts2 ds2 ss2 =
-    BindEnv (vs1 <> vs2) (ts1 <> ts2) (ds1 <> ds2) (ss1 <> ss2)
+  BindEnv vs1 ets1 ts1 ds1 ss1 <> BindEnv vs2 ets2 ts2 ds2 ss2 =
+    BindEnv (vs1 <> vs2) (ets1 <> ets2) (ts1 <> ts2) (ds1 <> ds2) (ss1 <> ss2)
 
 instance Monoid BindEnv where
-  mempty = BindEnv mempty mempty mempty mempty
+  mempty = BindEnv mempty mempty mempty mempty mempty
 
 -- | The typechecker environment.
 data Env = Env
@@ -152,7 +149,7 @@ lookupVNameShapeVar v =
   lookupEnv "text shape" v $ (M.!? v) . vnameEnvShapeVars . envVNames
 
 -- | Look-up the type of a term variable.
-lookupVarType :: (MonadCheck m) => VName -> m (Type VName)
+lookupVarType :: (MonadCheck m) => VName -> m (ArrayType VName)
 lookupVarType v =
   lookupEnv "" v $ (M.!? v) . bindEnvVars . envBinds
 
@@ -160,6 +157,11 @@ lookupVarType v =
 lookupAtomType :: (MonadCheck m) => VName -> m (Maybe (ScalarType VName))
 lookupAtomType v =
   asks $ (M.!? v) . bindEnvAtomTypes . envBinds
+
+-- | Look-up an array type variable binding.
+lookupArrayType :: (MonadCheck m) => VName -> m (Maybe (ArrayType VName))
+lookupArrayType v =
+  asks $ (M.!? v) . bindEnvArrayTypes . envBinds
 
 -- | Look-up a dim variable binding.
 lookupDim :: (MonadCheck m) => VName -> m (Maybe (Dim VName))
@@ -174,48 +176,38 @@ lookupShape v =
 -- | Bind a source parameter into a local environment.
 bindParam ::
   (MonadCheck m) =>
-  (Type Text -> m (Type VName)) ->
-  (Text, Type Text) ->
-  ((VName, Type VName) -> m a) ->
-  m a
-bindParam checkType (v, t) m = do
-  vname <- newVName v
-  t' <- checkType t
-  Env vnames binds <- ask
-  let vnames' = vnames {vnameEnvVars = M.insert v vname $ vnameEnvVars vnames}
-      binds' = binds {bindEnvVars = M.insert vname t' $ bindEnvVars binds}
-      env' = Env vnames' binds'
-  local (const env') $ m (vname, t')
-
-bindArrayParam ::
-  (MonadCheck m) =>
-  (Type Text -> m (Type VName)) ->
+  (ArrayType Text -> m (ArrayType VName)) ->
   (Text, ArrayType Text) ->
   ((VName, ArrayType VName) -> m a) ->
   m a
-bindArrayParam checkType (v, t) m = do
-  bindParam checkType (v, ArrayType t) $ \(v', t') -> do
-    m (v', arrayTypeView t' (uncurry A))
+bindParam checkArrayType (v, t) m = do
+  vname <- newVName v
+  t' <- checkArrayType t
+  Env vnames bs <- ask
+  let vnames' = vnames {vnameEnvVars = M.insert v vname $ vnameEnvVars vnames}
+      bs' = bs {bindEnvVars = M.insert vname t' $ bindEnvVars bs}
+      env' = Env vnames' bs'
+  local (const env') $ m (vname, t')
 
 -- | Bind a source parameter into a local environment.
 bindParam' ::
   (MonadCheck m) =>
-  (Text, Type VName) ->
+  (Text, ArrayType VName) ->
   (VName -> m a) ->
   m a
 bindParam' (v, t) m = do
   vname <- newVName v
-  Env vnames binds <- ask
+  Env vnames bs <- ask
   let vnames' = vnames {vnameEnvVars = M.insert v vname $ vnameEnvVars vnames}
-      binds' = binds {bindEnvVars = M.insert vname t $ bindEnvVars binds}
-      env' = Env vnames' binds'
+      bs' = bs {bindEnvVars = M.insert vname t $ bindEnvVars bs}
+      env' = Env vnames' bs'
   local (const env') $ m vname
 
 -- | Bind a source type parameter into a local environment.
 bindTypeParam :: (MonadCheck m) => TVar Text -> (TVar VName -> m a) -> m a
 bindTypeParam tvar m = do
   vname <- newVName $ unTVar tvar
-  Env vnames binds <- ask
+  Env vnames bs <- ask
   let tvar' = (const vname) <$> tvar
       vnames' =
         case tvar of
@@ -229,14 +221,14 @@ bindTypeParam tvar m = do
               { vnameEnvArrayTypeVars =
                   M.insert v vname $ vnameEnvArrayTypeVars vnames
               }
-      env' = Env vnames' binds
+      env' = Env vnames' bs
   local (const env') $ m tvar'
 
 -- | Bind a source type parameter into a local environment.
 bindIdxParam :: (MonadCheck m) => IVar Text -> (IVar VName -> m a) -> m a
 bindIdxParam ivar m = do
   vname <- newVName $ unIVar ivar
-  Env vnames binds <- ask
+  Env vnames bs <- ask
   let ivar' = (const vname) <$> ivar
       vnames' =
         case ivar of
@@ -250,7 +242,7 @@ bindIdxParam ivar m = do
               { vnameEnvShapeVars =
                   M.insert v vname $ vnameEnvShapeVars vnames
               }
-      env' = Env vnames' binds
+      env' = Env vnames' bs
   local (const env') $ m ivar'
 
 -- | Bind a type binding.
@@ -264,19 +256,18 @@ bindType ::
 bindType checkType pos (tvar, t) m =
   bindTypeParam tvar $ \tvar' -> do
     t' <- checkType t
-    Env vnames binds <- ask
-    binds' <-
+    Env vnames bs <- ask
+    bs' <-
       case (tvar', t') of
         (AtomTVar v, ScalarType et) ->
           pure $
-            binds
-              { bindEnvAtomTypes = M.insert v et $ bindEnvAtomTypes binds
+            bs
+              { bindEnvAtomTypes = M.insert v et $ bindEnvAtomTypes bs
               }
-        (ArrayTVar v, ArrayType (A et s)) ->
+        (ArrayTVar v, ArrayType t) ->
           pure $
-            binds
-              { bindEnvAtomTypes = M.insert v et $ bindEnvAtomTypes binds,
-                bindEnvShapes = M.insert v s $ bindEnvShapes binds
+            bs
+              { bindEnvArrayTypes = M.insert v t $ bindEnvArrayTypes bs
               }
         _ ->
           throwErrorPos pos $
@@ -285,7 +276,7 @@ bindType checkType pos (tvar, t) m =
                 prettyText tvar,
                 prettyText t
               ]
-    let env' = Env vnames binds'
+    let env' = Env vnames bs'
     local (const env') $ m (tvar', t')
 
 -- | Bind an index binding.
@@ -299,18 +290,18 @@ bindIdx ::
 bindIdx checkIdx pos (ivar, idx) m =
   bindIdxParam ivar $ \ivar' -> do
     idx' <- checkIdx idx
-    Env vnames binds <- ask
-    binds' <-
+    Env vnames bs <- ask
+    bs' <-
       case (ivar', idx') of
         (DVar v, Dim d) ->
           pure $
-            binds
-              { bindEnvDims = M.insert v d $ bindEnvDims binds
+            bs
+              { bindEnvDims = M.insert v d $ bindEnvDims bs
               }
         (SVar v, Shape s) ->
           pure $
-            binds
-              { bindEnvShapes = M.insert v s $ bindEnvShapes binds
+            bs
+              { bindEnvShapes = M.insert v s $ bindEnvShapes bs
               }
         _ ->
           throwErrorPos pos $
@@ -319,7 +310,7 @@ bindIdx checkIdx pos (ivar, idx) m =
                 prettyText ivar,
                 prettyText idx
               ]
-    let env' = Env vnames binds'
+    let env' = Env vnames bs'
     local (const env') $ m (ivar', idx')
 
 -- | Do many binds.

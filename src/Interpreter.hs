@@ -61,7 +61,7 @@ initEnv prelude = Env m tm mempty mempty
         map (\(PreludeVal v _ val) -> (v, val)) prelude
     tm =
       M.fromList $
-        map (\(PreludeVal v t _) -> (v, t)) prelude
+        map (\(PreludeVal v t _) -> (v, ArrayType t)) prelude
 
 type Error = Text
 

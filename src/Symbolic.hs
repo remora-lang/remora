@@ -25,7 +25,7 @@ import Data.SBV.List qualified as SL
 import Data.SBV.Trans qualified as SBV.Trans
 import GHC.IsList
 import Prettyprinter
-import Shape hiding (maximumShape, (@=))
+import Shape
 import System.IO.Unsafe
 import Util
 

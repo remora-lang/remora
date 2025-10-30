@@ -14,12 +14,14 @@ where
 
 import Data.List qualified as L
 import Prettyprinter
-import Syntax hiding (Atom, Exp, HasShape (..), IVar, Idx, Shape, TVar, Type, (\\))
+import Syntax hiding (Atom, Exp, IVar, Idx, ScalarType, Shape, TVar, Type)
 import Syntax qualified
 import Util
 import VName
 
 type Type = Syntax.Type VName
+
+type ScalarType = Syntax.ScalarType VName
 
 type Idx = Syntax.Idx VName
 
@@ -33,7 +35,7 @@ data Val m
   | -- | Array value.
     ValArray [Int] [Val m]
   | -- | Box.
-    ValBox [Idx] (Val m) Type
+    ValBox [Idx] (Val m) ScalarType
   | -- | Function.
     ValFun ([Val m] -> m (Val m))
   | -- | Type function.
@@ -94,7 +96,7 @@ arrayValView v m = arrayValViews [v] (m . head)
 arrayValViews :: [Val m] -> ([([Int], [Val m])] -> a) -> a
 arrayValViews vs m = m $ map unpack vs
   where
-    unpack (ValArray shape vs) = (shape, vs)
+    unpack (ValArray shape vs') = (shape, vs')
     unpack v = (mempty, [v])
 
 -- | @split n xs@ splits @xs@ into @n@-sized chunks.

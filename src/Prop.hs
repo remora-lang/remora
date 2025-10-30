@@ -2,7 +2,10 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Prop
-  ( HasType (..),
+  ( arrayTypeOf,
+    scalarTypeOf,
+    baseTypeOf,
+    HasType (..),
     HasShape (..),
     HasSrcPos (..),
     IsType (..),
@@ -23,6 +26,34 @@ import Syntax
 import Util
 import VName
 
+arrayTypeOf :: Exp Info VName -> ArrayType VName
+arrayTypeOf = normType . arrayTypeOf_
+  where
+    arrayTypeOf_ (Var _ (Info t) _) = t
+    arrayTypeOf_ (Array _ _ (Info t) _) = t
+    arrayTypeOf_ (EmptyArray _ _ (Info t) _) = t
+    arrayTypeOf_ (Frame _ _ (Info t) _) = t
+    arrayTypeOf_ (EmptyFrame _ _ (Info t) _) = t
+    arrayTypeOf_ (App _ _ (Info (t, _)) _) = t
+    arrayTypeOf_ (TApp _ _ (Info t) _) = t
+    arrayTypeOf_ (IApp _ _ (Info t) _) = t
+    arrayTypeOf_ (Unbox _ _ _ _ (Info t) _) = t
+    arrayTypeOf_ (Let _ _ (Info t) _) = t
+
+scalarTypeOf :: Atom Info VName -> ScalarType VName
+scalarTypeOf = normType . scalarTypeOf_
+  where
+    scalarTypeOf_ (Base _ (Info t) _) = t
+    scalarTypeOf_ (Lambda _ _ (Info t) _) = t
+    scalarTypeOf_ (TLambda _ _ (Info t) _) = t
+    scalarTypeOf_ (ILambda _ _ (Info t) _) = t
+    scalarTypeOf_ (Box _ _ t _) = t
+
+baseTypeOf :: Base -> ScalarType VName
+baseTypeOf BoolVal {} = Bool
+baseTypeOf IntVal {} = Int
+baseTypeOf FloatVal {} = Float
+
 -- | Things that have a type.
 class HasType x where
   -- | Returns a normalized type.
@@ -32,28 +63,13 @@ class HasType x where
   typeOf_ :: x -> Type VName
 
 instance HasType Base where
-  typeOf_ BoolVal {} = ScalarType Bool
-  typeOf_ IntVal {} = ScalarType Int
-  typeOf_ FloatVal {} = ScalarType Float
+  typeOf_ = ScalarType . baseTypeOf
 
 instance HasType (Atom Info VName) where
-  typeOf_ (Base _ (Info t) _) = ScalarType t
-  typeOf_ (Lambda _ _ (Info t) _) = t
-  typeOf_ (TLambda _ _ (Info t) _) = t
-  typeOf_ (ILambda _ _ (Info t) _) = t
-  typeOf_ (Box _ _ t _) = t
+  typeOf_ = ScalarType . scalarTypeOf
 
 instance HasType (Exp Info VName) where
-  typeOf_ (Var _ (Info t) _) = t
-  typeOf_ (Array _ _ (Info t) _) = t
-  typeOf_ (EmptyArray _ _ (Info t) _) = t
-  typeOf_ (Frame _ _ (Info t) _) = t
-  typeOf_ (EmptyFrame _ _ (Info t) _) = t
-  typeOf_ (App _ _ (Info (t, _)) _) = t
-  typeOf_ (TApp _ _ (Info t) _) = t
-  typeOf_ (IApp _ _ (Info t) _) = t
-  typeOf_ (Unbox _ _ _ _ (Info t) _) = t
-  typeOf_ (Let _ _ (Info t) _) = t
+  typeOf_ = ArrayType . arrayTypeOf
 
 -- | Things that have a shape.
 class HasShape x where

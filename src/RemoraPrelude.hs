@@ -11,17 +11,16 @@ import Control.Monad
 import Data.Text (Text)
 import Interpreter.Value
 import Syntax
-import Util
 
 type Prelude v m = [PreludeVal v m]
 
-data PreludeVal v m = PreludeVal v (Type v) (Val m)
+data PreludeVal v m = PreludeVal v (ArrayType v) (Val m)
 
 prelude :: (Monad m) => Prelude Text m
 prelude =
   [ PreludeVal
       "head"
-      ( ScalarType $
+      ( mkScalarArrayType $
           Forall
             [AtomTVar "t"]
             ( A
@@ -51,7 +50,7 @@ prelude =
       ),
     PreludeVal
       "tail"
-      ( ScalarType $
+      ( mkScalarArrayType $
           Forall
             [AtomTVar "t"]
             ( A
@@ -81,7 +80,7 @@ prelude =
       ),
     PreludeVal
       "length"
-      ( ScalarType $
+      ( mkScalarArrayType $
           Forall
             [AtomTVar "t"]
             ( A
@@ -104,7 +103,7 @@ prelude =
       ),
     PreludeVal
       "append"
-      ( ScalarType $
+      ( mkScalarArrayType $
           Forall
             [AtomTVar "t"]
             ( A
@@ -136,7 +135,7 @@ prelude =
       ),
     PreludeVal
       "reverse"
-      ( ScalarType $
+      ( mkScalarArrayType $
           Forall
             [AtomTVar "t"]
             ( A
@@ -161,7 +160,7 @@ prelude =
       ),
     PreludeVal
       "reduce"
-      ( ScalarType $
+      ( mkScalarArrayType $
           Forall
             [AtomTVar "t"]
             ( A
@@ -187,7 +186,7 @@ prelude =
       ),
     PreludeVal
       "+"
-      (ScalarType $ [A Int mempty, A Int mempty] :-> A Int mempty)
+      (mkScalarArrayType $ [A Int mempty, A Int mempty] :-> A Int mempty)
       ( ValFun $ \[x, y] ->
           arrayValView x $ \(_, [ValBase (IntVal x)]) ->
             arrayValView y $ \(_, [ValBase (IntVal y)]) ->
@@ -195,49 +194,49 @@ prelude =
       ),
     PreludeVal
       "-"
-      (ScalarType $ [A Int mempty, A Int mempty] :-> A Int mempty)
+      (mkScalarArrayType $ [A Int mempty, A Int mempty] :-> A Int mempty)
       ( ValFun $ \[ValArray _ [ValBase (IntVal x)], ValArray _ [ValBase (IntVal y)]] ->
           pure $ ValArray mempty [ValBase $ IntVal $ x - y]
       ),
     PreludeVal
       "*"
-      (ScalarType $ [A Int mempty, A Int mempty] :-> A Int mempty)
+      (mkScalarArrayType $ [A Int mempty, A Int mempty] :-> A Int mempty)
       ( ValFun $ \[ValArray _ [ValBase (IntVal x)], ValArray _ [ValBase (IntVal y)]] ->
           pure $ ValArray mempty [ValBase $ IntVal $ x * y]
       ),
     PreludeVal
       "f.+"
-      (ScalarType $ [A Float mempty, A Float mempty] :-> A Float mempty)
+      (mkScalarArrayType $ [A Float mempty, A Float mempty] :-> A Float mempty)
       ( ValFun $ \args -> baseValViews args $ \[FloatVal x, FloatVal y] ->
           pure $ ValArray mempty [ValBase $ FloatVal $ x + y]
       ),
     PreludeVal
       "f.-"
-      (ScalarType $ [A Float mempty, A Float mempty] :-> A Float mempty)
+      (mkScalarArrayType $ [A Float mempty, A Float mempty] :-> A Float mempty)
       ( ValFun $ \args -> baseValViews args $ \[FloatVal x, FloatVal y] ->
           pure $ ValArray mempty [ValBase $ FloatVal $ x - y]
       ),
     PreludeVal
       "f.*"
-      (ScalarType $ [A Float mempty, A Float mempty] :-> A Float mempty)
+      (mkScalarArrayType $ [A Float mempty, A Float mempty] :-> A Float mempty)
       ( ValFun $ \args -> baseValViews args $ \[FloatVal x, FloatVal y] ->
           pure $ ValArray mempty [ValBase $ FloatVal $ x * y]
       ),
     PreludeVal
       "f./"
-      (ScalarType $ [A Float mempty, A Float mempty] :-> A Float mempty)
+      (mkScalarArrayType $ [A Float mempty, A Float mempty] :-> A Float mempty)
       ( ValFun $ \args -> baseValViews args $ \[FloatVal x, FloatVal y] ->
           pure $ ValArray mempty [ValBase $ FloatVal $ x / y]
       ),
     PreludeVal
       "sqrt"
-      (ScalarType $ [A Float mempty] :-> A Float mempty)
+      (mkScalarArrayType $ [A Float mempty] :-> A Float mempty)
       ( ValFun $ \args -> baseValViews args $ \[FloatVal x] ->
           pure $ ValArray mempty [ValBase $ FloatVal $ sqrt x]
       ),
     PreludeVal
       "sum"
-      ( ScalarType $
+      ( mkScalarArrayType $
           Pi
             [SVar "s"]
             ( A

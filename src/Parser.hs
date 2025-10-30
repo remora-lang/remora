@@ -40,10 +40,6 @@ import Text.Megaparsec.Char
     string,
   )
 import Text.Megaparsec.Char.Lexer qualified as L
-import Text.Megaparsec.Pos
-  ( SourcePos (..),
-    mkPos,
-  )
 
 type Parser = Parsec Void Text
 
@@ -100,7 +96,7 @@ keywords =
     "i-app",
     "unbox",
     "box",
-    "shape",
+    "dims",
     "fn",
     "λ",
     "t-fn",
@@ -118,7 +114,8 @@ keywords =
     "Σ",
     "let",
     "type",
-    "idx"
+    "idx",
+    "fun"
   ]
 
 lKeyword :: Text -> Parser ()
@@ -188,18 +185,26 @@ pScalarType =
           ]
     ]
 
+pArrayType' :: Parser ArrayType
+pArrayType' =
+  choice
+    [ try $ parens $ A <$> (lKeyword "A" >> pScalarType) <*> pShape,
+      "*" >> ArrayTypeVar <$> lId,
+      brackets $ A <$> pScalarType <*> pShapeSplice
+    ]
+
 pArrayType :: Parser ArrayType
 pArrayType =
   choice
-    [ parens $ A <$> (lKeyword "A" >> pScalarType) <*> pShape,
-      "*" >> lId >>= \t -> pure $ A (ScalarTVar t) (ShapeVar $ "s_" <> t)
+    [ pArrayType',
+      (flip A mempty) <$> pScalarType
     ]
 
 pType :: Parser Type
 pType =
   choice
-    [ Syntax.ScalarType <$> pScalarType,
-      Syntax.ArrayType <$> pArrayType
+    [ Syntax.ArrayType <$> pArrayType',
+      Syntax.ScalarType <$> pScalarType
     ]
 
 pBase :: Parser Base
@@ -253,7 +258,7 @@ pAtom =
           <$> ((lKeyword "t-fn" <|> lKeyword "tλ") >> (manyLisp pTVar))
           <*> pExp
     pBox =
-      Box <$> (lKeyword "box" >> many pIdx) <*> pExp <*> pType
+      Box <$> (lKeyword "box" >> manyLisp pIdx) <*> pExp <*> pScalarType
 
 pIdx :: Parser Idx
 pIdx =
@@ -307,7 +312,7 @@ pExp =
         pBind =
           parens $
             choice
-              [ BindVal <$> lId <*> pType <*> pExp,
+              [ try $ BindVal <$> lId <*> pArrayType <*> pExp,
                 BindFun <$> lId <*> manyLisp pParam <*> pArrayType <*> pExp,
                 lKeyword "type" >> (BindType <$> pTVar <*> pType),
                 lKeyword "idx" >> (BindIdx <$> pIVar <*> pIdx)
@@ -339,6 +344,10 @@ pDim =
       symbol "+" >> Add <$> many pDim
     ]
 
+pShapeSplice :: Parser Shape
+pShapeSplice =
+  (foldMap $ mapIdx ShapeDim id) <$> many pIdx
+
 pShape :: Parser Shape
 pShape =
   choice
@@ -349,5 +358,5 @@ pShape =
           [ lKeyword "dims" >> Syntax.Concat <$> many (ShapeDim <$> pDim),
             symbol "++" >> Concat <$> many pShape
           ],
-      brackets $ (normShape . idxToShape) <$> pIdx
+      brackets $ pShapeSplice
     ]

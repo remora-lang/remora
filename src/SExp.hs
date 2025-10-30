@@ -85,8 +85,7 @@ instance
     SExpable v s,
     SExpable (f (ScalarType v)) s,
     SExpable (f (ArrayType v)) s,
-    SExpable (f (Type v)) s,
-    SExpable (f (Type v, Shape v)) s
+    SExpable (f (ArrayType v, Shape v)) s
   ) =>
   SExpable (Atom f v) s
   where
@@ -135,8 +134,7 @@ instance
     SExpable v s,
     SExpable (f (ScalarType v)) s,
     SExpable (f (ArrayType v)) s,
-    SExpable (f (Type v)) s,
-    SExpable (f (Type v, Shape v)) s
+    SExpable (f (ArrayType v, Shape v)) s
   ) =>
   SExpable (Bind f v) s
   where
@@ -173,8 +171,7 @@ instance
     SExpable v s,
     SExpable (f (ScalarType v)) s,
     SExpable (f (ArrayType v)) s,
-    SExpable (f (Type v)) s,
-    SExpable (f (Type v, Shape v)) s
+    SExpable (f (ArrayType v, Shape v)) s
   ) =>
   SExpable (Exp f v) s
   where

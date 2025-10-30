@@ -1,2 +1,2 @@
 ;; reduce
-((i-app (t-app reduce Int) 3 (shape)) + [1 2 3 4])
+((i-app (t-app reduce Int) 3 (dims)) + [1 2 3 4])

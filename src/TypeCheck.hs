@@ -71,6 +71,12 @@ checkType = fmap normType . checkType'
 checkArrayType :: (MonadCheck m) => ArrayType Text -> m (ArrayType VName)
 checkArrayType (A t shape) =
   A <$> checkScalarType t <*> checkShape shape
+checkArrayType (ArrayTypeVar v) = do
+  v' <- lookupVNameArrayTypeVar v
+  mt <- lookupArrayType v'
+  case mt of
+    Nothing -> pure $ ArrayTypeVar v'
+    Just t -> pure t
 
 checkScalarType :: (MonadCheck m) => ScalarType Text -> m (ScalarType VName)
 checkScalarType (ScalarTVar v) = do
@@ -94,18 +100,6 @@ checkScalarType (Sigma pts t) = do
   binds bindIdxParam pts $ \pts' -> do
     Sigma pts' <$> checkArrayType t
 
-fromScalarType :: (MonadCheck m) => SourcePos -> Type VName -> m (ScalarType VName)
-fromScalarType _ (ScalarType t) = pure t
-fromScalarType pos t@ArrayType {} =
-  throwErrorPos pos $
-    "Expected a scalar type: " <> prettyText t
-
-fromArrayType :: (MonadCheck m) => SourcePos -> Type VName -> m (ArrayType VName)
-fromArrayType _ (ArrayType t) = pure t
-fromArrayType pos t@ScalarType {} =
-  throwErrorPos pos $
-    "Expected an array type: " <> prettyText t
-
 -- | Type check an unchecked 'Exp'.
 checkExp :: (MonadCheck m) => Exp NoInfo Text -> m (Exp Info VName)
 checkExp (Var v _ pos) = do
@@ -125,14 +119,14 @@ checkExp expr@(Array ns as _ pos) = do
       unless (product ns == length as') $
         throwErrorPos pos $
           "Array shape doesn't match number of elements: " <> prettyText expr
-      et <- fromScalarType pos $ typeOf a'
-      pure $ Array ns as' (Info $ ArrayType $ A et (intsToShape ns)) pos
+      let et = scalarTypeOf a'
+      pure $ Array ns as' (Info $ A et (intsToShape ns)) pos
 checkExp expr@(EmptyArray ns t _ pos) = do
   t' <- checkScalarType t
   unless (product ns == 0) $
     throwErrorPos pos $
       "Empty array has a non-empty shape: " <> prettyText expr
-  pure $ EmptyArray ns t' (Info $ ArrayType $ A t' (intsToShape ns)) pos
+  pure $ EmptyArray ns t' (Info $ A t' (intsToShape ns)) pos
 checkExp expr@(Frame ns es _ pos) = do
   es' <- mapM checkExp es
   case es' of
@@ -146,14 +140,14 @@ checkExp expr@(Frame ns es _ pos) = do
       unless (product ns == length es') $
         throwErrorPos pos $
           "Frame shape doesn't match number of elements: " <> prettyText expr
-      et <- fromScalarType pos $ typeOf e'
-      pure $ Frame ns es' (Info $ ArrayType $ A et (intsToShape ns)) pos
+      let A et s = arrayTypeOf e'
+      pure $ Frame ns es' (Info $ A et ((intsToShape ns) <> s)) pos
 checkExp expr@(EmptyFrame ns t _ pos) = do
   t' <- checkScalarType t
   unless (product ns == 0) $
     throwErrorPos pos $
       "Empty frame has a non-empty shape: " <> prettyText expr
-  pure $ EmptyFrame ns t' (Info $ ArrayType $ A t' (intsToShape ns)) pos
+  pure $ EmptyFrame ns t' (Info $ A t' (intsToShape ns)) pos
 checkExp expr@(App f args _ pos) = do
   f' <- checkExp f
   args' <- mapM checkExp args
@@ -185,7 +179,7 @@ checkExp expr@(App f args _ pos) = do
               Just frame_a -> pure frame_a
       frames <- zipWithM check_args pts args'
       let principal = Symbolic.maximumShape $ frame_f : frames
-          ret' = ArrayType $ A (arrayTypeScalar ret) (principal <> arrayTypeShape ret)
+          ret' = A (arrayTypeScalar ret) (principal <> arrayTypeShape ret)
       pure $ App f' args' (Info (ret', principal)) pos
     t ->
       throwErrorPos pos $
@@ -216,7 +210,7 @@ checkExp expr@(TApp f ts _ pos) = do
                     ]
       (atom_subst, shape_subst) <- foldM check_args mempty $ zip pts ts'
       let A rt rshape = substitute shape_subst $ substitute atom_subst r
-          r' = ArrayType $ A rt (frame_f <> rshape)
+          r' = A rt (frame_f <> rshape)
       pure $ TApp f' ts' (Info r') pos
     _ ->
       throwErrorPos pos $
@@ -248,7 +242,7 @@ checkExp expr@(IApp f is _ pos) = do
                 ]
       (pts', is'') <- unzip <$> zipWithM check_args pts is'
       let A rt shape = substitute' (zip pts' is'') r
-          r' = ArrayType $ A rt (frame_f <> shape)
+          r' = A rt (frame_f <> shape)
       pure $ IApp f' is'' (Info r') pos
     _ ->
       throwErrorPos pos $
@@ -263,7 +257,7 @@ checkExp expr@(Unbox is x_e box body _ pos) = do
     case typeOf box' of
       ArrayType (A (Sigma ps t) frame_f) -> do
         let t' = flip substitute' t $ zip (map unIVar ps) is''
-        bindParam' (x_e, ArrayType t') $ \x_e' -> do
+        bindParam' (x_e, t') $ \x_e' -> do
           body' <- checkExp body
           case typeOf body' of
             ArrayType (A t_b shape_b) ->
@@ -273,7 +267,7 @@ checkExp expr@(Unbox is x_e box body _ pos) = do
                   x_e'
                   box'
                   body'
-                  (Info $ ArrayType $ A t_b (frame_f <> shape_b))
+                  (Info $ A t_b (frame_f <> shape_b))
                   pos
             _ ->
               throwErrorPos pos $
@@ -290,19 +284,19 @@ checkExp expr@(Unbox is x_e box body _ pos) = do
 checkExp (Let bs e _ pos) = do
   binds withBind bs $ \bs' -> do
     e' <- checkExp e
-    pure $ Let bs' e' (Info $ typeOf e') pos
+    pure $ Let bs' e' (Info $ arrayTypeOf e') pos
   where
     withBind :: (MonadCheck m) => Bind NoInfo Text -> (Bind Info VName -> m a) -> m a
     withBind (BindVal v t ve) m = do
       ve' <- checkExp ve
-      bindParam checkType (v, t) $ \(vname, t') ->
+      bindParam checkArrayType (v, t) $ \(vname, t') ->
         m $ BindVal vname t' ve'
     withBind (BindFun f params ret_t body) m = do
       ret_t' <- checkArrayType ret_t
       (params', body') <-
-        binds (bindArrayParam checkType) params $ \params' -> do
+        binds (bindParam checkArrayType) params $ \params' -> do
           (params',) <$> checkExp body
-      bindParam' (f, ScalarType $ map snd params' :-> ret_t') $ \f' ->
+      bindParam' (f, A (map snd params' :-> ret_t') mempty) $ \f' ->
         m $ BindFun f' params' ret_t' body'
     withBind (BindType tvar t) m =
       bindType checkType pos (tvar, t) $ \(tvar', t') ->
@@ -313,32 +307,31 @@ checkExp (Let bs e _ pos) = do
 
 -- | Type check an unchecked 'Atom'.
 checkAtom :: (MonadCheck m) => Atom NoInfo Text -> m (Atom Info VName)
-checkAtom (Base b _ pos) = do
-  t <- fromScalarType pos $ typeOf b
-  pure $ Base b (Info t) pos
+checkAtom (Base b _ pos) =
+  pure $ Base b (Info $ baseTypeOf b) pos
 checkAtom (Lambda params e _ pos) = do
-  binds (bindArrayParam checkType) params $ \params' -> do
+  binds (bindParam checkArrayType) params $ \params' -> do
     e' <- checkExp e
-    r <- fromArrayType pos $ typeOf e'
-    pure $ Lambda params' e' (Info $ ScalarType $ map snd params' :-> r) pos
+    let r = arrayTypeOf e'
+    pure $ Lambda params' e' (Info $ map snd params' :-> r) pos
 checkAtom (TLambda ps e _ pos) =
   binds bindTypeParam ps $ \ps' -> do
     e' <- checkExp e
-    r <- fromArrayType pos $ typeOf e'
-    pure $ TLambda ps' e' (Info $ ScalarType $ Forall ps' r) pos
+    let r = arrayTypeOf e'
+    pure $ TLambda ps' e' (Info $ Forall ps' r) pos
 checkAtom (ILambda ps e _ pos) =
   binds bindIdxParam ps $ \ps' -> do
     e' <- checkExp e
-    r <- fromArrayType pos $ typeOf e'
-    pure $ ILambda ps' e' (Info $ ScalarType $ Pi ps' r) pos
+    let r = arrayTypeOf e'
+    pure $ ILambda ps' e' (Info $ Pi ps' r) pos
 checkAtom atom@(Box idx e box_t pos) = do
   idx' <- mapM checkIdx idx
   e' <- checkExp e
-  box_t' <- checkType box_t
+  box_t' <- checkScalarType box_t
   case box_t' of
-    ScalarType (Sigma is t) -> do
+    Sigma is t -> do
       let t' = substitute' (zip is idx') t
-      unlessM (typeOf e' ~= ArrayType t') $
+      unlessM (arrayTypeOf e' ~= t') $
         throwErrorPos pos $
           T.unlines
             [ "Wrong box type.",
@@ -362,5 +355,5 @@ withPrelude m = checkPrelude prelude mempty
     checkPrelude [] prelude' =
       (reverse prelude',) <$> m
     checkPrelude (PreludeVal f t v : ps) prelude' = do
-      bindParam checkType (f, t) $ \(f', t') ->
+      bindParam checkArrayType (f, t) $ \(f', t') ->
         checkPrelude ps (PreludeVal f' t' v : prelude')

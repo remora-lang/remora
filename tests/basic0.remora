@@ -1,5 +1,5 @@
 ; add two arrays
-((fn ((x (A Int (shape 2))) (y (A Int (shape 2))))
+((fn ((x (A Int (dims 2))) (y (A Int (dims 2))))
     (+ x y)
     )
  [1 2]

@@ -13,6 +13,7 @@ module Syntax
     ScalarType (..),
     ArrayType (..),
     Type (..),
+    mkScalarArrayType,
     elemType,
     atomKind,
     arrayKind,
@@ -94,7 +95,7 @@ data ScalarType v
   deriving (Show, Eq)
 
 instance (Show v, Pretty v) => Pretty (ScalarType v) where
-  pretty (ScalarTVar x) = pretty x
+  pretty (ScalarTVar x) = "&" <> pretty x
   pretty Bool = "Bool"
   pretty Int = "Int"
   pretty Float = "Float"
@@ -116,14 +117,17 @@ instance (Show v, Pretty v) => Pretty (ScalarType v) where
         <+> parens (hsep (map pretty xs))
         <+> pretty t
 
-data ArrayType v = A
-  { arrayTypeScalar :: (ScalarType v),
-    arrayTypeShape :: (Shape v)
-  }
+data ArrayType v
+  = A
+      { arrayTypeScalar :: (ScalarType v),
+        arrayTypeShape :: (Shape v)
+      }
+  | ArrayTypeVar v
   deriving (Show, Eq)
 
 instance (Show v, Pretty v) => Pretty (ArrayType v) where
   pretty (A t s) = parens $ "A" <+> pretty t <+> pretty s
+  pretty (ArrayTypeVar x) = "*" <> pretty x
 
 -- | Types.
 data Type v
@@ -136,6 +140,10 @@ data Type v
 instance (Show v, Pretty v) => Pretty (Type v) where
   pretty (ScalarType t) = pretty t
   pretty (ArrayType t) = pretty t
+
+-- | Make a scalar array.
+mkScalarArrayType :: ScalarType v -> ArrayType v
+mkScalarArrayType = flip A mempty
 
 -- | Get the element type.
 elemType :: Type v -> ScalarType v
@@ -171,13 +179,13 @@ data Atom f v
   = -- | Base values.
     Base Base (f (ScalarType v)) SourcePos
   | -- | Term lambda.
-    Lambda [(v, ArrayType v)] (Exp f v) (f (Type v)) SourcePos
+    Lambda [(v, ArrayType v)] (Exp f v) (f (ScalarType v)) SourcePos
   | -- | Type lambda.
-    TLambda [TVar v] (Exp f v) (f (Type v)) SourcePos
+    TLambda [TVar v] (Exp f v) (f (ScalarType v)) SourcePos
   | -- | Index lambda.
-    ILambda [IVar v] (Exp f v) (f (Type v)) SourcePos
+    ILambda [IVar v] (Exp f v) (f (ScalarType v)) SourcePos
   | -- | Boxed expression.
-    Box [Idx v] (Exp f v) (Type v) SourcePos
+    Box [Idx v] (Exp f v) (ScalarType v) SourcePos
 
 deriving instance (Show v) => Show (Atom NoInfo v)
 
@@ -212,7 +220,7 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Atom f v) where
 
 -- | Binds
 data Bind f v
-  = BindVal v (Type v) (Exp f v)
+  = BindVal v (ArrayType v) (Exp f v)
   | BindFun v [(v, (ArrayType v))] (ArrayType v) (Exp f v)
   | BindType (TVar v) (Type v)
   | BindIdx (IVar v) (Idx v)
@@ -227,7 +235,7 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Bind f v) where
   pretty (BindFun f params t body) =
     parens $
       pretty f
-        <+> parens (hsep (map (\(v, t) -> parens $ pretty v <+> pretty t) params))
+        <+> parens (hsep (map (\(v, ty) -> parens $ pretty v <+> pretty ty) params))
         <+> pretty t
         <+> pretty body
   pretty (BindType tvar t) =
@@ -238,25 +246,25 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Bind f v) where
 -- | Expressions.
 data Exp f v
   = -- | Variables.
-    Var v (f (Type v)) SourcePos
+    Var v (f (ArrayType v)) SourcePos
   | -- | Array literals.
-    Array [Int] [Atom f v] (f (Type v)) SourcePos
+    Array [Int] [Atom f v] (f (ArrayType v)) SourcePos
   | -- | Empty arrays.
-    EmptyArray [Int] (ScalarType v) (f (Type v)) SourcePos
+    EmptyArray [Int] (ScalarType v) (f (ArrayType v)) SourcePos
   | -- | Frame literals.
-    Frame [Int] [Exp f v] (f (Type v)) SourcePos
+    Frame [Int] [Exp f v] (f (ArrayType v)) SourcePos
   | -- | Empty frames.
-    EmptyFrame [Int] (ScalarType v) (f (Type v)) SourcePos
+    EmptyFrame [Int] (ScalarType v) (f (ArrayType v)) SourcePos
   | -- | Function application.
-    App (Exp f v) [Exp f v] (f (Type v, Shape v)) SourcePos
+    App (Exp f v) [Exp f v] (f (ArrayType v, Shape v)) SourcePos
   | -- | Type application.
-    TApp (Exp f v) [Type v] (f (Type v)) SourcePos
+    TApp (Exp f v) [Type v] (f (ArrayType v)) SourcePos
   | -- | Index application.
-    IApp (Exp f v) [Idx v] (f (Type v)) SourcePos
+    IApp (Exp f v) [Idx v] (f (ArrayType v)) SourcePos
   | -- | Unboxing.
-    Unbox [IVar v] v (Exp f v) (Exp f v) (f (Type v)) SourcePos
+    Unbox [IVar v] v (Exp f v) (Exp f v) (f (ArrayType v)) SourcePos
   | -- | Let
-    Let [Bind f v] (Exp f v) (f (Type v)) SourcePos
+    Let [Bind f v] (Exp f v) (f (ArrayType v)) SourcePos
 
 deriving instance (Show v) => Show (Exp NoInfo v)
 

@@ -1,4 +1,4 @@
 ; add two length-2 vectors
-(let (vec-+ ((x (A Int (shape 2))) (y (A Int (shape 2)))) (A Int (shape 2)) (+ x y))
+(let (vec-+ ((x (A Int (dims 2))) (y (A Int (dims 2)))) (A Int (dims 2)) (+ x y))
      (vec-+ [1 2] [2 4])
 )
