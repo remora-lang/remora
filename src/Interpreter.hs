@@ -10,8 +10,9 @@ import Data.Map qualified as M
 import Data.Text (Text)
 import Interpreter.Value hiding (Val)
 import Interpreter.Value qualified as Value
+import Prop hiding ((\\))
 import RemoraPrelude (Prelude, PreludeVal (..))
-import Syntax hiding (Atom, Bind, Dim, Exp, Idx, Shape, Type, (\\))
+import Syntax hiding (Atom, Bind, Dim, Exp, Idx, Shape, Type)
 import Syntax qualified
 import Util
 import VName

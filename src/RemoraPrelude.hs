@@ -21,21 +21,28 @@ prelude :: (Monad m) => Prelude Text m
 prelude =
   [ PreludeVal
       "head"
-      ( Forall
-          [AtomTVar "t"]
-          ( Pi
-              [DVar "d", SVar "s"]
-              ( [ TArr
-                    (TVar (AtomTVar "t"))
-                    ( Concat
-                        [ ShapeDim (Add [DimN 1, DimVar "d"]),
-                          ShapeVar "s"
-                        ]
+      ( ScalarType $
+          Forall
+            [AtomTVar "t"]
+            ( A
+                ( Pi
+                    [DVar "d", SVar "s"]
+                    ( A
+                        ( [ A
+                              (ScalarTVar "t")
+                              ( Concat
+                                  [ ShapeDim (Add [DimN 1, DimVar "d"]),
+                                    ShapeVar "s"
+                                  ]
+                              )
+                          ]
+                            :-> A (ScalarTVar "t") (ShapeVar "s")
+                        )
+                        mempty
                     )
-                ]
-                  :-> TArr (TVar $ AtomTVar "t") (ShapeVar "s")
-              )
-          )
+                )
+                mempty
+            )
       )
       ( ValTFun $ \[_t] ->
           pure $ ValIFun $ \[_d, _s] ->
@@ -44,21 +51,28 @@ prelude =
       ),
     PreludeVal
       "tail"
-      ( Forall
-          [AtomTVar "t"]
-          ( Pi
-              [DVar "d", SVar "s"]
-              ( [ TArr
-                    (TVar (AtomTVar "t"))
-                    ( Concat
-                        [ ShapeDim (Add [DimN 1, DimVar "d"]),
-                          ShapeVar "s"
-                        ]
+      ( ScalarType $
+          Forall
+            [AtomTVar "t"]
+            ( A
+                ( Pi
+                    [DVar "d", SVar "s"]
+                    ( A
+                        ( [ A
+                              (ScalarTVar "t")
+                              ( Concat
+                                  [ ShapeDim (Add [DimN 1, DimVar "d"]),
+                                    ShapeVar "s"
+                                  ]
+                              )
+                          ]
+                            :-> A (ScalarTVar "t") (ShapeVar "s")
+                        )
+                        mempty
                     )
-                ]
-                  :-> TArr (TVar (AtomTVar "t")) (ShapeVar "s")
-              )
-          )
+                )
+                mempty
+            )
       )
       ( ValTFun $ \[_t] ->
           pure $ ValIFun $ \[_d, _s] ->
@@ -67,14 +81,21 @@ prelude =
       ),
     PreludeVal
       "length"
-      ( Forall
-          [AtomTVar "t"]
-          ( Pi
-              [DVar "d", SVar "s"]
-              ( [TArr (TVar (AtomTVar "t")) (Concat [ShapeDim (DimVar "d"), ShapeVar "s"])]
-                  :-> TArr Int mempty
-              )
-          )
+      ( ScalarType $
+          Forall
+            [AtomTVar "t"]
+            ( A
+                ( Pi
+                    [DVar "d", SVar "s"]
+                    ( A
+                        ( [A (ScalarTVar "t") (Concat [ShapeDim (DimVar "d"), ShapeVar "s"])]
+                            :-> A Int mempty
+                        )
+                        mempty
+                    )
+                )
+                mempty
+            )
       )
       ( ValTFun $ \[_t] ->
           pure $ ValIFun $ \[_d, _s] ->
@@ -83,23 +104,30 @@ prelude =
       ),
     PreludeVal
       "append"
-      ( Forall
-          [AtomTVar "t"]
-          ( Pi
-              [DVar "m", DVar "n", SVar "s"]
-              ( [ TArr (TVar (AtomTVar "t")) (Concat [ShapeDim $ DimVar "m", ShapeVar "s"]),
-                  TArr (TVar (AtomTVar "t")) (Concat [ShapeDim $ DimVar "n", ShapeVar "s"])
-                ]
-                  :-> TArr
-                    (TVar (AtomTVar "t"))
-                    ( Concat
-                        [ ShapeDim $ DimVar "m",
-                          ShapeDim $ DimVar "n",
-                          ShapeVar "s"
-                        ]
+      ( ScalarType $
+          Forall
+            [AtomTVar "t"]
+            ( A
+                ( Pi
+                    [DVar "m", DVar "n", SVar "s"]
+                    ( A
+                        ( [ A (ScalarTVar "t") (Concat [ShapeDim $ DimVar "m", ShapeVar "s"]),
+                            A (ScalarTVar "t") (Concat [ShapeDim $ DimVar "n", ShapeVar "s"])
+                          ]
+                            :-> A
+                              (ScalarTVar "t")
+                              ( Concat
+                                  [ ShapeDim $ DimVar "m",
+                                    ShapeDim $ DimVar "n",
+                                    ShapeVar "s"
+                                  ]
+                              )
+                        )
+                        mempty
                     )
-              )
-          )
+                )
+                mempty
+            )
       )
       ( ValTFun $ \[_t] ->
           pure $ ValIFun $ \[Left m, Left n, Right s] ->
@@ -108,19 +136,23 @@ prelude =
       ),
     PreludeVal
       "reverse"
-      ( Forall
-          [AtomTVar "t"]
-          ( Pi
-              [DVar "d", SVar "s"]
-              ( let arr_t =
-                      TArr
-                        (TVar (AtomTVar "t"))
-                        ( Concat
-                            [ShapeDim $ DimVar "d", ShapeVar "s"]
-                        )
-                 in [arr_t] :-> arr_t
-              )
-          )
+      ( ScalarType $
+          Forall
+            [AtomTVar "t"]
+            ( A
+                ( Pi
+                    [DVar "d", SVar "s"]
+                    ( let arr_t =
+                            A
+                              (ScalarTVar "t")
+                              ( Concat
+                                  [ShapeDim $ DimVar "d", ShapeVar "s"]
+                              )
+                       in A ([arr_t] :-> arr_t) mempty
+                    )
+                )
+                mempty
+            )
       )
       ( ValTFun $ \[_t] ->
           pure $ ValIFun $ \[Left _d, Right _s] ->
@@ -129,20 +161,24 @@ prelude =
       ),
     PreludeVal
       "reduce"
-      ( Forall
-          [AtomTVar "t"]
-          ( Pi
-              [DVar "d", SVar "s"]
-              ( let elem_type = TArr (TVar (AtomTVar "t")) (ShapeVar "s")
-                    op_type = TArr ([elem_type, elem_type] :-> elem_type) mempty
-                    arg_type =
-                      TArr
-                        (TVar (AtomTVar "t"))
-                        (ShapeDim (DimN 1 <> DimVar "d") <> ShapeVar "s")
-                    res_type = TArr (TVar (AtomTVar "t")) (ShapeVar "s")
-                 in [op_type, arg_type] :-> res_type
-              )
-          )
+      ( ScalarType $
+          Forall
+            [AtomTVar "t"]
+            ( A
+                ( Pi
+                    [DVar "d", SVar "s"]
+                    ( let elem_type = A (ScalarTVar "t") (ShapeVar "s")
+                          op_type = A ([elem_type, elem_type] :-> elem_type) mempty
+                          arg_type =
+                            A
+                              (ScalarTVar "t")
+                              (ShapeDim (DimN 1 <> DimVar "d") <> ShapeVar "s")
+                          res_type = A (ScalarTVar "t") (ShapeVar "s")
+                       in A ([op_type, arg_type] :-> res_type) mempty
+                    )
+                )
+                mempty
+            )
       )
       ( ValTFun $ \[_t] ->
           pure $ ValIFun $ \[Left _d, Right s] ->
@@ -151,7 +187,7 @@ prelude =
       ),
     PreludeVal
       "+"
-      ([TArr Int mempty, TArr Int mempty] :-> TArr Int mempty)
+      (ScalarType $ [A Int mempty, A Int mempty] :-> A Int mempty)
       ( ValFun $ \[x, y] ->
           arrayValView x $ \(_, [ValBase (IntVal x)]) ->
             arrayValView y $ \(_, [ValBase (IntVal y)]) ->
@@ -159,56 +195,57 @@ prelude =
       ),
     PreludeVal
       "-"
-      ([TArr Int mempty, TArr Int mempty] :-> TArr Int mempty)
+      (ScalarType $ [A Int mempty, A Int mempty] :-> A Int mempty)
       ( ValFun $ \[ValArray _ [ValBase (IntVal x)], ValArray _ [ValBase (IntVal y)]] ->
           pure $ ValArray mempty [ValBase $ IntVal $ x - y]
       ),
     PreludeVal
       "*"
-      ([TArr Int mempty, TArr Int mempty] :-> TArr Int mempty)
+      (ScalarType $ [A Int mempty, A Int mempty] :-> A Int mempty)
       ( ValFun $ \[ValArray _ [ValBase (IntVal x)], ValArray _ [ValBase (IntVal y)]] ->
           pure $ ValArray mempty [ValBase $ IntVal $ x * y]
       ),
     PreludeVal
       "f.+"
-      ([TArr Float mempty, TArr Float mempty] :-> TArr Float mempty)
+      (ScalarType $ [A Float mempty, A Float mempty] :-> A Float mempty)
       ( ValFun $ \args -> baseValViews args $ \[FloatVal x, FloatVal y] ->
           pure $ ValArray mempty [ValBase $ FloatVal $ x + y]
       ),
     PreludeVal
       "f.-"
-      ([TArr Float mempty, TArr Float mempty] :-> TArr Float mempty)
+      (ScalarType $ [A Float mempty, A Float mempty] :-> A Float mempty)
       ( ValFun $ \args -> baseValViews args $ \[FloatVal x, FloatVal y] ->
           pure $ ValArray mempty [ValBase $ FloatVal $ x - y]
       ),
     PreludeVal
       "f.*"
-      ([TArr Float mempty, TArr Float mempty] :-> TArr Float mempty)
+      (ScalarType $ [A Float mempty, A Float mempty] :-> A Float mempty)
       ( ValFun $ \args -> baseValViews args $ \[FloatVal x, FloatVal y] ->
           pure $ ValArray mempty [ValBase $ FloatVal $ x * y]
       ),
     PreludeVal
       "f./"
-      ([TArr Float mempty, TArr Float mempty] :-> TArr Float mempty)
+      (ScalarType $ [A Float mempty, A Float mempty] :-> A Float mempty)
       ( ValFun $ \args -> baseValViews args $ \[FloatVal x, FloatVal y] ->
           pure $ ValArray mempty [ValBase $ FloatVal $ x / y]
       ),
     PreludeVal
       "sqrt"
-      ([TArr Float mempty] :-> TArr Float mempty)
+      (ScalarType $ [A Float mempty] :-> A Float mempty)
       ( ValFun $ \args -> baseValViews args $ \[FloatVal x] ->
           pure $ ValArray mempty [ValBase $ FloatVal $ sqrt x]
       ),
     PreludeVal
       "sum"
-      ( Pi
-          [SVar "s"]
-          ( [ TArr
-                Int
-                (ShapeVar "s")
-            ]
-              :-> TArr Int mempty
-          )
+      ( ScalarType $
+          Pi
+            [SVar "s"]
+            ( A
+                ( [A Int (ShapeVar "s")]
+                    :-> A Int mempty
+                )
+                mempty
+            )
       )
       ( let valSum :: Val m -> Int
             valSum (ValBase (IntVal x)) = x

@@ -5,7 +5,19 @@ import Data.Char (isAlphaNum, isDigit, isSpace)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Void
-import Syntax hiding (Atom, Bind, Dim, Exp, IVar, Idx, Shape, TVar, Type)
+import Syntax hiding
+  ( ArrayType,
+    Atom,
+    Bind,
+    Dim,
+    Exp,
+    IVar,
+    Idx,
+    ScalarType,
+    Shape,
+    TVar,
+    Type,
+  )
 import Syntax qualified
 import Text.Megaparsec
   ( Parsec,
@@ -45,13 +57,15 @@ type Shape = Syntax.Shape Text
 
 type Type = Syntax.Type Text
 
+type ScalarType = Syntax.ScalarType Text
+
+type ArrayType = Syntax.ArrayType Text
+
 type TVar = Syntax.TVar Text
 
 type IVar = Syntax.IVar Text
 
 type Idx = Syntax.Idx Text
-
-type Bind = Syntax.Bind NoInfo Text
 
 parse :: FilePath -> Text -> Either Text Exp
 parse fname s =
@@ -113,15 +127,12 @@ lKeyword s
       lexeme $ void $ try (string s) <* notFollowedBy (satisfy isAlphaNum)
   | otherwise = fail $ "not a keyword: " <> T.unpack s
 
-noSrcPos :: SourcePos
-noSrcPos = SourcePos "<no location>" (mkPos 1) (mkPos 1)
-
 withSrcPos :: Parser (SourcePos -> a) -> Parser a
 withSrcPos p = do
   pos <- getSourcePos
   ($ pos) <$> p
 
-withNoInfo :: Parser (NoInfo (Syntax.Type Text) -> a) -> Parser a
+withNoInfo :: Parser (NoInfo b -> a) -> Parser a
 withNoInfo = fmap ($ NoInfo)
 
 manyLisp :: Parser a -> Parser [a]
@@ -161,21 +172,34 @@ pIVar =
       SVar <$> ("@" >> lId)
     ]
 
-pType :: Parser Type
-pType =
+pScalarType :: Parser ScalarType
+pScalarType =
   choice
-    [ Syntax.TVar <$> pTVar,
+    [ ScalarTVar <$> ("&" >> lId),
       symbol "Bool" >> pure Bool,
       symbol "Int" >> pure Int,
       symbol "Float" >> pure Float,
       parens $
         choice
-          [ TArr <$> (lKeyword "A" >> pType) <*> pShape,
-            (:->) <$> ((lKeyword "->" <|> lKeyword "→") >> manyLisp pType) <*> pType,
-            Forall <$> ((lKeyword "Forall" <|> lKeyword "∀") >> manyLisp pTVar) <*> pType,
-            Pi <$> ((lKeyword "Pi" <|> lKeyword "П") >> manyLisp pIVar) <*> pType,
-            Sigma <$> ((lKeyword "Sigma" <|> lKeyword "Σ") >> manyLisp pIVar) <*> pType
+          [ (:->) <$> ((lKeyword "->" <|> lKeyword "→") >> manyLisp pArrayType) <*> pArrayType,
+            Forall <$> ((lKeyword "Forall" <|> lKeyword "∀") >> manyLisp pTVar) <*> pArrayType,
+            Pi <$> ((lKeyword "Pi" <|> lKeyword "П") >> manyLisp pIVar) <*> pArrayType,
+            Sigma <$> ((lKeyword "Sigma" <|> lKeyword "Σ") >> manyLisp pIVar) <*> pArrayType
           ]
+    ]
+
+pArrayType :: Parser ArrayType
+pArrayType =
+  choice
+    [ parens $ A <$> (lKeyword "A" >> pScalarType) <*> pShape,
+      "*" >> lId >>= \t -> pure $ A (ScalarTVar t) (ShapeVar $ "s_" <> t)
+    ]
+
+pType :: Parser Type
+pType =
+  choice
+    [ Syntax.ScalarType <$> pScalarType,
+      Syntax.ArrayType <$> pArrayType
     ]
 
 pBase :: Parser Base
@@ -213,7 +237,7 @@ pAtom =
       ]
   where
     pLambda =
-      let pArg = parens $ (,) <$> lId <*> pType
+      let pArg = parens $ (,) <$> lId <*> pArrayType
        in withNoInfo $
             Lambda
               <$> ((lKeyword "fn" <|> lKeyword "λ") >> (manyLisp pArg))
@@ -273,8 +297,8 @@ pExp =
         <*> (pExp <* symbol ")")
         <*> pExp
 
-    pParam :: Parser (Text, Type)
-    pParam = parens $ (,) <$> lId <*> pType
+    pParam :: Parser (Text, ArrayType)
+    pParam = parens $ (,) <$> lId <*> pArrayType
 
     pLet =
       lKeyword "let"
@@ -283,8 +307,8 @@ pExp =
         pBind =
           parens $
             choice
-              [ uncurry BindVal <$> pParam <*> pExp,
-                BindFun <$> lId <*> manyLisp pParam <*> pType <*> pExp,
+              [ BindVal <$> lId <*> pType <*> pExp,
+                BindFun <$> lId <*> manyLisp pParam <*> pArrayType <*> pExp,
                 lKeyword "type" >> (BindType <$> pTVar <*> pType),
                 lKeyword "idx" >> (BindIdx <$> pIVar <*> pIdx)
               ]

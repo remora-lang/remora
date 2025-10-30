@@ -1,0 +1,189 @@
+{-# LANGUAGE MonoLocalBinds #-}
+{-# LANGUAGE UndecidableInstances #-}
+
+module Prop
+  ( HasType (..),
+    HasShape (..),
+    HasSrcPos (..),
+    IsType (..),
+    (@=),
+    (\\),
+    (.<=.),
+    maximumShape,
+  )
+where
+
+import Control.Monad
+import Data.Maybe
+import Prettyprinter
+import Shape
+import Substitute
+import Symbolic qualified
+import Syntax
+import Util
+import VName
+
+-- | Things that have a type.
+class HasType x where
+  -- | Returns a normalized type.
+  typeOf :: x -> Type VName
+  typeOf = normType . typeOf_
+
+  typeOf_ :: x -> Type VName
+
+instance HasType Base where
+  typeOf_ BoolVal {} = ScalarType Bool
+  typeOf_ IntVal {} = ScalarType Int
+  typeOf_ FloatVal {} = ScalarType Float
+
+instance HasType (Atom Info VName) where
+  typeOf_ (Base _ (Info t) _) = ScalarType t
+  typeOf_ (Lambda _ _ (Info t) _) = t
+  typeOf_ (TLambda _ _ (Info t) _) = t
+  typeOf_ (ILambda _ _ (Info t) _) = t
+  typeOf_ (Box _ _ t _) = t
+
+instance HasType (Exp Info VName) where
+  typeOf_ (Var _ (Info t) _) = t
+  typeOf_ (Array _ _ (Info t) _) = t
+  typeOf_ (EmptyArray _ _ (Info t) _) = t
+  typeOf_ (Frame _ _ (Info t) _) = t
+  typeOf_ (EmptyFrame _ _ (Info t) _) = t
+  typeOf_ (App _ _ (Info (t, _)) _) = t
+  typeOf_ (TApp _ _ (Info t) _) = t
+  typeOf_ (IApp _ _ (Info t) _) = t
+  typeOf_ (Unbox _ _ _ _ (Info t) _) = t
+  typeOf_ (Let _ _ (Info t) _) = t
+
+-- | Things that have a shape.
+class HasShape x where
+  shapeOf :: x -> Shape VName
+  shapeOf = normShape . shapeOf_
+
+  shapeOf_ :: x -> Shape VName
+
+instance HasShape (Atom f VName) where
+  shapeOf_ _ = mempty
+
+instance HasShape (ArrayType VName) where
+  shapeOf_ (A _ s) = s
+
+instance HasShape (Type VName) where
+  shapeOf_ (ArrayType t) = shapeOf t
+  shapeOf_ _ = mempty
+
+instance
+  (HasShape (Type VName), HasType (Exp f VName)) =>
+  HasShape (Exp f VName)
+  where
+  shapeOf_ = shapeOf_ . typeOf_
+
+-- | Things that have a source position.
+class HasSrcPos x where
+  posOf :: x -> SourcePos
+
+instance HasSrcPos (Atom f v) where
+  posOf (Base _ _ pos) = pos
+  posOf (Lambda _ _ _ pos) = pos
+  posOf (TLambda _ _ _ pos) = pos
+  posOf (ILambda _ _ _ pos) = pos
+  posOf (Box _ _ _ pos) = pos
+
+instance HasSrcPos (Exp f v) where
+  posOf (Var _ _ pos) = pos
+  posOf (Array _ _ _ pos) = pos
+  posOf (EmptyArray _ _ _ pos) = pos
+  posOf (Frame _ _ _ pos) = pos
+  posOf (EmptyFrame _ _ _ pos) = pos
+  posOf (App _ _ _ pos) = pos
+  posOf (TApp _ _ _ pos) = pos
+  posOf (IApp _ _ _ pos) = pos
+  posOf (Unbox _ _ _ _ _ pos) = pos
+  posOf (Let _ _ _ pos) = pos
+
+-- | Things that are types.
+class IsType x where
+  normType :: x -> x
+  (~=) :: (MonadVName m) => x -> x -> m Bool
+
+infix 4 ~=
+
+instance IsType (ScalarType VName) where
+  normType (ts :-> r) = map normType ts :-> normType r
+  normType (Forall pts t) = Forall pts $ normType t
+  normType (Pi pts t) = Pi pts $ normType t
+  normType (Sigma pts t) = Sigma pts $ normType t
+  normType t = t
+
+  (ps :-> r) ~= (qs :-> t)
+    | length ps == length qs =
+        andM (zipWith (~=) ps qs) ^&& (r ~= t)
+  Forall ps r ~= Forall qs t
+    | length ps == length qs = do
+        xs <- forM ps $ \p -> do
+          vname <- newVName $ prettyText p
+          pure $ vname <$ p
+        substitute' (zip ps xs) r ~= substitute' (zip qs xs) t
+  Pi ps r ~= Pi qs t
+    | length ps == length qs = do
+        xs <- forM ps $ \p -> do
+          vname <- newVName $ prettyText p
+          pure $ vname <$ p
+        substitute' (zip ps xs) r ~= substitute' (zip qs xs) t
+  Sigma ps r ~= Sigma qs t
+    | length ps == length qs = do
+        xs <- forM ps $ \p -> do
+          vname <- newVName $ prettyText p
+          pure $ vname <$ p
+        substitute' (zip ps xs) r ~= substitute' (zip qs xs) t
+  t ~= r = pure $ t == r
+
+instance IsType (ArrayType VName) where
+  normType (A t s) = A (normType t) (normShape s)
+
+  A t s ~= A y x =
+    (t ~= y) ^&& pure (s Symbolic.@= x)
+
+instance IsType (Type VName) where
+  normType (ScalarType t) = ScalarType $ normType t
+  normType (ArrayType t) = ArrayType $ normType t
+
+  ScalarType t ~= ScalarType r = t ~= r
+  ArrayType t ~= ArrayType r = t ~= r
+  _ ~= _ = pure False
+
+-- | Naive shape equality.
+(@=) :: (Ord v) => Shape v -> Shape v -> Bool
+s @= t = normShape s == normShape t
+
+infix 4 @=
+
+-- | Shape suffix subtraction; given shapes @(++ s1 s2)@ and @t@ if @t == s2@ then
+-- returns @Just s1@. Otherwise fails with @Nothing@.
+(\\) :: (Eq v, Ord v, Show v) => Shape v -> Shape v -> Maybe (Shape v)
+s \\ t
+  | s @= t = Just mempty
+Concat [] \\ _ = Nothing
+s \\ Concat [] = pure s
+(Concat ss) \\ (Concat ts)
+  | last ss @= last ts = Concat (init ss) \\ Concat (init ts)
+(Concat ss) \\ t
+  | last ss @= t = pure $ Concat $ init ss
+s \\ t = error $ show (s, t)
+
+-- | @s .<= t@ is true if @s@ is a suffix of @t@.
+(.<=.) :: (Eq v, Ord v, Show v) => Shape v -> Shape v -> Bool
+s .<=. t = isJust $ t \\ s
+
+-- | Returns the largest shape from a collection of shapes with a common prefix.
+-- Unsafe to use if the shapes do not have a common prefix.
+maximumShape :: (Ord v, Show v, Pretty v, Foldable t) => t (Shape v) -> Shape v
+maximumShape =
+  foldr
+    ( \next shape ->
+        if shape .<=. next
+          then next
+          else shape
+    )
+    mempty
+    . foldMap ((\x -> [x]) . normShape)

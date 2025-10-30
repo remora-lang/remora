@@ -10,6 +10,7 @@ module Util
     allM,
     asumM,
     unlessM,
+    noSrcPos,
   )
 where
 
@@ -19,6 +20,10 @@ import Data.Text (Text)
 import Prettyprinter
 import Prettyprinter.Render.String
 import Prettyprinter.Render.Text
+import Text.Megaparsec.Pos
+  ( SourcePos (..),
+    mkPos,
+  )
 
 prettyText :: (Pretty x) => x -> Text
 prettyText = renderStrict . layoutPretty defaultLayoutOptions . pretty
@@ -60,3 +65,6 @@ unlessM :: (Monad m) => m Bool -> m () -> m ()
 unlessM test m = do
   b <- test
   unless b m
+
+noSrcPos :: SourcePos
+noSrcPos = SourcePos "<no location>" (mkPos 1) (mkPos 1)

@@ -29,11 +29,13 @@ library
       Interpreter.Value
       Futhark
       TypeCheck
+      TypeCheck.Monad
       VName
       Util
       CLI
       CLI.REPL
       RemoraPrelude
+      Prop
       Substitute
       SExp
       Symbolic

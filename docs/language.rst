@@ -54,6 +54,17 @@ which is syntactic sugar for a nest of function applications applied to the
 let-bound values and functions to introduce them into the scope of the `let`'s
 body.
 
+# ;;; Type of an array element:
+# etype ::= etvar				; Includes top-level vars Int, Bool, etc.
+#          | (-> (atype ...) atype)	; A value function
+#   | (Forall (tvar...) atype)	; A type function
+#   | (Pi (ivar ...) atype)		; An index function
+#
+# ;;; Type of an array
+# atype ::= (A etype shape)
+#   | tvar
+#   | [etype ds ...]	; Sugar for (A etype [ds ...])
+#   | etype			; Sugar for scalar (A etype (SHAPE))
 
 =========================
 Sugar-free Source Grammar
