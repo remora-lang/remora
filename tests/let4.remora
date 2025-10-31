@@ -1,0 +1,7 @@
+(let (((add ((x Int) (y Int)) -> Int) (+ x y))
+      ((mul ((x Int) (y Int))) (* x y))
+      ((x Int) 1)
+      (y 2)
+      )
+  (mul (add x y) 5)
+  )

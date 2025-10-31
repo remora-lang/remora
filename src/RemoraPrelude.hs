@@ -201,8 +201,10 @@ prelude =
     PreludeVal
       "*"
       (mkScalarArrayType $ [A Int mempty, A Int mempty] :-> A Int mempty)
-      ( ValFun $ \[ValArray _ [ValBase (IntVal x)], ValArray _ [ValBase (IntVal y)]] ->
-          pure $ ValArray mempty [ValBase $ IntVal $ x * y]
+      ( ValFun $ \[x, y] ->
+          arrayValView x $ \(_, [ValBase (IntVal x)]) ->
+            arrayValView y $ \(_, [ValBase (IntVal y)]) ->
+              pure $ ValArray mempty [ValBase $ IntVal $ x * y]
       ),
     PreludeVal
       "f.+"

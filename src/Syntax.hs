@@ -125,11 +125,15 @@ instance (Show v, Pretty v, Pretty (f v)) => Pretty (ScalarType f v) where
         <+> pretty t
 
 data ArrayType f v
-  = A
+  = -- | An array type literal consisting of an atom type and a shape.
+    A
       { arrayTypeScalar :: ScalarType f v,
         arrayTypeShape :: Shape v
       }
-  | ArrayTypeVar
+  | -- | An array type var. Array type vars only truly exist in the source;
+    -- during typechecking, they are replaced with an atom type var and a
+    -- shape var.
+    ArrayTypeVar
       { arrayTypeVar :: v,
         arrayTypeVarScalar :: f v,
         arrayTypeVarShape :: f v

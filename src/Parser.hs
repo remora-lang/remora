@@ -319,12 +319,17 @@ pExp =
                 [ try $
                     BindVal
                       <$> lId
-                      <*> (option Nothing (Just <$> pArrayType))
+                      <*> pure Nothing
+                      <*> pExp,
+                  try $
+                    BindVal
+                      <$> (symbol "(" *> lId)
+                      <*> ((Just <$> pArrayType) <* symbol ")")
                       <*> pExp,
                   BindFun
-                    <$> lId
+                    <$> (symbol "(" *> lId)
                     <*> manyLisp pParam
-                    <*> (option Nothing (Just <$> pArrayType))
+                    <*> ((option Nothing (lKeyword "->" *> (Just <$> pArrayType))) <* symbol ")")
                     <*> pExp,
                   lKeyword "t-fun"
                     >> ( BindTFun
