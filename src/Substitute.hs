@@ -91,6 +91,7 @@ instance (Ord v) => Substitute v (Dim v) (Dim v) where
   substitute subst (DimVar v) = fromMaybe (DimVar v) $ subst M.!? v
   substitute _ (DimN d) = DimN d
   substitute subst (Add ds) = Add $ map (substitute subst) ds
+  substitute subst (Mul ds) = Mul $ map (substitute subst) ds
 
 instance (Ord v) => Substitute v (Shape v) (Shape v) where
   substitute subst (ShapeVar v) = fromMaybe (ShapeVar v) $ subst M.!? v
@@ -108,6 +109,7 @@ instance (Eq v, Ord v) => Substitute v v (Dim v) where
   substitute subst (DimVar v) = DimVar $ substitute subst v
   substitute _ (DimN d) = DimN d
   substitute subst (Add ds) = Add $ map (substitute subst) ds
+  substitute subst (Mul ds) = Mul $ map (substitute subst) ds
 
 instance (Eq v, Ord v) => Substitute v v (Shape v) where
   substitute subst (ShapeVar v) = ShapeVar $ substitute subst v
@@ -121,6 +123,7 @@ instance (Ord v) => Substitute v (Dim v) (Shape v) where
 
 instance (Ord v) => Substitute v (Shape v) (ArrayType f v) where
   substitute subst (A t s) = A (substitute subst t) (substitute subst s)
+  substitute _ t = t
 
 instance (Ord v) => Substitute v (Shape v) (ScalarType f v) where
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
@@ -133,6 +136,7 @@ instance (Ord v) => Substitute v (Shape v) (ScalarType f v) where
 
 instance (Ord v) => Substitute v (Dim v) (ArrayType f v) where
   substitute subst (A t s) = A (substitute subst t) (substitute subst s)
+  substitute _ t = t
 
 instance (Ord v) => Substitute v (Dim v) (ScalarType f v) where
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
@@ -146,10 +150,26 @@ instance (Ord v) => Substitute v (Dim v) (ScalarType f v) where
 instance (Ord v) => Substitute (IVar v) (IVar v) (Shape v) where
   substitute subst = substitute' [(unIVar k, unIVar v) | (k, v) <- M.toList subst]
 
-instance (Ord v) => Substitute (IVar v) (IVar v) (ArrayType f v) where
-  substitute subst (A t s) = A (substitute subst t) (substitute subst s)
+instance (Ord v) => Substitute (IVar v) (IVar v) (Info v) where
+  substitute subst (Info v) = maybe (Info v) Info $ subst' M.!? v
+    where
+      subst' = M.fromList [(unIVar k, unIVar v) | (k, v) <- M.toList subst]
 
-instance (Ord v) => Substitute (IVar v) (IVar v) (ScalarType f v) where
+instance
+  ( Substitute (IVar v) (IVar v) (f v),
+    Ord v
+  ) =>
+  Substitute (IVar v) (IVar v) (ArrayType f v)
+  where
+  substitute subst (A t s) = A (substitute subst t) (substitute subst s)
+  substitute subst (ArrayTypeVar t et s) = ArrayTypeVar t et $ substitute subst s
+
+instance
+  ( Substitute (IVar v) (IVar v) (f v),
+    Ord v
+  ) =>
+  Substitute (IVar v) (IVar v) (ScalarType f v)
+  where
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
   substitute subst (Forall pts t) = Forall pts $ substitute subst t
   substitute subst (Pi pts t) =
@@ -160,6 +180,7 @@ instance (Ord v) => Substitute (IVar v) (IVar v) (ScalarType f v) where
 
 instance (Ord v) => Substitute (IVar v) (Idx v) (ArrayType f v) where
   substitute subst (A t s) = A (substitute subst t) (substitute subst s)
+  substitute _ t = t
 
 instance (Ord v) => Substitute (IVar v) (Idx v) (ScalarType f v) where
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t

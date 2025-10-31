@@ -30,12 +30,15 @@ data Dim v
     DimN Int
   | -- | Addition of dimensions.
     Add [Dim v]
+  | -- | Multiplication of dimensions.
+    Mul [Dim v]
   deriving (Show, Eq, Ord)
 
 instance (Show v, Pretty v) => Pretty (Dim v) where
   pretty (DimVar v) = "$" <> pretty v
   pretty (DimN d) = pretty d
   pretty (Add ds) = parens $ hsep ("+" : map pretty ds)
+  pretty (Mul ds) = parens $ hsep ("*" : map pretty ds)
 
 instance Semigroup (Dim v) where
   d <> e = Add [d, e]

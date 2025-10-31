@@ -43,6 +43,7 @@ checkDim = fmap normDim . checkDim'
         Just d -> pure d
     checkDim' (DimN d) = pure $ DimN d
     checkDim' (Add ds) = Add <$> mapM checkDim' ds
+    checkDim' (Mul ds) = Mul <$> mapM checkDim' ds
 
 -- | Check a 'Shape'.
 checkShape :: (MonadCheck m) => Shape Text -> m (Shape VName)

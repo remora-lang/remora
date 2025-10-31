@@ -76,6 +76,11 @@ toSShape (ShapeDim d) = do
       sym_sum <- symbolic "sum"
       constrain $ SL.head sym_sum .== sum (map SL.head sym_ds)
       pure sym_sum
+    symDim (Mul ds) = do
+      sym_ds <- mapM symDim ds
+      sym_prod <- symbolic "prod"
+      constrain $ SL.head sym_prod .== product (map SL.head sym_ds)
+      pure sym_prod
     symInt =
       pure . SL.singleton . fromInteger . toInteger
 toSShape (Concat ss) =
