@@ -83,9 +83,10 @@ instance (IsString s) => SExpable Base s where
 instance
   ( IsString s,
     SExpable v s,
-    SExpable (f (ScalarType v)) s,
-    SExpable (f (ArrayType v)) s,
-    SExpable (f (ArrayType v, Shape v)) s
+    SExpable (f v) s,
+    SExpable (f (ScalarType f v)) s,
+    SExpable (f (ArrayType f v)) s,
+    SExpable (f (ArrayType f v, Shape v)) s
   ) =>
   SExpable (Atom f v) s
   where
@@ -129,49 +130,81 @@ instance
         toSExp pos
       ]
 
+ascription :: (IsString s, SExpable a s) => Maybe a -> SExp s
+ascription Nothing = "no-ascription"
+ascription (Just a) =
+  SList
+    [ "ascription",
+      toSExp a
+    ]
+
 instance
   ( IsString s,
     SExpable v s,
-    SExpable (f (ScalarType v)) s,
-    SExpable (f (ArrayType v)) s,
-    SExpable (f (ArrayType v, Shape v)) s
+    SExpable (f v) s,
+    SExpable (f (ScalarType f v)) s,
+    SExpable (f (ArrayType f v)) s,
+    SExpable (f (ArrayType f v, Shape v)) s
   ) =>
   SExpable (Bind f v) s
   where
-  toSExp (BindVal v t e) =
+  toSExp (BindVal v mt e pos) =
     SList
       [ "bind-val",
         toSExp v,
-        toSExp t,
-        toSExp e
+        ascription mt,
+        toSExp e,
+        toSExp pos
       ]
-  toSExp (BindFun f params t body) =
+  toSExp (BindFun f params mt body pos) =
     SList
       [ "bind-fun",
         toSExp f,
         toSExp params,
-        toSExp t,
-        toSExp body
+        ascription mt,
+        toSExp body,
+        toSExp pos
       ]
-  toSExp (BindType v t) =
+  toSExp (BindTFun f params mt body pos) =
+    SList
+      [ "bind-fun",
+        toSExp f,
+        toSExp params,
+        ascription mt,
+        toSExp body,
+        toSExp pos
+      ]
+  toSExp (BindIFun f params mt body pos) =
+    SList
+      [ "bind-fun",
+        toSExp f,
+        toSExp params,
+        ascription mt,
+        toSExp body,
+        toSExp pos
+      ]
+  toSExp (BindType v t pos) =
     SList
       [ "bind-type",
         toSExp v,
-        toSExp t
+        toSExp t,
+        toSExp pos
       ]
-  toSExp (BindIdx v idx) =
+  toSExp (BindIdx v idx pos) =
     SList
       [ "bind-idx",
         toSExp v,
-        toSExp idx
+        toSExp idx,
+        toSExp pos
       ]
 
 instance
   ( IsString s,
     SExpable v s,
-    SExpable (f (ScalarType v)) s,
-    SExpable (f (ArrayType v)) s,
-    SExpable (f (ArrayType v, Shape v)) s
+    SExpable (f v) s,
+    SExpable (f (ScalarType f v)) s,
+    SExpable (f (ArrayType f v)) s,
+    SExpable (f (ArrayType f v, Shape v)) s
   ) =>
   SExpable (Exp f v) s
   where
@@ -294,15 +327,34 @@ instance (IsString s, SExpable v s) => SExpable (Idx v) s where
         toSExp v
       ]
 
-instance (IsString s, SExpable v s) => SExpable (ArrayType v) s where
+instance
+  ( IsString s,
+    SExpable v s,
+    SExpable (f v) s
+  ) =>
+  SExpable (ArrayType f v) s
+  where
   toSExp (A t shape) =
     SList
       [ "A",
         toSExp t,
         toSExp shape
       ]
+  toSExp (ArrayTypeVar t et s) =
+    SList
+      [ "ArrayTypeVar",
+        toSExp t,
+        toSExp et,
+        toSExp s
+      ]
 
-instance (IsString s, SExpable v s) => SExpable (ScalarType v) s where
+instance
+  ( IsString s,
+    SExpable v s,
+    SExpable (f v) s
+  ) =>
+  SExpable (ScalarType f v) s
+  where
   toSExp (ScalarTVar v) = toSExp v
   toSExp Bool = "Bool"
   toSExp Int = "Int"
@@ -332,7 +384,13 @@ instance (IsString s, SExpable v s) => SExpable (ScalarType v) s where
         toSExp t
       ]
 
-instance (IsString s, SExpable v s) => SExpable (Type v) s where
+instance
+  ( IsString s,
+    SExpable v s,
+    SExpable (f v) s
+  ) =>
+  SExpable (Type f v) s
+  where
   toSExp (ArrayType t) =
     SList ["array-type", toSExp t]
   toSExp (ScalarType t) =

@@ -37,7 +37,11 @@ instance (Ord v) => Substitute v v v where
 -- == 'Type' substitutions
 --------------------------------------------------------------------------------
 
-instance (Ord v) => Substitute v (ScalarType v) (ScalarType v) where
+instance (Ord v) => Substitute v v (Info v) where
+  substitute subst (Info v) =
+    maybe (Info v) Info $ subst M.!? v
+
+instance (Ord v) => Substitute v (ScalarType f v) (ScalarType f v) where
   substitute subst t@(ScalarTVar v) =
     fromMaybe t $ subst M.!? v
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
@@ -48,28 +52,22 @@ instance (Ord v) => Substitute v (ScalarType v) (ScalarType v) where
   substitute subst (Sigma pts t) = Sigma pts $ substitute subst t
   substitute _ t = t
 
-instance (Ord v) => Substitute v (ScalarType v) (ArrayType v) where
+instance (Ord v) => Substitute v (ScalarType f v) (ArrayType f v) where
   substitute subst (A t s) = A (substitute subst t) s
-
--- instance (Ord v) => Substitute v (Type v) (Type v) where
---  substitute subst (TVar tvar) =
---    fromMaybe (TVar tvar) $ subst M.!? unTVar tvar
---  substitute subst (A t s) = A (substitute subst t) s
---  substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
---  substitute subst (Forall pts t) =
---    Forall pts $
---      substitute (M.filterWithKey (\k _ -> k `notElem` map unTVar pts) subst) t
---  substitute subst (Pi pts t) = Pi pts $ substitute subst t
---  substitute subst (Sigma pts t) = Sigma pts $ substitute subst t
---  substitute _ t = t
+  substitute _ t = t
 
 instance (Eq v, Ord v, Substitute v c c) => Substitute (TVar v) c c where
   substitute subst = substitute $ M.mapKeys unTVar subst
 
-instance (Eq v, Ord v) => Substitute v v (ArrayType v) where
+instance (Eq v, Ord v, Substitute v v (f v)) => Substitute v v (ArrayType f v) where
   substitute subst (A t s) = A (substitute subst t) (substitute subst s)
+  substitute subst (ArrayTypeVar t et s) =
+    ArrayTypeVar
+      (substitute subst t)
+      (substitute subst et)
+      (substitute subst s)
 
-instance (Eq v, Ord v) => Substitute v v (ScalarType v) where
+instance (Eq v, Ord v, Substitute v v (f v)) => Substitute v v (ScalarType f v) where
   substitute subst t@(ScalarTVar v) =
     maybe t ScalarTVar $ subst M.!? v
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
@@ -121,10 +119,10 @@ instance (Ord v) => Substitute v (Dim v) (Shape v) where
   substitute subst (ShapeDim d) = ShapeDim $ substitute subst d
   substitute subst (Concat shapes) = Concat $ map (substitute subst) shapes
 
-instance (Ord v) => Substitute v (Shape v) (ArrayType v) where
+instance (Ord v) => Substitute v (Shape v) (ArrayType f v) where
   substitute subst (A t s) = A (substitute subst t) (substitute subst s)
 
-instance (Ord v) => Substitute v (Shape v) (ScalarType v) where
+instance (Ord v) => Substitute v (Shape v) (ScalarType f v) where
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
   substitute subst (Forall pts t) = Forall pts $ substitute subst t
   substitute subst (Pi pts t) =
@@ -133,10 +131,10 @@ instance (Ord v) => Substitute v (Shape v) (ScalarType v) where
     Sigma pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unIVar pts) subst) t
   substitute _ t = t
 
-instance (Ord v) => Substitute v (Dim v) (ArrayType v) where
+instance (Ord v) => Substitute v (Dim v) (ArrayType f v) where
   substitute subst (A t s) = A (substitute subst t) (substitute subst s)
 
-instance (Ord v) => Substitute v (Dim v) (ScalarType v) where
+instance (Ord v) => Substitute v (Dim v) (ScalarType f v) where
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
   substitute subst (Forall pts t) = Forall pts $ substitute subst t
   substitute subst (Pi pts t) =
@@ -148,10 +146,10 @@ instance (Ord v) => Substitute v (Dim v) (ScalarType v) where
 instance (Ord v) => Substitute (IVar v) (IVar v) (Shape v) where
   substitute subst = substitute' [(unIVar k, unIVar v) | (k, v) <- M.toList subst]
 
-instance (Ord v) => Substitute (IVar v) (IVar v) (ArrayType v) where
+instance (Ord v) => Substitute (IVar v) (IVar v) (ArrayType f v) where
   substitute subst (A t s) = A (substitute subst t) (substitute subst s)
 
-instance (Ord v) => Substitute (IVar v) (IVar v) (ScalarType v) where
+instance (Ord v) => Substitute (IVar v) (IVar v) (ScalarType f v) where
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
   substitute subst (Forall pts t) = Forall pts $ substitute subst t
   substitute subst (Pi pts t) =
@@ -160,10 +158,10 @@ instance (Ord v) => Substitute (IVar v) (IVar v) (ScalarType v) where
     Sigma pts $ substitute (M.filterWithKey (\k _ -> k `notElem` pts) subst) t
   substitute _ t = t
 
-instance (Ord v) => Substitute (IVar v) (Idx v) (ArrayType v) where
+instance (Ord v) => Substitute (IVar v) (Idx v) (ArrayType f v) where
   substitute subst (A t s) = A (substitute subst t) (substitute subst s)
 
-instance (Ord v) => Substitute (IVar v) (Idx v) (ScalarType v) where
+instance (Ord v) => Substitute (IVar v) (Idx v) (ScalarType f v) where
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
   substitute subst (Forall pts t) = Forall pts $ substitute subst t
   substitute subst (Pi pts t) =

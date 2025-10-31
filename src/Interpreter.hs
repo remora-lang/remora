@@ -27,7 +27,7 @@ type Atom = Syntax.Atom Info VName
 
 type Shape = Syntax.Shape VName
 
-type Type = Syntax.Type VName
+type Type = Syntax.Type Info VName
 
 type Idx = Syntax.Idx VName
 
@@ -35,7 +35,7 @@ type Bind = Syntax.Bind Info VName
 
 -- | Interpret a program. Takes a type checked prelude to populate the initial
 -- environment with.
-interpret :: Prelude VName InterpM -> Exp -> Either Error Val
+interpret :: Prelude Info VName InterpM -> Exp -> Either Error Val
 interpret prelude e =
   runReader (runExceptT $ runInterpM $ intExp e) (initEnv prelude)
 
@@ -53,7 +53,7 @@ data Env = Env
 
 -- | The initial environment. Takes a type checked prelude to populate the
 -- initial variable and type mappings.
-initEnv :: Prelude VName InterpM -> Env
+initEnv :: Prelude Info VName InterpM -> Env
 initEnv prelude = Env m tm mempty mempty
   where
     m =
@@ -227,12 +227,20 @@ intExp expr@(Let bs e _ _) =
   foldl (flip intBind) (intExp e) bs
   where
     intBind :: Bind -> InterpM a -> InterpM a
-    intBind (BindVal v _ e) m = do
+    intBind (BindVal v _ e _) m = do
       val <- intExp e
       bind v val m
-    intBind (BindFun f params _ body) m = do
+    intBind (BindFun f params _ body _) m = do
       flip (bind f) m $ ValFun $ \vals ->
         binds bind (zip (map fst params) vals) $
+          intExp body
+    intBind (BindTFun f params _ body _) m = do
+      flip (bind f) m $ ValTFun $ \ts ->
+        binds tbind (zip (map unTVar params) ts) $
+          intExp body
+    intBind (BindIFun f params _ body _) m = do
+      flip (bind f) m $ ValIFun $ \is ->
+        binds ibind (zip (map unIVar params) is) $
           intExp body
     intBind _ m = m
 

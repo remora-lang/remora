@@ -12,11 +12,11 @@ import Data.Text (Text)
 import Interpreter.Value
 import Syntax
 
-type Prelude v m = [PreludeVal v m]
+type Prelude f v m = [PreludeVal f v m]
 
-data PreludeVal v m = PreludeVal v (ArrayType v) (Val m)
+data PreludeVal f v m = PreludeVal v (ArrayType f v) (Val m)
 
-prelude :: (Monad m) => Prelude Text m
+prelude :: (Monad m) => Prelude NoInfo Text m
 prelude =
   [ PreludeVal
       "head"

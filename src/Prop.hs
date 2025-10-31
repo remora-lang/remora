@@ -26,7 +26,7 @@ import Syntax
 import Util
 import VName
 
-arrayTypeOf :: Exp Info VName -> ArrayType VName
+arrayTypeOf :: Exp Info VName -> ArrayType Info VName
 arrayTypeOf = normType . arrayTypeOf_
   where
     arrayTypeOf_ (Var _ (Info t) _) = t
@@ -40,7 +40,7 @@ arrayTypeOf = normType . arrayTypeOf_
     arrayTypeOf_ (Unbox _ _ _ _ (Info t) _) = t
     arrayTypeOf_ (Let _ _ (Info t) _) = t
 
-scalarTypeOf :: Atom Info VName -> ScalarType VName
+scalarTypeOf :: Atom Info VName -> ScalarType Info VName
 scalarTypeOf = normType . scalarTypeOf_
   where
     scalarTypeOf_ (Base _ (Info t) _) = t
@@ -49,7 +49,7 @@ scalarTypeOf = normType . scalarTypeOf_
     scalarTypeOf_ (ILambda _ _ (Info t) _) = t
     scalarTypeOf_ (Box _ _ t _) = t
 
-baseTypeOf :: Base -> ScalarType VName
+baseTypeOf :: Base -> ScalarType f VName
 baseTypeOf BoolVal {} = Bool
 baseTypeOf IntVal {} = Int
 baseTypeOf FloatVal {} = Float
@@ -57,10 +57,10 @@ baseTypeOf FloatVal {} = Float
 -- | Things that have a type.
 class HasType x where
   -- | Returns a normalized type.
-  typeOf :: x -> Type VName
+  typeOf :: x -> Type Info VName
   typeOf = normType . typeOf_
 
-  typeOf_ :: x -> Type VName
+  typeOf_ :: x -> Type Info VName
 
 instance HasType Base where
   typeOf_ = ScalarType . baseTypeOf
@@ -81,22 +81,28 @@ class HasShape x where
 instance HasShape (Atom f VName) where
   shapeOf_ _ = mempty
 
-instance HasShape (ArrayType VName) where
+instance HasShape (ArrayType Info VName) where
   shapeOf_ (A _ s) = s
+  shapeOf_ (ArrayTypeVar _ _ (Info s)) = ShapeVar s
 
-instance HasShape (Type VName) where
+instance HasShape (Type Info VName) where
   shapeOf_ (ArrayType t) = shapeOf t
   shapeOf_ _ = mempty
 
-instance
-  (HasShape (Type VName), HasType (Exp f VName)) =>
-  HasShape (Exp f VName)
-  where
+instance HasShape (Exp Info VName) where
   shapeOf_ = shapeOf_ . typeOf_
 
 -- | Things that have a source position.
 class HasSrcPos x where
   posOf :: x -> SourcePos
+
+instance HasSrcPos (Bind f v) where
+  posOf (BindVal _ _ _ pos) = pos
+  posOf (BindFun _ _ _ _ pos) = pos
+  posOf (BindTFun _ _ _ _ pos) = pos
+  posOf (BindIFun _ _ _ _ pos) = pos
+  posOf (BindType _ _ pos) = pos
+  posOf (BindIdx _ _ pos) = pos
 
 instance HasSrcPos (Atom f v) where
   posOf (Base _ _ pos) = pos
@@ -124,7 +130,7 @@ class IsType x where
 
 infix 4 ~=
 
-instance IsType (ScalarType VName) where
+instance IsType (ScalarType Info VName) where
   normType (ts :-> r) = map normType ts :-> normType r
   normType (Forall pts t) = Forall pts $ normType t
   normType (Pi pts t) = Pi pts $ normType t
@@ -154,13 +160,15 @@ instance IsType (ScalarType VName) where
         substitute' (zip ps xs) r ~= substitute' (zip qs xs) t
   t ~= r = pure $ t == r
 
-instance IsType (ArrayType VName) where
+instance IsType (ArrayType Info VName) where
   normType (A t s) = A (normType t) (normShape s)
+  normType t = t
 
   A t s ~= A y x =
     (t ~= y) ^&& pure (s Symbolic.@= x)
+  t ~= r = pure $ t == r
 
-instance IsType (Type VName) where
+instance IsType (Type Info VName) where
   normType (ScalarType t) = ScalarType $ normType t
   normType (ArrayType t) = ArrayType $ normType t
 

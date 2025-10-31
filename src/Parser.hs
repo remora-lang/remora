@@ -29,6 +29,7 @@ import Text.Megaparsec
     getSourcePos,
     many,
     notFollowedBy,
+    option,
     satisfy,
     some,
     try,
@@ -51,11 +52,11 @@ type Dim = Syntax.Dim Text
 
 type Shape = Syntax.Shape Text
 
-type Type = Syntax.Type Text
+type Type = Syntax.Type NoInfo Text
 
-type ScalarType = Syntax.ScalarType Text
+type ScalarType = Syntax.ScalarType NoInfo Text
 
-type ArrayType = Syntax.ArrayType Text
+type ArrayType = Syntax.ArrayType NoInfo Text
 
 type TVar = Syntax.TVar Text
 
@@ -115,7 +116,9 @@ keywords =
     "let",
     "type",
     "idx",
-    "fun"
+    "fun",
+    "t-fun",
+    "i-fun"
   ]
 
 lKeyword :: Text -> Parser ()
@@ -189,7 +192,7 @@ pArrayType' :: Parser ArrayType
 pArrayType' =
   choice
     [ try $ parens $ A <$> (lKeyword "A" >> pScalarType) <*> pShape,
-      "*" >> ArrayTypeVar <$> lId,
+      ArrayTypeVar <$> ("*" >> lId) <*> pure NoInfo <*> pure NoInfo,
       brackets $ A <$> pScalarType <*> pShapeSplice
     ]
 
@@ -310,13 +313,36 @@ pExp =
         >> (Let <$> manyLisp pBind <*> pExp)
       where
         pBind =
-          parens $
-            choice
-              [ try $ BindVal <$> lId <*> pArrayType <*> pExp,
-                BindFun <$> lId <*> manyLisp pParam <*> pArrayType <*> pExp,
-                lKeyword "type" >> (BindType <$> pTVar <*> pType),
-                lKeyword "idx" >> (BindIdx <$> pIVar <*> pIdx)
-              ]
+          withSrcPos $
+            parens $
+              choice
+                [ try $
+                    BindVal
+                      <$> lId
+                      <*> (option Nothing (Just <$> pArrayType))
+                      <*> pExp,
+                  BindFun
+                    <$> lId
+                    <*> manyLisp pParam
+                    <*> (option Nothing (Just <$> pArrayType))
+                    <*> pExp,
+                  lKeyword "t-fun"
+                    >> ( BindTFun
+                           <$> lId
+                           <*> manyLisp pTVar
+                           <*> (option Nothing (Just <$> pArrayType))
+                           <*> pExp
+                       ),
+                  lKeyword "i-fun"
+                    >> ( BindIFun
+                           <$> lId
+                           <*> manyLisp pIVar
+                           <*> (option Nothing (Just <$> pArrayType))
+                           <*> pExp
+                       ),
+                  lKeyword "type" >> (BindType <$> pTVar <*> pType),
+                  lKeyword "idx" >> (BindIdx <$> pIVar <*> pIdx)
+                ]
 
     pAtFn = do
       void $ symbol "@"
@@ -335,6 +361,27 @@ pExp =
         tApp _ Nothing m = m
         tApp pos (Just ts) m =
           TApp m ts NoInfo pos
+
+-- pAtFnBind = do
+-- void $ symbol "@"
+-- f <- lId
+-- mts <- choice [Just <$> manyLisp pTVar, symbol "_" >> pure Nothing]
+-- midx <- choice [Just <$> manyLisp pIVar, symbol "_" >> pure Nothing]
+-- params <- manyLisp pParam
+-- t <- pArrayType
+-- body <- pExp
+--
+--  pure $
+--    \_ pos ->
+--      App (iApp pos midx $ tApp pos mts f) args NoInfo pos
+--  where
+--    iBind _ Nothing m = m
+--    i pos (Just idxs) m =
+--      BindIFun "f" idxs Nothing m pos
+
+--    tBind _ Nothing m = m
+--    tBind pos (Just ts) m =
+--      BindTFun m ts NoInfo pos
 
 pDim :: Parser Dim
 pDim =

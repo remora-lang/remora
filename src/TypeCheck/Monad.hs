@@ -12,6 +12,14 @@ import Syntax
 import Util
 import VName
 
+data ArrayTypeVarBundle v
+  = ArrayTypeVarBundle
+  { arrayTVar :: v,
+    atomTVar :: v,
+    shapeVar :: v
+  }
+  deriving (Eq, Show)
+
 -- | Environment that maps the various categories of source names to 'VName's.
 data VNameEnv
   = VNameEnv
@@ -20,7 +28,7 @@ data VNameEnv
     -- | 'Text' atom type vars to 'VName's.
     vnameEnvAtomTypeVars :: Map Text VName,
     -- | 'Text' array type vars to 'VName's.
-    vnameEnvArrayTypeVars :: Map Text VName,
+    vnameEnvArrayTypeVarBundles :: Map Text (ArrayTypeVarBundle VName),
     -- | 'Text' dim vars to 'VName's.
     vnameEnvDimVars :: Map Text VName,
     -- | 'Text' shape vars to 'VNames.
@@ -40,11 +48,11 @@ instance Monoid VNameEnv where
 data BindEnv
   = BindEnv
   { -- | Term variables to their types.
-    bindEnvVars :: Map VName (ArrayType VName),
+    bindEnvVars :: Map VName (ArrayType Info VName),
     -- | Atom type vars to types.
-    bindEnvAtomTypes :: Map VName (ScalarType VName),
+    bindEnvAtomTypes :: Map VName (ScalarType Info VName),
     -- | Array type vars to types.
-    bindEnvArrayTypes :: Map VName (ArrayType VName),
+    bindEnvArrayTypes :: Map VName (ArrayType Info VName),
     -- | Dim vars to 'Dim's.
     bindEnvDims :: Map VName (Dim VName),
     -- | Shape vars to 'Shape's.
@@ -134,9 +142,9 @@ lookupVNameAtomTypeVar v =
   lookupEnv "text atom type" v $ (M.!? v) . vnameEnvAtomTypeVars . envVNames
 
 -- | Look-up an array type variable.
-lookupVNameArrayTypeVar :: (MonadCheck m) => Text -> m VName
-lookupVNameArrayTypeVar v =
-  lookupEnv "text array type" v $ (M.!? v) . vnameEnvArrayTypeVars . envVNames
+lookupVNameArrayTypeVarBundle :: (MonadCheck m) => Text -> m (ArrayTypeVarBundle VName)
+lookupVNameArrayTypeVarBundle v =
+  lookupEnv "text array type" v $ (M.!? v) . vnameEnvArrayTypeVarBundles . envVNames
 
 -- | Look-up a dim variable.
 lookupVNameDimVar :: (MonadCheck m) => Text -> m VName
@@ -149,17 +157,17 @@ lookupVNameShapeVar v =
   lookupEnv "text shape" v $ (M.!? v) . vnameEnvShapeVars . envVNames
 
 -- | Look-up the type of a term variable.
-lookupVarType :: (MonadCheck m) => VName -> m (ArrayType VName)
+lookupVarType :: (MonadCheck m) => VName -> m (ArrayType Info VName)
 lookupVarType v =
   lookupEnv "" v $ (M.!? v) . bindEnvVars . envBinds
 
 -- | Look-up an atom type variable binding.
-lookupAtomType :: (MonadCheck m) => VName -> m (Maybe (ScalarType VName))
+lookupAtomType :: (MonadCheck m) => VName -> m (Maybe (ScalarType Info VName))
 lookupAtomType v =
   asks $ (M.!? v) . bindEnvAtomTypes . envBinds
 
 -- | Look-up an array type variable binding.
-lookupArrayType :: (MonadCheck m) => VName -> m (Maybe (ArrayType VName))
+lookupArrayType :: (MonadCheck m) => VName -> m (Maybe (ArrayType Info VName))
 lookupArrayType v =
   asks $ (M.!? v) . bindEnvArrayTypes . envBinds
 
@@ -176,9 +184,9 @@ lookupShape v =
 -- | Bind a source parameter into a local environment.
 bindParam ::
   (MonadCheck m) =>
-  (ArrayType Text -> m (ArrayType VName)) ->
-  (Text, ArrayType Text) ->
-  ((VName, ArrayType VName) -> m a) ->
+  (ArrayType NoInfo Text -> m (ArrayType Info VName)) ->
+  (Text, ArrayType NoInfo Text) ->
+  ((VName, ArrayType Info VName) -> m a) ->
   m a
 bindParam checkArrayType (v, t) m = do
   vname <- newVName v
@@ -192,7 +200,7 @@ bindParam checkArrayType (v, t) m = do
 -- | Bind a source parameter into a local environment.
 bindParam' ::
   (MonadCheck m) =>
-  (Text, ArrayType VName) ->
+  (Text, ArrayType Info VName) ->
   (VName -> m a) ->
   m a
 bindParam' (v, t) m = do
@@ -208,19 +216,23 @@ bindTypeParam :: (MonadCheck m) => TVar Text -> (TVar VName -> m a) -> m a
 bindTypeParam tvar m = do
   vname <- newVName $ unTVar tvar
   Env vnames bs <- ask
+  vnames' <-
+    case tvar of
+      AtomTVar v ->
+        pure $
+          vnames
+            { vnameEnvAtomTypeVars =
+                M.insert v vname $ vnameEnvAtomTypeVars vnames
+            }
+      ArrayTVar v -> do
+        et_vname <- newVName $ "et_" <> v
+        s_vname <- newVName $ "s_" <> v
+        pure $
+          vnames
+            { vnameEnvArrayTypeVarBundles =
+                M.insert v (ArrayTypeVarBundle vname et_vname s_vname) $ vnameEnvArrayTypeVarBundles vnames
+            }
   let tvar' = (const vname) <$> tvar
-      vnames' =
-        case tvar of
-          AtomTVar v ->
-            vnames
-              { vnameEnvAtomTypeVars =
-                  M.insert v vname $ vnameEnvAtomTypeVars vnames
-              }
-          ArrayTVar v ->
-            vnames
-              { vnameEnvArrayTypeVars =
-                  M.insert v vname $ vnameEnvArrayTypeVars vnames
-              }
       env' = Env vnames' bs
   local (const env') $ m tvar'
 
@@ -248,10 +260,10 @@ bindIdxParam ivar m = do
 -- | Bind a type binding.
 bindType ::
   (MonadCheck m) =>
-  (Type Text -> m (Type VName)) ->
+  (Type NoInfo Text -> m (Type Info VName)) ->
   SourcePos ->
-  (TVar Text, Type Text) ->
-  ((TVar VName, Type VName) -> m a) ->
+  (TVar Text, Type NoInfo Text) ->
+  ((TVar VName, Type Info VName) -> m a) ->
   m a
 bindType checkType pos (tvar, t) m =
   bindTypeParam tvar $ \tvar' -> do

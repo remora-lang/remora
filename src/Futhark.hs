@@ -22,11 +22,11 @@ type Atom = Syntax.Atom Info VName
 
 type Shape = Syntax.Shape VName
 
-type ScalarType = Syntax.ScalarType VName
+type ScalarType = Syntax.ScalarType Info VName
 
-type ArrayType = Syntax.ArrayType VName
+type ArrayType = Syntax.ArrayType Info VName
 
-type Type = Syntax.Type VName
+type Type = Syntax.Type Info VName
 
 data Env = Env
 
@@ -256,7 +256,7 @@ wrapInMain ((e, ret), State stms counter funs) =
       ]
 
 -- | Turn Remora into Futhark.
-compile :: Prelude VName FutharkM -> Exp -> Either Error T.Text
+compile :: Prelude Info VName FutharkM -> Exp -> Either Error T.Text
 compile _prelude e =
   wrapInMain
     <$> runExcept

@@ -19,7 +19,7 @@ import VName
 check ::
   (Monad m) =>
   Exp NoInfo Text ->
-  Either Error (Prelude VName m, Exp Info VName)
+  Either Error (Prelude Info VName m, Exp Info VName)
 check e =
   fst $
     evalRWS
@@ -62,23 +62,23 @@ checkIdx :: (MonadCheck m) => Idx Text -> m (Idx VName)
 checkIdx = mapIdx (fmap Dim . checkDim) (fmap Shape . checkShape)
 
 -- | Check a 'Type'.
-checkType :: (MonadCheck m) => Type Text -> m (Type VName)
+checkType :: (MonadCheck m) => Type NoInfo Text -> m (Type Info VName)
 checkType = fmap normType . checkType'
   where
     checkType' (ArrayType t) = ArrayType <$> checkArrayType t
     checkType' (ScalarType t) = ScalarType <$> checkScalarType t
 
-checkArrayType :: (MonadCheck m) => ArrayType Text -> m (ArrayType VName)
+checkArrayType :: (MonadCheck m) => ArrayType NoInfo Text -> m (ArrayType Info VName)
 checkArrayType (A t shape) =
   A <$> checkScalarType t <*> checkShape shape
-checkArrayType (ArrayTypeVar v) = do
-  v' <- lookupVNameArrayTypeVar v
+checkArrayType (ArrayTypeVar v _ _) = do
+  ArrayTypeVarBundle v' et_v' s_v' <- lookupVNameArrayTypeVarBundle v
   mt <- lookupArrayType v'
   case mt of
-    Nothing -> pure $ ArrayTypeVar v'
+    Nothing -> pure $ ArrayTypeVar v' (Info et_v') (Info s_v')
     Just t -> pure t
 
-checkScalarType :: (MonadCheck m) => ScalarType Text -> m (ScalarType VName)
+checkScalarType :: (MonadCheck m) => ScalarType NoInfo Text -> m (ScalarType Info VName)
 checkScalarType (ScalarTVar v) = do
   v' <- lookupVNameAtomTypeVar v
   mt <- lookupAtomType v'
@@ -286,24 +286,67 @@ checkExp (Let bs e _ pos) = do
     e' <- checkExp e
     pure $ Let bs' e' (Info $ arrayTypeOf e') pos
   where
+    checkMaybeType ::
+      (MonadCheck m) =>
+      Maybe (ArrayType NoInfo Text) -> m (Maybe (ArrayType Info VName))
+    checkMaybeType Nothing = pure Nothing
+    checkMaybeType (Just t) = Just <$> checkArrayType t
+
+    checkAnnot ::
+      (MonadCheck m) =>
+      ArrayType Info VName -> Maybe (ArrayType Info VName) -> m ()
+    checkAnnot t mannot =
+      case mannot of
+        Nothing -> pure ()
+        Just annot -> do
+          unlessM (t ~= annot) $
+            throwErrorPos pos $
+              T.unlines
+                [ "Type:",
+                  prettyText t,
+                  "doesn't match the annotated type:",
+                  prettyText annot
+                ]
+
     withBind :: (MonadCheck m) => Bind NoInfo Text -> (Bind Info VName -> m a) -> m a
-    withBind (BindVal v t ve) m = do
+    withBind (BindVal v mt ve pos) m = do
       ve' <- checkExp ve
-      bindParam checkArrayType (v, t) $ \(vname, t') ->
-        m $ BindVal vname t' ve'
-    withBind (BindFun f params ret_t body) m = do
-      ret_t' <- checkArrayType ret_t
+      let t = arrayTypeOf ve'
+      mt' <- checkMaybeType mt
+      checkAnnot t mt'
+      bindParam' (v, t) $ \vname ->
+        m $ BindVal vname mt' ve' pos
+    withBind (BindFun f params mt body pos) m = do
+      mt' <- checkMaybeType mt
       (params', body') <-
         binds (bindParam checkArrayType) params $ \params' -> do
-          (params',) <$> checkExp body
-      bindParam' (f, A (map snd params' :-> ret_t') mempty) $ \f' ->
-        m $ BindFun f' params' ret_t' body'
-    withBind (BindType tvar t) m =
+          body' <- checkExp body
+          checkAnnot (arrayTypeOf body') mt'
+          pure (params', body')
+      bindParam' (f, A (map snd params' :-> arrayTypeOf body') mempty) $ \f' ->
+        m $ BindFun f' params' mt' body' pos
+    withBind (BindTFun f params mt body pos) m =
+      binds bindTypeParam params $ \params' -> do
+        body' <- checkExp body
+        mt' <- checkMaybeType mt
+        let body_t = arrayTypeOf body'
+        checkAnnot body_t mt'
+        bindParam' (f, A (Forall params' body_t) mempty) $ \f' ->
+          m $ BindTFun f' params' mt' body' pos
+    withBind (BindIFun f params mt body pos) m =
+      binds bindIdxParam params $ \params' -> do
+        body' <- checkExp body
+        mt' <- checkMaybeType mt
+        let body_t = arrayTypeOf body'
+        checkAnnot body_t mt'
+        bindParam' (f, A (Pi params' body_t) mempty) $ \f' ->
+          m $ BindIFun f' params' mt' body' pos
+    withBind (BindType tvar t pos) m =
       bindType checkType pos (tvar, t) $ \(tvar', t') ->
-        m $ BindType tvar' t'
-    withBind (BindIdx ivar idx) m =
+        m $ BindType tvar' t' pos
+    withBind (BindIdx ivar idx pos) m =
       bindIdx checkIdx pos (ivar, idx) $ \(ivar', idx') ->
-        m $ BindIdx ivar' idx'
+        m $ BindIdx ivar' idx' pos
 
 -- | Type check an unchecked 'Atom'.
 checkAtom :: (MonadCheck m) => Atom NoInfo Text -> m (Atom Info VName)
@@ -349,7 +392,7 @@ checkAtom atom@(Box idx e box_t pos) = do
           ]
 
 -- | Binds prelude bindings into the local environment.
-withPrelude :: (MonadCheck m, Monad n) => m a -> m (Prelude VName n, a)
+withPrelude :: (MonadCheck m, Monad n) => m a -> m (Prelude Info VName n, a)
 withPrelude m = checkPrelude prelude mempty
   where
     checkPrelude [] prelude' =

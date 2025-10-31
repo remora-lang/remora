@@ -19,9 +19,9 @@ import Syntax qualified
 import Util
 import VName
 
-type Type = Syntax.Type VName
+type Type = Syntax.Type Info VName
 
-type ScalarType = Syntax.ScalarType VName
+type ScalarType = Syntax.ScalarType Info VName
 
 type Idx = Syntax.Idx VName
 
