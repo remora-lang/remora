@@ -255,5 +255,36 @@ prelude =
          in ValIFun $ \[_s] ->
               pure $ ValFun $ \[xs] ->
                 pure $ ValArray mempty [ValBase $ IntVal $ valSum xs]
+      ),
+    PreludeVal
+      "flatten"
+      ( mkScalarArrayType $
+          Forall
+            [AtomTVar "t"]
+            ( A
+                ( Pi
+                    [DVar "m", DVar "n", SVar "s"]
+                    ( let arg_t =
+                            A
+                              (ScalarTVar "t")
+                              ( Concat
+                                  [ShapeDim $ DimVar "m", ShapeDim $ DimVar "n", ShapeVar "s"]
+                              )
+                          ret_t =
+                            A
+                              (ScalarTVar "t")
+                              ( Concat
+                                  [ShapeDim $ (Mul [DimVar "m", DimVar "n"]), ShapeVar "s"]
+                              )
+                       in A ([arg_t] :-> ret_t) mempty
+                    )
+                )
+                mempty
+            )
+      )
+      ( ValTFun $ \[_t] ->
+          pure $ ValIFun $ \[Left _m, Left _n, Right _s] ->
+            pure $ ValFun $ \[v] ->
+              pure $ valConcat v
       )
   ]

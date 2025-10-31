@@ -9,6 +9,7 @@ module Interpreter.Value
     rep,
     (\\),
     transpose,
+    valConcat,
   )
 where
 
@@ -129,3 +130,8 @@ transpose :: Val m -> Val m
 transpose (ValArray (m : n : ss) vss) =
   ValArray (m : n : ss) $ concat $ L.transpose $ split m vss
 transpose v = v
+
+valConcat :: Val m -> Val m
+valConcat (ValArray (m : n : s) vs) =
+  ValArray (m * n : s) $ arrayValViews vs $ concat . map snd
+valConcat _ = error "concat"

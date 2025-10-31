@@ -224,7 +224,7 @@ intExp expr@(Unbox is x_e box e _ _) = do
             prettyString expr
           ]
 intExp expr@(Let bs e _ _) =
-  foldl (flip intBind) (intExp e) bs
+  foldr intBind (intExp e) bs
   where
     intBind :: Bind -> InterpM a -> InterpM a
     intBind (BindVal v _ e _) m = do

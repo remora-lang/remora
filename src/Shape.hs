@@ -150,6 +150,22 @@ normDim (Add ds) =
         DimN n -> first (+ n)
         DimVar v -> second (DimVar v :)
         _ -> error ""
+normDim (Mul ds) =
+  case (d, vars) of
+    (_, []) -> DimN d
+    _ -> Mul (DimN d : sort vars)
+  where
+    (d, vars) =
+      foldr discriminate (1, []) $
+        flip concatMap ds $ \d' ->
+          case normDim d' of
+            Add ds' -> ds'
+            d'' -> pure d''
+    discriminate d' =
+      case d' of
+        DimN n -> first (* n)
+        DimVar v -> second (DimVar v :)
+        _ -> error ""
 
 -- | Basic shape normalization; normalizes dimensions and flattens
 -- concatenations and returns the result in sorted order.
