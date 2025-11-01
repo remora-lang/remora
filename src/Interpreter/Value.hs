@@ -15,18 +15,18 @@ where
 
 import Data.List qualified as L
 import Prettyprinter
-import Syntax hiding (Atom, Exp, IVar, Idx, ScalarType, Shape, TVar, Type)
+import Syntax hiding (Atom, Exp, ExtentParam, Extent, AtomType, Shape, TypeParam, Type)
 import Syntax qualified
 import Util
 import VName
 
 type Type = Syntax.Type Info VName
 
-type ScalarType = Syntax.ScalarType Info VName
+type AtomType = Syntax.AtomType Info VName
 
-type Idx = Syntax.Idx VName
+type Extent = Syntax.Extent VName
 
--- | Values. Parameterized by a monad @m@ over which function bodies are
+-- | Values. Paramized by a monad @m@ over which function bodies are
 -- evaluated.
 data Val m
   = -- | Variables.
@@ -36,7 +36,7 @@ data Val m
   | -- | Array value.
     ValArray [Int] [Val m]
   | -- | Box.
-    ValBox [Idx] (Val m) ScalarType
+    ValBox [Extent] (Val m) AtomType
   | -- | Function.
     ValFun ([Val m] -> m (Val m))
   | -- | Type function.

@@ -84,7 +84,7 @@ instance
   ( IsString s,
     SExpable v s,
     SExpable (f v) s,
-    SExpable (f (ScalarType f v)) s,
+    SExpable (f (AtomType f v)) s,
     SExpable (f (ArrayType f v)) s,
     SExpable (f (ArrayType f v, Shape v)) s
   ) =>
@@ -142,7 +142,7 @@ instance
   ( IsString s,
     SExpable v s,
     SExpable (f v) s,
-    SExpable (f (ScalarType f v)) s,
+    SExpable (f (AtomType f v)) s,
     SExpable (f (ArrayType f v)) s,
     SExpable (f (ArrayType f v, Shape v)) s
   ) =>
@@ -190,11 +190,11 @@ instance
         toSExp t,
         toSExp pos
       ]
-  toSExp (BindIdx v idx pos) =
+  toSExp (BindExtent v extent pos) =
     SList
-      [ "bind-idx",
+      [ "bind-extent",
         toSExp v,
-        toSExp idx,
+        toSExp extent,
         toSExp pos
       ]
 
@@ -202,7 +202,7 @@ instance
   ( IsString s,
     SExpable v s,
     SExpable (f v) s,
-    SExpable (f (ScalarType f v)) s,
+    SExpable (f (AtomType f v)) s,
     SExpable (f (ArrayType f v)) s,
     SExpable (f (ArrayType f v, Shape v)) s
   ) =>
@@ -291,39 +291,39 @@ instance
         toSExp pos
       ]
 
-instance (IsString s, SExpable v s) => SExpable (TVar v) s where
-  toSExp (AtomTVar v) =
+instance (IsString s, SExpable v s) => SExpable (TypeParam v) s where
+  toSExp (AtomTypeParam v) =
     SList
       [ "atom-tvar",
         toSExp v
       ]
-  toSExp (ArrayTVar v) =
+  toSExp (ArrayTypeParam v) =
     SList
       [ "array-tvar",
         toSExp v
       ]
 
-instance (IsString s, SExpable v s) => SExpable (IVar v) s where
-  toSExp (SVar v) =
+instance (IsString s, SExpable v s) => SExpable (ExtentParam v) s where
+  toSExp (ShapeParam v) =
     SList
       [ "shape-ivar",
         toSExp v
       ]
-  toSExp (DVar v) =
+  toSExp (DimParam v) =
     SList
       [ "dim-ivar",
         toSExp v
       ]
 
-instance (IsString s, SExpable v s) => SExpable (Idx v) s where
+instance (IsString s, SExpable v s) => SExpable (Extent v) s where
   toSExp (Dim v) =
     SList
-      [ "idx-dim",
+      [ "extent-dim",
         toSExp v
       ]
   toSExp (Shape v) =
     SList
-      [ "idx-shape",
+      [ "extent-shape",
         toSExp v
       ]
 
@@ -353,9 +353,9 @@ instance
     SExpable v s,
     SExpable (f v) s
   ) =>
-  SExpable (ScalarType f v) s
+  SExpable (AtomType f v) s
   where
-  toSExp (ScalarTVar v) = toSExp v
+  toSExp (AtomTypeVar v) = toSExp v
   toSExp Bool = "Bool"
   toSExp Int = "Int"
   toSExp Float = "Float"
@@ -393,7 +393,7 @@ instance
   where
   toSExp (ArrayType t) =
     SList ["array-type", toSExp t]
-  toSExp (ScalarType t) =
+  toSExp (AtomType t) =
     SList ["scalar-type", toSExp t]
 
 instance (IsString s, SExpable v s) => SExpable (Dim v) s where

@@ -40,7 +40,7 @@ arrayTypeOf = normType . arrayTypeOf_
     arrayTypeOf_ (Unbox _ _ _ _ (Info t) _) = t
     arrayTypeOf_ (Let _ _ (Info t) _) = t
 
-scalarTypeOf :: Atom Info VName -> ScalarType Info VName
+scalarTypeOf :: Atom Info VName -> AtomType Info VName
 scalarTypeOf = normType . scalarTypeOf_
   where
     scalarTypeOf_ (Base _ (Info t) _) = t
@@ -49,7 +49,7 @@ scalarTypeOf = normType . scalarTypeOf_
     scalarTypeOf_ (ILambda _ _ (Info t) _) = t
     scalarTypeOf_ (Box _ _ t _) = t
 
-baseTypeOf :: Base -> ScalarType f VName
+baseTypeOf :: Base -> AtomType f VName
 baseTypeOf BoolVal {} = Bool
 baseTypeOf IntVal {} = Int
 baseTypeOf FloatVal {} = Float
@@ -63,10 +63,10 @@ class HasType x where
   typeOf_ :: x -> Type Info VName
 
 instance HasType Base where
-  typeOf_ = ScalarType . baseTypeOf
+  typeOf_ = AtomType . baseTypeOf
 
 instance HasType (Atom Info VName) where
-  typeOf_ = ScalarType . scalarTypeOf
+  typeOf_ = AtomType . scalarTypeOf
 
 instance HasType (Exp Info VName) where
   typeOf_ = ArrayType . arrayTypeOf
@@ -102,7 +102,7 @@ instance HasSrcPos (Bind f v) where
   posOf (BindTFun _ _ _ _ pos) = pos
   posOf (BindIFun _ _ _ _ pos) = pos
   posOf (BindType _ _ pos) = pos
-  posOf (BindIdx _ _ pos) = pos
+  posOf (BindExtent _ _ pos) = pos
 
 instance HasSrcPos (Atom f v) where
   posOf (Base _ _ pos) = pos
@@ -130,7 +130,7 @@ class IsType x where
 
 infix 4 ~=
 
-instance IsType (ScalarType Info VName) where
+instance IsType (AtomType Info VName) where
   normType (ts :-> r) = map normType ts :-> normType r
   normType (Forall pts t) = Forall pts $ normType t
   normType (Pi pts t) = Pi pts $ normType t
@@ -169,10 +169,10 @@ instance IsType (ArrayType Info VName) where
   t ~= r = pure $ t == r
 
 instance IsType (Type Info VName) where
-  normType (ScalarType t) = ScalarType $ normType t
+  normType (AtomType t) = AtomType $ normType t
   normType (ArrayType t) = ArrayType $ normType t
 
-  ScalarType t ~= ScalarType r = t ~= r
+  AtomType t ~= AtomType r = t ~= r
   ArrayType t ~= ArrayType r = t ~= r
   _ ~= _ = pure False
 

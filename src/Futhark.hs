@@ -10,7 +10,7 @@ import Prettyprinter
 import Prettyprinter.Render.Text
 import Prop
 import RemoraPrelude (Prelude)
-import Syntax hiding (ArrayType, Atom, Dim, Exp, Idx, ScalarType, Shape, Type)
+import Syntax hiding (ArrayType, Atom, Dim, Exp, Extent, AtomType, Shape, Type)
 import Syntax qualified
 import VName
 
@@ -22,7 +22,7 @@ type Atom = Syntax.Atom Info VName
 
 type Shape = Syntax.Shape VName
 
-type ScalarType = Syntax.ScalarType Info VName
+type AtomType = Syntax.AtomType Info VName
 
 type ArrayType = Syntax.ArrayType Info VName
 
@@ -80,12 +80,12 @@ mkBody m = do
 addFunction :: F.FunDef F.SOACS -> FutharkM ()
 addFunction fun = modify $ \s -> s {stateFuns = stateFuns s ++ [fun]}
 
-findRet :: ScalarType -> ArrayType
+findRet :: AtomType -> ArrayType
 findRet (_ :-> t) = t
 findRet t = error $ "findRet: unhandled:\n" ++ show t
 
 -- Assumes the lambda has no free variables.
-liftLambda :: [(VName, ArrayType)] -> Exp -> ScalarType -> FutharkM F.Name
+liftLambda :: [(VName, ArrayType)] -> Exp -> AtomType -> FutharkM F.Name
 liftLambda params body t = do
   params' <- mapM compileParam params
   body' <- mkBody $ pure <$> compileExp body
@@ -111,20 +111,20 @@ compileShape (ShapeDim d) = F.Shape . pure <$> compileDim d
 compileShape (Concat ds) = mconcat <$> mapM compileShape ds
 compileShape s = error $ "compileShape: unhandled:\n" ++ show s
 
-compileScalarType :: ScalarType -> FutharkM F.Type
-compileScalarType Bool = pure $ F.Prim F.Bool
-compileScalarType Int = pure $ F.Prim $ F.IntType F.Int32
-compileScalarType Float = pure $ F.Prim $ F.FloatType F.Float64
-compileScalarType t = error $ "compileScalarType: unhandled:\n" ++ show t
+compileAtomType :: AtomType -> FutharkM F.Type
+compileAtomType Bool = pure $ F.Prim F.Bool
+compileAtomType Int = pure $ F.Prim $ F.IntType F.Int32
+compileAtomType Float = pure $ F.Prim $ F.FloatType F.Float64
+compileAtomType t = error $ "compileAtomType: unhandled:\n" ++ show t
 
 compileArrayType :: ArrayType -> FutharkM F.Type
 compileArrayType (A t shape) = do
-  t' <- compileScalarType t
+  t' <- compileAtomType t
   shape' <- compileShape shape
   pure $ F.arrayOfShape t' shape'
 
 compileType :: Type -> FutharkM F.Type
-compileType (Syntax.ScalarType t) = compileScalarType t
+compileType (Syntax.AtomType t) = compileAtomType t
 compileType (Syntax.ArrayType t) = compileArrayType t
 
 compileParam :: (VName, ArrayType) -> FutharkM (F.LParam F.SOACS)
@@ -175,7 +175,7 @@ compileExp (Array [] [x] _ _) = compileAtom x
 compileExp e@(Array [_] elems (Info (A elem_t _)) _) = do
   elems' <- mapM compileAtom elems
   t <- compileType $ typeOf e
-  elem_t' <- compileScalarType elem_t
+  elem_t' <- compileAtomType elem_t
   F.Var <$> bind t (F.BasicOp $ F.ArrayLit elems' elem_t')
 compileExp (Var v _ _) =
   let v' = F.VName (F.nameFromText (varName v)) (getTag (varTag v))

@@ -22,20 +22,20 @@ prelude =
       "head"
       ( mkScalarArrayType $
           Forall
-            [AtomTVar "t"]
+            [AtomTypeParam "t"]
             ( A
                 ( Pi
-                    [DVar "d", SVar "s"]
+                    [DimParam "d", ShapeParam "s"]
                     ( A
                         ( [ A
-                              (ScalarTVar "t")
+                              (AtomTypeVar "t")
                               ( Concat
                                   [ ShapeDim (Add [DimN 1, DimVar "d"]),
                                     ShapeVar "s"
                                   ]
                               )
                           ]
-                            :-> A (ScalarTVar "t") (ShapeVar "s")
+                            :-> A (AtomTypeVar "t") (ShapeVar "s")
                         )
                         mempty
                     )
@@ -52,20 +52,20 @@ prelude =
       "tail"
       ( mkScalarArrayType $
           Forall
-            [AtomTVar "t"]
+            [AtomTypeParam "t"]
             ( A
                 ( Pi
-                    [DVar "d", SVar "s"]
+                    [DimParam "d", ShapeParam "s"]
                     ( A
                         ( [ A
-                              (ScalarTVar "t")
+                              (AtomTypeVar "t")
                               ( Concat
                                   [ ShapeDim (Add [DimN 1, DimVar "d"]),
                                     ShapeVar "s"
                                   ]
                               )
                           ]
-                            :-> A (ScalarTVar "t") (ShapeVar "s")
+                            :-> A (AtomTypeVar "t") (ShapeVar "s")
                         )
                         mempty
                     )
@@ -82,12 +82,12 @@ prelude =
       "length"
       ( mkScalarArrayType $
           Forall
-            [AtomTVar "t"]
+            [AtomTypeParam "t"]
             ( A
                 ( Pi
-                    [DVar "d", SVar "s"]
+                    [DimParam "d", ShapeParam "s"]
                     ( A
-                        ( [A (ScalarTVar "t") (Concat [ShapeDim (DimVar "d"), ShapeVar "s"])]
+                        ( [A (AtomTypeVar "t") (Concat [ShapeDim (DimVar "d"), ShapeVar "s"])]
                             :-> A Int mempty
                         )
                         mempty
@@ -105,16 +105,16 @@ prelude =
       "append"
       ( mkScalarArrayType $
           Forall
-            [AtomTVar "t"]
+            [AtomTypeParam "t"]
             ( A
                 ( Pi
-                    [DVar "m", DVar "n", SVar "s"]
+                    [DimParam "m", DimParam "n", ShapeParam "s"]
                     ( A
-                        ( [ A (ScalarTVar "t") (Concat [ShapeDim $ DimVar "m", ShapeVar "s"]),
-                            A (ScalarTVar "t") (Concat [ShapeDim $ DimVar "n", ShapeVar "s"])
+                        ( [ A (AtomTypeVar "t") (Concat [ShapeDim $ DimVar "m", ShapeVar "s"]),
+                            A (AtomTypeVar "t") (Concat [ShapeDim $ DimVar "n", ShapeVar "s"])
                           ]
                             :-> A
-                              (ScalarTVar "t")
+                              (AtomTypeVar "t")
                               ( Concat
                                   [ ShapeDim $ DimVar "m",
                                     ShapeDim $ DimVar "n",
@@ -137,13 +137,13 @@ prelude =
       "reverse"
       ( mkScalarArrayType $
           Forall
-            [AtomTVar "t"]
+            [AtomTypeParam "t"]
             ( A
                 ( Pi
-                    [DVar "d", SVar "s"]
+                    [DimParam "d", ShapeParam "s"]
                     ( let arr_t =
                             A
-                              (ScalarTVar "t")
+                              (AtomTypeVar "t")
                               ( Concat
                                   [ShapeDim $ DimVar "d", ShapeVar "s"]
                               )
@@ -162,17 +162,17 @@ prelude =
       "reduce"
       ( mkScalarArrayType $
           Forall
-            [AtomTVar "t"]
+            [AtomTypeParam "t"]
             ( A
                 ( Pi
-                    [DVar "d", SVar "s"]
-                    ( let elem_type = A (ScalarTVar "t") (ShapeVar "s")
+                    [DimParam "d", ShapeParam "s"]
+                    ( let elem_type = A (AtomTypeVar "t") (ShapeVar "s")
                           op_type = A ([elem_type, elem_type] :-> elem_type) mempty
                           arg_type =
                             A
-                              (ScalarTVar "t")
+                              (AtomTypeVar "t")
                               (ShapeDim (DimN 1 <> DimVar "d") <> ShapeVar "s")
-                          res_type = A (ScalarTVar "t") (ShapeVar "s")
+                          res_type = A (AtomTypeVar "t") (ShapeVar "s")
                        in A ([op_type, arg_type] :-> res_type) mempty
                     )
                 )
@@ -240,7 +240,7 @@ prelude =
       "sum"
       ( mkScalarArrayType $
           Pi
-            [SVar "s"]
+            [ShapeParam "s"]
             ( A
                 ( [A Int (ShapeVar "s")]
                     :-> A Int mempty
@@ -260,19 +260,19 @@ prelude =
       "flatten"
       ( mkScalarArrayType $
           Forall
-            [AtomTVar "t"]
+            [AtomTypeParam "t"]
             ( A
                 ( Pi
-                    [DVar "m", DVar "n", SVar "s"]
+                    [DimParam "m", DimParam "n", ShapeParam "s"]
                     ( let arg_t =
                             A
-                              (ScalarTVar "t")
+                              (AtomTypeVar "t")
                               ( Concat
                                   [ShapeDim $ DimVar "m", ShapeDim $ DimVar "n", ShapeVar "s"]
                               )
                           ret_t =
                             A
-                              (ScalarTVar "t")
+                              (AtomTypeVar "t")
                               ( Concat
                                   [ShapeDim $ (Mul [DimVar "m", DimVar "n"]), ShapeVar "s"]
                               )

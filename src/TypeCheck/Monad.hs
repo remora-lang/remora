@@ -14,8 +14,8 @@ import VName
 
 data ArrayTypeVarBundle v
   = ArrayTypeVarBundle
-  { arrayTVar :: v,
-    atomTVar :: v,
+  { arrayTypeParam :: v,
+    atomTypeParam :: v,
     shapeVar :: v
   }
   deriving (Eq, Show)
@@ -50,7 +50,7 @@ data BindEnv
   { -- | Term variables to their types.
     bindEnvVars :: Map VName (ArrayType Info VName),
     -- | Atom type vars to types.
-    bindEnvAtomTypes :: Map VName (ScalarType Info VName),
+    bindEnvAtomTypes :: Map VName (AtomType Info VName),
     -- | Array type vars to types.
     bindEnvArrayTypes :: Map VName (ArrayType Info VName),
     -- | Dim vars to 'Dim's.
@@ -162,7 +162,7 @@ lookupVarType v =
   lookupEnv "" v $ (M.!? v) . bindEnvVars . envBinds
 
 -- | Look-up an atom type variable binding.
-lookupAtomType :: (MonadCheck m) => VName -> m (Maybe (ScalarType Info VName))
+lookupAtomType :: (MonadCheck m) => VName -> m (Maybe (AtomType Info VName))
 lookupAtomType v =
   asks $ (M.!? v) . bindEnvAtomTypes . envBinds
 
@@ -212,19 +212,19 @@ bindParam' (v, t) m = do
   local (const env') $ m vname
 
 -- | Bind a source type parameter into a local environment.
-bindTypeParam :: (MonadCheck m) => TVar Text -> (TVar VName -> m a) -> m a
+bindTypeParam :: (MonadCheck m) => TypeParam Text -> (TypeParam VName -> m a) -> m a
 bindTypeParam tvar m = do
-  vname <- newVName $ unTVar tvar
+  vname <- newVName $ unTypeParam tvar
   Env vnames bs <- ask
   vnames' <-
     case tvar of
-      AtomTVar v ->
+      AtomTypeParam v ->
         pure $
           vnames
             { vnameEnvAtomTypeVars =
                 M.insert v vname $ vnameEnvAtomTypeVars vnames
             }
-      ArrayTVar v -> do
+      ArrayTypeParam v -> do
         et_vname <- newVName $ "et_" <> v
         s_vname <- newVName $ "s_" <> v
         pure $
@@ -237,19 +237,19 @@ bindTypeParam tvar m = do
   local (const env') $ m tvar'
 
 -- | Bind a source type parameter into a local environment.
-bindIdxParam :: (MonadCheck m) => IVar Text -> (IVar VName -> m a) -> m a
-bindIdxParam ivar m = do
-  vname <- newVName $ unIVar ivar
+bindExtentParam :: (MonadCheck m) => ExtentParam Text -> (ExtentParam VName -> m a) -> m a
+bindExtentParam ivar m = do
+  vname <- newVName $ unExtentParam ivar
   Env vnames bs <- ask
   let ivar' = (const vname) <$> ivar
       vnames' =
         case ivar of
-          DVar v ->
+          DimParam v ->
             vnames
               { vnameEnvDimVars =
                   M.insert v vname $ vnameEnvDimVars vnames
               }
-          SVar v ->
+          ShapeParam v ->
             vnames
               { vnameEnvShapeVars =
                   M.insert v vname $ vnameEnvShapeVars vnames
@@ -262,8 +262,8 @@ bindType ::
   (MonadCheck m) =>
   (Type NoInfo Text -> m (Type Info VName)) ->
   SourcePos ->
-  (TVar Text, Type NoInfo Text) ->
-  ((TVar VName, Type Info VName) -> m a) ->
+  (TypeParam Text, Type NoInfo Text) ->
+  ((TypeParam VName, Type Info VName) -> m a) ->
   m a
 bindType checkType pos (tvar, t) m =
   bindTypeParam tvar $ \tvar' -> do
@@ -271,12 +271,12 @@ bindType checkType pos (tvar, t) m =
     Env vnames bs <- ask
     bs' <-
       case (tvar', t') of
-        (AtomTVar v, ScalarType et) ->
+        (AtomTypeParam v, AtomType et) ->
           pure $
             bs
               { bindEnvAtomTypes = M.insert v et $ bindEnvAtomTypes bs
               }
-        (ArrayTVar v, ArrayType t) ->
+        (ArrayTypeParam v, ArrayType t) ->
           pure $
             bs
               { bindEnvArrayTypes = M.insert v t $ bindEnvArrayTypes bs
@@ -292,25 +292,25 @@ bindType checkType pos (tvar, t) m =
     local (const env') $ m (tvar', t')
 
 -- | Bind an index binding.
-bindIdx ::
+bindExtent ::
   (MonadCheck m) =>
-  (Idx Text -> m (Idx VName)) ->
+  (Extent Text -> m (Extent VName)) ->
   SourcePos ->
-  (IVar Text, Idx Text) ->
-  ((IVar VName, Idx VName) -> m a) ->
+  (ExtentParam Text, Extent Text) ->
+  ((ExtentParam VName, Extent VName) -> m a) ->
   m a
-bindIdx checkIdx pos (ivar, idx) m =
-  bindIdxParam ivar $ \ivar' -> do
-    idx' <- checkIdx idx
+bindExtent checkExtent pos (ivar, extent) m =
+  bindExtentParam ivar $ \ivar' -> do
+    extent' <- checkExtent extent
     Env vnames bs <- ask
     bs' <-
-      case (ivar', idx') of
-        (DVar v, Dim d) ->
+      case (ivar', extent') of
+        (DimParam v, Dim d) ->
           pure $
             bs
               { bindEnvDims = M.insert v d $ bindEnvDims bs
               }
-        (SVar v, Shape s) ->
+        (ShapeParam v, Shape s) ->
           pure $
             bs
               { bindEnvShapes = M.insert v s $ bindEnvShapes bs
@@ -320,10 +320,10 @@ bindIdx checkIdx pos (ivar, idx) m =
             T.unlines
               [ "Incompatible index binding:",
                 prettyText ivar,
-                prettyText idx
+                prettyText extent
               ]
     let env' = Env vnames bs'
-    local (const env') $ m (ivar', idx')
+    local (const env') $ m (ivar', extent')
 
 -- | Do many binds.
 binds :: (a -> (c -> x) -> x) -> [a] -> ([c] -> x) -> x

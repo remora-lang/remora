@@ -6,11 +6,11 @@ module Syntax
     SourcePos,
     NoInfo (..),
     Info (..),
-    TVar (..),
-    unTVar,
-    fromAtomTVar,
-    fromArrayTVar,
-    ScalarType (..),
+    TypeParam (..),
+    unTypeParam,
+    fromAtomTypeParam,
+    fromArrayTypeParam,
+    AtomType (..),
     ArrayType (..),
     Type (..),
     mkScalarArrayType,
@@ -34,50 +34,49 @@ import Shape
 import Text.Megaparsec.Pos (Pos, SourcePos (..), unPos)
 import VName
 
--- | No information functor; used as an annotation for source expressions whose
--- type we haven't filled in yet.
+-- | No information functor; used as an annotation for parsed source expressions
+-- that haven't been annotated with information from typechecking yet.
 data NoInfo a = NoInfo
   deriving (Show, Eq, Functor)
 
 instance Pretty (NoInfo a) where
   pretty NoInfo {} = ""
 
--- | Some information functor; used as an annotation for source expressions with
--- a type (filled in during type checking) and also a principal frame in the
--- case of applications.
+-- | Some information functor; used as an annotation for source expressions.
 newtype Info a = Info a
   deriving (Show, Eq, Functor)
 
 instance (Pretty a) => Pretty (Info a) where
   pretty (Info a) = pretty a
 
--- | Type variables.
-data TVar v
-  = -- | Atom-kinded type variable.
-    AtomTVar v
-  | -- | Array-kinded type variable.
-    ArrayTVar v
+-- | Type parameters.
+data TypeParam v
+  = -- | An Atom-kinded type parameter.
+    AtomTypeParam v
+  | -- | An Array-kinded type parameter.
+    ArrayTypeParam v
   deriving (Show, Ord, Eq, Functor, Foldable, Traversable)
 
--- | Extract the variable out of a 'TVar'.
-unTVar :: TVar v -> v
-unTVar (AtomTVar v) = v
-unTVar (ArrayTVar v) = v
+-- | Extract the variable out of a 'TypeParam'.
+unTypeParam :: TypeParam v -> v
+unTypeParam (AtomTypeParam v) = v
+unTypeParam (ArrayTypeParam v) = v
 
-fromAtomTVar :: TVar v -> Maybe v
-fromAtomTVar (AtomTVar v) = pure v
-fromAtomTVar _ = Nothing
+fromAtomTypeParam :: TypeParam v -> Maybe v
+fromAtomTypeParam (AtomTypeParam v) = pure v
+fromAtomTypeParam _ = Nothing
 
-fromArrayTVar :: TVar v -> Maybe v
-fromArrayTVar (ArrayTVar v) = pure v
-fromArrayTVar _ = Nothing
+fromArrayTypeParam :: TypeParam v -> Maybe v
+fromArrayTypeParam (ArrayTypeParam v) = pure v
+fromArrayTypeParam _ = Nothing
 
-instance (Show v, Pretty v) => Pretty (TVar v) where
-  pretty (AtomTVar v) = "&" <> pretty v
-  pretty (ArrayTVar v) = "*" <> pretty v
+instance (Show v, Pretty v) => Pretty (TypeParam v) where
+  pretty (AtomTypeParam v) = "&" <> pretty v
+  pretty (ArrayTypeParam v) = "*" <> pretty v
 
-data ScalarType f v
-  = ScalarTVar v
+data AtomType f v
+  = -- | Atom type variable.
+    AtomTypeVar v
   | -- | Boolean type.
     Bool
   | -- | Integer type.
@@ -87,22 +86,22 @@ data ScalarType f v
   | -- | Function type.
     (:->) [ArrayType f v] (ArrayType f v)
   | -- | Univerall type.
-    Forall [TVar v] (ArrayType f v)
+    Forall [TypeParam v] (ArrayType f v)
   | -- | Dependent product type.
-    Pi [IVar v] (ArrayType f v)
+    Pi [ExtentParam v] (ArrayType f v)
   | -- | Dependent sum type.
-    Sigma [IVar v] (ArrayType f v)
+    Sigma [ExtentParam v] (ArrayType f v)
 
-deriving instance (Eq v) => Eq (ScalarType NoInfo v)
+deriving instance (Eq v) => Eq (AtomType NoInfo v)
 
-deriving instance (Eq v) => Eq (ScalarType Info v)
+deriving instance (Eq v) => Eq (AtomType Info v)
 
-deriving instance (Show v) => Show (ScalarType NoInfo v)
+deriving instance (Show v) => Show (AtomType NoInfo v)
 
-deriving instance (Show v) => Show (ScalarType Info v)
+deriving instance (Show v) => Show (AtomType Info v)
 
-instance (Show v, Pretty v, Pretty (f v)) => Pretty (ScalarType f v) where
-  pretty (ScalarTVar x) = "&" <> pretty x
+instance (Show v, Pretty v, Pretty (f v)) => Pretty (AtomType f v) where
+  pretty (AtomTypeVar x) = "&" <> pretty x
   pretty Bool = "Bool"
   pretty Int = "Int"
   pretty Float = "Float"
@@ -127,7 +126,7 @@ instance (Show v, Pretty v, Pretty (f v)) => Pretty (ScalarType f v) where
 data ArrayType f v
   = -- | An array type literal consisting of an atom type and a shape.
     A
-      { arrayTypeScalar :: ScalarType f v,
+      { arrayTypeScalar :: AtomType f v,
         arrayTypeShape :: Shape v
       }
   | -- | An array type var. Array type vars only truly exist in the source;
@@ -154,7 +153,7 @@ instance (Show v, Pretty v, Pretty (f v)) => Pretty (ArrayType f v) where
 -- | Types.
 data Type f v
   = -- | Scalar types.
-    ScalarType (ScalarType f v)
+    AtomType (AtomType f v)
   | -- | Array types.
     ArrayType (ArrayType f v)
 
@@ -163,16 +162,16 @@ deriving instance (Show v) => Show (Type NoInfo v)
 deriving instance (Show v) => Show (Type Info v)
 
 instance (Show v, Pretty v, Pretty (f v)) => Pretty (Type f v) where
-  pretty (ScalarType t) = pretty t
+  pretty (AtomType t) = pretty t
   pretty (ArrayType t) = pretty t
 
 -- | Make a scalar array.
-mkScalarArrayType :: ScalarType f v -> ArrayType f v
+mkScalarArrayType :: AtomType f v -> ArrayType f v
 mkScalarArrayType = flip A mempty
 
 -- | Get the element type.
-elemType :: Type f v -> ScalarType f v
-elemType (ScalarType t) = t
+elemType :: Type f v -> AtomType f v
+elemType (AtomType t) = t
 elemType (ArrayType (A t _)) = t
 
 -- | Does this type have Array kind?
@@ -202,15 +201,15 @@ instance Pretty Base where
 -- @NoInfo (Type v)@ only has a single inhabitant (namely 'NoInfo').
 data Atom f v
   = -- | Base values.
-    Base Base (f (ScalarType f v)) SourcePos
+    Base Base (f (AtomType f v)) SourcePos
   | -- | Term lambda.
-    Lambda [(v, ArrayType f v)] (Exp f v) (f (ScalarType f v)) SourcePos
+    Lambda [(v, ArrayType f v)] (Exp f v) (f (AtomType f v)) SourcePos
   | -- | Type lambda.
-    TLambda [TVar v] (Exp f v) (f (ScalarType f v)) SourcePos
+    TLambda [TypeParam v] (Exp f v) (f (AtomType f v)) SourcePos
   | -- | Index lambda.
-    ILambda [IVar v] (Exp f v) (f (ScalarType f v)) SourcePos
+    ILambda [ExtentParam v] (Exp f v) (f (AtomType f v)) SourcePos
   | -- | Boxed expression.
-    Box [Idx v] (Exp f v) (ScalarType f v) SourcePos
+    Box [Extent v] (Exp f v) (AtomType f v) SourcePos
 
 deriving instance (Show v) => Show (Atom NoInfo v)
 
@@ -246,11 +245,11 @@ instance (Show v, Pretty v, Pretty (f (Type f v)), Pretty (f v)) => Pretty (Atom
 -- | Binds
 data Bind f v
   = BindVal v (Maybe (ArrayType f v)) (Exp f v) SourcePos
-  | BindType (TVar v) (Type f v) SourcePos
-  | BindIdx (IVar v) (Idx v) SourcePos
+  | BindType (TypeParam v) (Type f v) SourcePos
+  | BindExtent (ExtentParam v) (Extent v) SourcePos
   | BindFun v [(v, (ArrayType f v))] (Maybe (ArrayType f v)) (Exp f v) SourcePos
-  | BindTFun v [TVar v] (Maybe (ArrayType f v)) (Exp f v) SourcePos
-  | BindIFun v [IVar v] (Maybe (ArrayType f v)) (Exp f v) SourcePos
+  | BindTFun v [TypeParam v] (Maybe (ArrayType f v)) (Exp f v) SourcePos
+  | BindIFun v [ExtentParam v] (Maybe (ArrayType f v)) (Exp f v) SourcePos
 
 deriving instance (Show v) => Show (Bind NoInfo v)
 
@@ -279,8 +278,8 @@ instance (Show v, Pretty v, Pretty (f (Type f v)), Pretty (f v)) => Pretty (Bind
         <+> pretty body
   pretty (BindType tvar t _) =
     parens $ pretty tvar <+> pretty t
-  pretty (BindIdx ivar idx _) =
-    parens $ pretty ivar <+> pretty idx
+  pretty (BindExtent ivar extent _) =
+    parens $ pretty ivar <+> pretty extent
 
 -- | Expressions.
 data Exp f v
@@ -289,19 +288,19 @@ data Exp f v
   | -- | Array literals.
     Array [Int] [Atom f v] (f (ArrayType f v)) SourcePos
   | -- | Empty arrays.
-    EmptyArray [Int] (ScalarType f v) (f (ArrayType f v)) SourcePos
+    EmptyArray [Int] (AtomType f v) (f (ArrayType f v)) SourcePos
   | -- | Frame literals.
     Frame [Int] [Exp f v] (f (ArrayType f v)) SourcePos
   | -- | Empty frames.
-    EmptyFrame [Int] (ScalarType f v) (f (ArrayType f v)) SourcePos
+    EmptyFrame [Int] (AtomType f v) (f (ArrayType f v)) SourcePos
   | -- | Function application.
     App (Exp f v) [Exp f v] (f (ArrayType f v, Shape v)) SourcePos
   | -- | Type application.
     TApp (Exp f v) [Type f v] (f (ArrayType f v)) SourcePos
   | -- | Index application.
-    IApp (Exp f v) [Idx v] (f (ArrayType f v)) SourcePos
+    IApp (Exp f v) [Extent v] (f (ArrayType f v)) SourcePos
   | -- | Unboxing.
-    Unbox [IVar v] v (Exp f v) (Exp f v) (f (ArrayType f v)) SourcePos
+    Unbox [ExtentParam v] v (Exp f v) (Exp f v) (f (ArrayType f v)) SourcePos
   | -- | Let
     Let [Bind f v] (Exp f v) (f (ArrayType f v)) SourcePos
 
@@ -372,12 +371,12 @@ flattenExp (Frame shape es t pos) =
 flattenExp e = e
 
 arrayifyType :: Type f VName -> Type f VName
-arrayifyType (ScalarType t) = ArrayType $ A t mempty
+arrayifyType (AtomType t) = ArrayType $ A t mempty
 arrayifyType t@ArrayType {} = t
 
-arrayTypeView :: Type f v -> ((ScalarType f v, Shape v) -> a) -> a
+arrayTypeView :: Type f v -> ((AtomType f v, Shape v) -> a) -> a
 arrayTypeView (ArrayType (A t s)) m = m (t, s)
-arrayTypeView (ScalarType t) m = m (t, mempty)
+arrayTypeView (AtomType t) m = m (t, mempty)
 
 instance Pretty Pos where
   pretty = pretty . unPos

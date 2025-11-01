@@ -1,15 +1,15 @@
 module Shape
   ( Dim (..),
     Shape (..),
-    Idx (..),
-    idxToShape,
-    mapIdx,
+    Extent (..),
+    extentToShape,
+    mapExtent,
     fromDim,
     isDim,
     fromShape,
     isShape,
-    IVar (..),
-    unIVar,
+    ExtentParam (..),
+    unExtentParam,
     coerceToDim,
     normDim,
     normShape,
@@ -60,7 +60,7 @@ instance Semigroup (Shape v) where
   s <> t = Concat [s, t]
 
 instance Monoid (Shape v) where
-  mempty = Concat []
+  mempty = Concat mempty
 
 instance (Show v, Pretty v) => Pretty (Shape v) where
   pretty (ShapeVar v) = "@" <> pretty v
@@ -68,59 +68,57 @@ instance (Show v, Pretty v) => Pretty (Shape v) where
   pretty (Concat []) = "•"
   pretty (Concat is) = parens $ hsep ("++" : map pretty is)
 
--- | An type index. Since shape variables and dimension variables can be
--- statically distinguished, we don't need a constructor for type index
--- variables here.
-data Idx v
+-- | An 'Extent', which is either a 'Dim' or a 'Shape'.
+data Extent v
   = Dim (Dim v)
   | Shape (Shape v)
   deriving (Eq, Show, Ord)
 
-instance (Show v, Pretty v) => Pretty (Idx v) where
+instance (Show v, Pretty v) => Pretty (Extent v) where
   pretty (Shape s) = pretty s
   pretty (Dim d) = pretty d
 
-idxToShape :: Idx v -> Shape v
-idxToShape (Dim d) = ShapeDim d
-idxToShape (Shape s) = s
+extentToShape :: Extent v -> Shape v
+extentToShape (Dim d) = ShapeDim d
+extentToShape (Shape s) = s
 
-mapIdx :: (Dim v -> a) -> (Shape v -> a) -> Idx v -> a
-mapIdx f_dim f_shape idx =
-  case idx of
+mapExtent :: (Dim v -> a) -> (Shape v -> a) -> Extent v -> a
+mapExtent f_dim f_shape extent =
+  case extent of
     Dim d -> f_dim d
     Shape s -> f_shape s
 
-fromDim :: Idx v -> Maybe (Dim v)
+fromDim :: Extent v -> Maybe (Dim v)
 fromDim (Dim d) = pure d
 fromDim _ = Nothing
 
-isDim :: Idx v -> Bool
+isDim :: Extent v -> Bool
 isDim = isJust . fromDim
 
-fromShape :: Idx v -> Maybe (Shape v)
+fromShape :: Extent v -> Maybe (Shape v)
 fromShape (Shape s) = pure s
 fromShape _ = Nothing
 
-isShape :: Idx v -> Bool
+isShape :: Extent v -> Bool
 isShape = isJust . fromShape
 
--- | Type index variables. These are needed for type index parameters and
--- patterns.
-data IVar v
+-- | An extent parameter, which is either a shape parameter or a dimension
+-- parameter.
+data ExtentParam v
   = -- | A shape variable.
-    SVar v
+    ShapeParam v
   | -- | A dimension variable.
-    DVar v
+    DimParam v
   deriving (Show, Eq, Ord, Functor)
 
-instance (Show v, Pretty v) => Pretty (IVar v) where
-  pretty (SVar v) = "@" <> pretty v
-  pretty (DVar v) = "$" <> pretty v
+instance (Show v, Pretty v) => Pretty (ExtentParam v) where
+  pretty (ShapeParam v) = "@" <> pretty v
+  pretty (DimParam v) = "$" <> pretty v
 
--- | Extract the variable out of an 'IVar'.
-unIVar :: IVar v -> v
-unIVar (SVar v) = v
-unIVar (DVar v) = v
+-- | Extract the variable out of an 'ExtentParam'.
+unExtentParam :: ExtentParam v -> v
+unExtentParam (ShapeParam v) = v
+unExtentParam (DimParam v) = v
 
 -- | Coerce a shape into a dimension; fails for shapes that don't have rank 1;
 -- optimistically will coerce shape variables. Assumes a normalized shape.

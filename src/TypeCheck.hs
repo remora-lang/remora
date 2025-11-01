@@ -58,20 +58,20 @@ checkShape = fmap normShape . checkShape'
     checkShape' (ShapeDim d) = ShapeDim <$> checkDim d
     checkShape' (Concat ss) = Concat <$> mapM checkShape' ss
 
--- | Check an `Idx`.
-checkIdx :: (MonadCheck m) => Idx Text -> m (Idx VName)
-checkIdx = mapIdx (fmap Dim . checkDim) (fmap Shape . checkShape)
+-- | Check an `Extent`.
+checkExtent :: (MonadCheck m) => Extent Text -> m (Extent VName)
+checkExtent = mapExtent (fmap Dim . checkDim) (fmap Shape . checkShape)
 
 -- | Check a 'Type'.
 checkType :: (MonadCheck m) => Type NoInfo Text -> m (Type Info VName)
 checkType = fmap normType . checkType'
   where
     checkType' (ArrayType t) = ArrayType <$> checkArrayType t
-    checkType' (ScalarType t) = ScalarType <$> checkScalarType t
+    checkType' (AtomType t) = AtomType <$> checkAtomType t
 
 checkArrayType :: (MonadCheck m) => ArrayType NoInfo Text -> m (ArrayType Info VName)
 checkArrayType (A t shape) =
-  A <$> checkScalarType t <*> checkShape shape
+  A <$> checkAtomType t <*> checkShape shape
 checkArrayType (ArrayTypeVar v _ _) = do
   ArrayTypeVarBundle v' et_v' s_v' <- lookupVNameArrayTypeVarBundle v
   mt <- lookupArrayType v'
@@ -79,26 +79,26 @@ checkArrayType (ArrayTypeVar v _ _) = do
     Nothing -> pure $ ArrayTypeVar v' (Info et_v') (Info s_v')
     Just t -> pure t
 
-checkScalarType :: (MonadCheck m) => ScalarType NoInfo Text -> m (ScalarType Info VName)
-checkScalarType (ScalarTVar v) = do
+checkAtomType :: (MonadCheck m) => AtomType NoInfo Text -> m (AtomType Info VName)
+checkAtomType (AtomTypeVar v) = do
   v' <- lookupVNameAtomTypeVar v
   mt <- lookupAtomType v'
   case mt of
-    Nothing -> pure $ ScalarTVar v'
+    Nothing -> pure $ AtomTypeVar v'
     Just t -> pure t
-checkScalarType Bool = pure Bool
-checkScalarType Int = pure Int
-checkScalarType Float = pure Float
-checkScalarType (as :-> b) =
+checkAtomType Bool = pure Bool
+checkAtomType Int = pure Int
+checkAtomType Float = pure Float
+checkAtomType (as :-> b) =
   (:->) <$> mapM checkArrayType as <*> checkArrayType b
-checkScalarType (Forall pts t) =
+checkAtomType (Forall pts t) =
   binds bindTypeParam pts $ \pts' ->
     Forall pts' <$> checkArrayType t
-checkScalarType (Pi pts t) =
-  binds bindIdxParam pts $ \pts' ->
+checkAtomType (Pi pts t) =
+  binds bindExtentParam pts $ \pts' ->
     Pi pts' <$> checkArrayType t
-checkScalarType (Sigma pts t) = do
-  binds bindIdxParam pts $ \pts' -> do
+checkAtomType (Sigma pts t) = do
+  binds bindExtentParam pts $ \pts' -> do
     Sigma pts' <$> checkArrayType t
 
 -- | Type check an unchecked 'Exp'.
@@ -123,7 +123,7 @@ checkExp expr@(Array ns as _ pos) = do
       let et = scalarTypeOf a'
       pure $ Array ns as' (Info $ A et (intsToShape ns)) pos
 checkExp expr@(EmptyArray ns t _ pos) = do
-  t' <- checkScalarType t
+  t' <- checkAtomType t
   unless (product ns == 0) $
     throwErrorPos pos $
       "Empty array has a non-empty shape: " <> prettyText expr
@@ -144,7 +144,7 @@ checkExp expr@(Frame ns es _ pos) = do
       let A et s = arrayTypeOf e'
       pure $ Frame ns es' (Info $ A et ((intsToShape ns) <> s)) pos
 checkExp expr@(EmptyFrame ns t _ pos) = do
-  t' <- checkScalarType t
+  t' <- checkAtomType t
   unless (product ns == 0) $
     throwErrorPos pos $
       "Empty frame has a non-empty shape: " <> prettyText expr
@@ -161,7 +161,7 @@ checkExp expr@(App f args _ pos) = do
               throwErrorPos pos $
                 T.unlines
                   [ "Ill-typed application:",
-                    "Parameter elem type: " <> prettyText pt_elem,
+                    "Param elem type: " <> prettyText pt_elem,
                     "Argument elem type: " <> prettyText arg_elem,
                     "in",
                     prettyText expr
@@ -172,7 +172,7 @@ checkExp expr@(App f args _ pos) = do
                 throwErrorPos pos $
                   T.unlines
                     [ "Ill-shaped application:",
-                      "Parameter type: " <> prettyText pt,
+                      "Param type: " <> prettyText pt,
                       "Argument: " <> prettyText arg,
                       "in",
                       prettyText expr
@@ -196,15 +196,15 @@ checkExp expr@(TApp f ts _ pos) = do
     ArrayType (A (Forall pts r) frame_f) -> do
       let check_args (atom_subst, shape_subst) (pt, t) =
             case (pt, t) of
-              (AtomTVar v, ScalarType et) ->
+              (AtomTypeParam v, AtomType et) ->
                 pure (M.insert v et atom_subst, shape_subst)
-              (ArrayTVar v, ArrayType (A et s)) ->
+              (ArrayTypeParam v, ArrayType (A et s)) ->
                 pure (M.insert v et atom_subst, M.insert v s shape_subst)
               _ ->
                 throwErrorPos pos $
                   T.unlines
                     [ "Ill-kinded application:",
-                      "Parameter type: " <> prettyText pt,
+                      "Param type: " <> prettyText pt,
                       "Argument: " <> prettyText t,
                       "in",
                       prettyText expr
@@ -221,22 +221,22 @@ checkExp expr@(TApp f ts _ pos) = do
           ]
 checkExp expr@(IApp f is _ pos) = do
   f' <- checkExp f
-  is' <- mapM (mapIdx (fmap Dim . checkDim) (fmap Shape . checkShape)) is
+  is' <- mapM (mapExtent (fmap Dim . checkDim) (fmap Shape . checkShape)) is
   case typeOf f' of
     ArrayType (A (Pi pts r) frame_f) -> do
-      let check_args (SVar v) (Dim d) =
-            pure (SVar v, Shape $ ShapeDim d)
-          check_args (SVar v) (Shape s) =
-            pure (SVar v, Shape s)
-          check_args (DVar v) (Shape s)
-            | Just d <- coerceToDim s = pure (DVar v, Dim d)
-          check_args (DVar v) (Dim d) =
-            pure (DVar v, Dim d)
+      let check_args (ShapeParam v) (Dim d) =
+            pure (ShapeParam v, Shape $ ShapeDim d)
+          check_args (ShapeParam v) (Shape s) =
+            pure (ShapeParam v, Shape s)
+          check_args (DimParam v) (Shape s)
+            | Just d <- coerceToDim s = pure (DimParam v, Dim d)
+          check_args (DimParam v) (Dim d) =
+            pure (DimParam v, Dim d)
           check_args pt i =
             throwErrorPos pos $
               T.unlines
                 [ "Ill-sorted application:",
-                  "Parameter type: " <> prettyText pt,
+                  "Param type: " <> prettyText pt,
                   "Argument: " <> prettyText i,
                   "in",
                   prettyText expr
@@ -248,16 +248,16 @@ checkExp expr@(IApp f is _ pos) = do
     _ ->
       throwErrorPos pos $
         T.unlines
-          [ "Expected a prod expressions in idx application:",
+          [ "Expected a prod expressions in extent application:",
             prettyText expr
           ]
 checkExp expr@(Unbox is x_e box body _ pos) = do
-  binds bindIdxParam is $ \is' -> do
-    let is'' = map unIVar is'
+  binds bindExtentParam is $ \is' -> do
+    let is'' = map unExtentParam is'
     box' <- checkExp box
     case typeOf box' of
       ArrayType (A (Sigma ps t) frame_f) -> do
-        let t' = flip substitute' t $ zip (map unIVar ps) is''
+        let t' = flip substitute' t $ zip (map unExtentParam ps) is''
         bindParam' (x_e, t') $ \x_e' -> do
           body' <- checkExp body
           case typeOf body' of
@@ -335,7 +335,7 @@ checkExp (Let bs e _ pos) = do
         bindParam' (f, A (Forall params' body_t) mempty) $ \f' ->
           m $ BindTFun f' params' mt' body' pos
     withBind (BindIFun f params mt body pos) m =
-      binds bindIdxParam params $ \params' -> do
+      binds bindExtentParam params $ \params' -> do
         body' <- checkExp body
         mt' <- checkMaybeType mt
         let body_t = arrayTypeOf body'
@@ -345,9 +345,9 @@ checkExp (Let bs e _ pos) = do
     withBind (BindType tvar t pos) m =
       bindType checkType pos (tvar, t) $ \(tvar', t') ->
         m $ BindType tvar' t' pos
-    withBind (BindIdx ivar idx pos) m =
-      bindIdx checkIdx pos (ivar, idx) $ \(ivar', idx') ->
-        m $ BindIdx ivar' idx' pos
+    withBind (BindExtent ivar extent pos) m =
+      bindExtent checkExtent pos (ivar, extent) $ \(ivar', extent') ->
+        m $ BindExtent ivar' extent' pos
 
 -- | Type check an unchecked 'Atom'.
 checkAtom :: (MonadCheck m) => Atom NoInfo Text -> m (Atom Info VName)
@@ -364,17 +364,17 @@ checkAtom (TLambda ps e _ pos) =
     let r = arrayTypeOf e'
     pure $ TLambda ps' e' (Info $ Forall ps' r) pos
 checkAtom (ILambda ps e _ pos) =
-  binds bindIdxParam ps $ \ps' -> do
+  binds bindExtentParam ps $ \ps' -> do
     e' <- checkExp e
     let r = arrayTypeOf e'
     pure $ ILambda ps' e' (Info $ Pi ps' r) pos
-checkAtom atom@(Box idx e box_t pos) = do
-  idx' <- mapM checkIdx idx
+checkAtom atom@(Box extent e box_t pos) = do
+  extent' <- mapM checkExtent extent
   e' <- checkExp e
-  box_t' <- checkScalarType box_t
+  box_t' <- checkAtomType box_t
   case box_t' of
     Sigma is t -> do
-      let t' = substitute' (zip is idx') t
+      let t' = substitute' (zip is extent') t
       unlessM (arrayTypeOf e' ~= t') $
         throwErrorPos pos $
           T.unlines
@@ -384,7 +384,7 @@ checkAtom atom@(Box idx e box_t pos) = do
               "But got:",
               prettyText t'
             ]
-      pure $ Box idx' e' box_t' pos
+      pure $ Box extent' e' box_t' pos
     _ ->
       throwErrorPos pos $
         T.unlines
