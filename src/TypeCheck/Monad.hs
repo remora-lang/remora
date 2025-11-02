@@ -1,4 +1,29 @@
-module TypeCheck.Monad where
+module TypeCheck.Monad
+  ( ArrayTypeVarBundle (..),
+    MonadCheck (..),
+    CheckM (..),
+    Error,
+    initEnv,
+    throwErrorPos,
+    fetchVar,
+    fetchAtomTypeVar,
+    fetchArrayTypeVar,
+    fetchDimVar,
+    fetchShapeVar,
+    lookupVar,
+    lookupAtomType,
+    lookupArrayType,
+    lookupDim,
+    lookupShape,
+    withParam,
+    withParam',
+    withTypeParam,
+    withExtentParam,
+    withType,
+    withExtent,
+    binds,
+  )
+where
 
 import Control.Monad.Error.Class
 import Control.Monad.RWS
