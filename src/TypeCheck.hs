@@ -36,7 +36,7 @@ checkDim :: (MonadCheck m) => Dim Text -> m (Dim VName)
 checkDim = fmap normDim . checkDim'
   where
     checkDim' (DimVar v) = do
-      v' <- lookupVNameDimVar v
+      v' <- fetchDimVar v
       md <- lookupDim v'
       case md of
         Nothing -> pure $ DimVar v'
@@ -50,7 +50,7 @@ checkShape :: (MonadCheck m) => Shape Text -> m (Shape VName)
 checkShape = fmap normShape . checkShape'
   where
     checkShape' (ShapeVar v) = do
-      v' <- lookupVNameShapeVar v
+      v' <- fetchShapeVar v
       ms <- lookupShape v'
       case ms of
         Nothing -> pure $ ShapeVar v'
@@ -73,7 +73,7 @@ checkArrayType :: (MonadCheck m) => ArrayType NoInfo Text -> m (ArrayType Info V
 checkArrayType (A t shape) =
   A <$> checkAtomType t <*> checkShape shape
 checkArrayType (ArrayTypeVar v _ _) = do
-  ArrayTypeVarBundle v' et_v' s_v' <- lookupVNameArrayTypeVarBundle v
+  ArrayTypeVarBundle v' et_v' s_v' <- fetchArrayTypeVar v
   mt <- lookupArrayType v'
   case mt of
     Nothing -> pure $ ArrayTypeVar v' (Info et_v') (Info s_v')
@@ -81,7 +81,7 @@ checkArrayType (ArrayTypeVar v _ _) = do
 
 checkAtomType :: (MonadCheck m) => AtomType NoInfo Text -> m (AtomType Info VName)
 checkAtomType (AtomTypeVar v) = do
-  v' <- lookupVNameAtomTypeVar v
+  v' <- fetchAtomTypeVar v
   mt <- lookupAtomType v'
   case mt of
     Nothing -> pure $ AtomTypeVar v'
@@ -92,20 +92,20 @@ checkAtomType Float = pure Float
 checkAtomType (as :-> b) =
   (:->) <$> mapM checkArrayType as <*> checkArrayType b
 checkAtomType (Forall pts t) =
-  binds bindTypeParam pts $ \pts' ->
+  binds withTypeParam pts $ \pts' ->
     Forall pts' <$> checkArrayType t
 checkAtomType (Pi pts t) =
-  binds bindExtentParam pts $ \pts' ->
+  binds withExtentParam pts $ \pts' ->
     Pi pts' <$> checkArrayType t
 checkAtomType (Sigma pts t) = do
-  binds bindExtentParam pts $ \pts' -> do
+  binds withExtentParam pts $ \pts' -> do
     Sigma pts' <$> checkArrayType t
 
 -- | Type check an unchecked 'Exp'.
 checkExp :: (MonadCheck m) => Exp NoInfo Text -> m (Exp Info VName)
 checkExp (Var v _ pos) = do
-  vname <- lookupVNameVar v
-  t <- lookupVarType vname
+  vname <- fetchVar v
+  t <- lookupVar vname
   pure $ Var vname (Info t) pos
 checkExp expr@(Array ns as _ pos) = do
   as' <- mapM checkAtom as
@@ -252,13 +252,13 @@ checkExp expr@(IApp f is _ pos) = do
             prettyText expr
           ]
 checkExp expr@(Unbox is x_e box body _ pos) = do
-  binds bindExtentParam is $ \is' -> do
+  binds withExtentParam is $ \is' -> do
     let is'' = map unExtentParam is'
     box' <- checkExp box
     case typeOf box' of
       ArrayType (A (Sigma ps t) frame_f) -> do
         let t' = flip substitute' t $ zip (map unExtentParam ps) is''
-        bindParam' (x_e, t') $ \x_e' -> do
+        withParam' (x_e, t') $ \x_e' -> do
           body' <- checkExp body
           case typeOf body' of
             ArrayType (A t_b shape_b) ->
@@ -315,38 +315,38 @@ checkExp (Let bs e _ pos) = do
       let t = arrayTypeOf ve'
       mt' <- checkMaybeType mt
       checkAnnot t mt'
-      bindParam' (v, t) $ \vname ->
+      withParam' (v, t) $ \vname ->
         m $ BindVal vname mt' ve' pos
     withBind (BindFun f params mt body pos) m = do
       mt' <- checkMaybeType mt
       (params', body') <-
-        binds (bindParam checkArrayType) params $ \params' -> do
+        binds (withParam checkArrayType) params $ \params' -> do
           body' <- checkExp body
           checkAnnot (arrayTypeOf body') mt'
           pure (params', body')
-      bindParam' (f, A (map snd params' :-> arrayTypeOf body') mempty) $ \f' ->
+      withParam' (f, A (map snd params' :-> arrayTypeOf body') mempty) $ \f' ->
         m $ BindFun f' params' mt' body' pos
     withBind (BindTFun f params mt body pos) m =
-      binds bindTypeParam params $ \params' -> do
+      binds withTypeParam params $ \params' -> do
         body' <- checkExp body
         mt' <- checkMaybeType mt
         let body_t = arrayTypeOf body'
         checkAnnot body_t mt'
-        bindParam' (f, A (Forall params' body_t) mempty) $ \f' ->
+        withParam' (f, A (Forall params' body_t) mempty) $ \f' ->
           m $ BindTFun f' params' mt' body' pos
     withBind (BindIFun f params mt body pos) m =
-      binds bindExtentParam params $ \params' -> do
+      binds withExtentParam params $ \params' -> do
         body' <- checkExp body
         mt' <- checkMaybeType mt
         let body_t = arrayTypeOf body'
         checkAnnot body_t mt'
-        bindParam' (f, A (Pi params' body_t) mempty) $ \f' ->
+        withParam' (f, A (Pi params' body_t) mempty) $ \f' ->
           m $ BindIFun f' params' mt' body' pos
     withBind (BindType tvar t pos) m =
-      bindType checkType pos (tvar, t) $ \(tvar', t') ->
+      withType checkType pos (tvar, t) $ \(tvar', t') ->
         m $ BindType tvar' t' pos
     withBind (BindExtent ivar extent pos) m =
-      bindExtent checkExtent pos (ivar, extent) $ \(ivar', extent') ->
+      withExtent checkExtent pos (ivar, extent) $ \(ivar', extent') ->
         m $ BindExtent ivar' extent' pos
 
 -- | Type check an unchecked 'Atom'.
@@ -354,17 +354,17 @@ checkAtom :: (MonadCheck m) => Atom NoInfo Text -> m (Atom Info VName)
 checkAtom (Base b _ pos) =
   pure $ Base b (Info $ baseTypeOf b) pos
 checkAtom (Lambda params e _ pos) = do
-  binds (bindParam checkArrayType) params $ \params' -> do
+  binds (withParam checkArrayType) params $ \params' -> do
     e' <- checkExp e
     let r = arrayTypeOf e'
     pure $ Lambda params' e' (Info $ map snd params' :-> r) pos
 checkAtom (TLambda ps e _ pos) =
-  binds bindTypeParam ps $ \ps' -> do
+  binds withTypeParam ps $ \ps' -> do
     e' <- checkExp e
     let r = arrayTypeOf e'
     pure $ TLambda ps' e' (Info $ Forall ps' r) pos
 checkAtom (ILambda ps e _ pos) =
-  binds bindExtentParam ps $ \ps' -> do
+  binds withExtentParam ps $ \ps' -> do
     e' <- checkExp e
     let r = arrayTypeOf e'
     pure $ ILambda ps' e' (Info $ Pi ps' r) pos
@@ -399,5 +399,5 @@ withPrelude m = checkPrelude prelude mempty
     checkPrelude [] prelude' =
       (reverse prelude',) <$> m
     checkPrelude (PreludeVal f t v : ps) prelude' = do
-      bindParam checkArrayType (f, t) $ \(f', t') ->
+      withParam checkArrayType (f, t) $ \(f', t') ->
         checkPrelude ps (PreludeVal f' t' v : prelude')

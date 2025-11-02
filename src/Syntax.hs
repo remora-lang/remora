@@ -15,8 +15,6 @@ module Syntax
     Type (..),
     mkScalarArrayType,
     elemType,
-    atomKind,
-    arrayKind,
     Base (..),
     Atom (..),
     Bind (..),
@@ -51,10 +49,8 @@ instance (Pretty a) => Pretty (Info a) where
 
 -- | Type parameters.
 data TypeParam v
-  = -- | An Atom-kinded type parameter.
-    AtomTypeParam v
-  | -- | An Array-kinded type parameter.
-    ArrayTypeParam v
+  = AtomTypeParam v
+  | ArrayTypeParam v
   deriving (Show, Ord, Eq, Functor, Foldable, Traversable)
 
 -- | Extract the variable out of a 'TypeParam'.
@@ -129,9 +125,9 @@ data ArrayType f v
       { arrayTypeScalar :: AtomType f v,
         arrayTypeShape :: Shape v
       }
-  | -- | An array type var. Array type vars only truly exist in the source;
-    -- during typechecking, they are replaced with an atom type var and a
-    -- shape var.
+  | -- | An array type var. Array type vars only truly exist in the source.
+    -- During typechecking, they are replaced with an atom type var and a shape
+    -- var.
     ArrayTypeVar
       { arrayTypeVar :: v,
         arrayTypeVarScalar :: f v,
@@ -152,10 +148,8 @@ instance (Show v, Pretty v, Pretty (f v)) => Pretty (ArrayType f v) where
 
 -- | Types.
 data Type f v
-  = -- | Scalar types.
-    AtomType (AtomType f v)
-  | -- | Array types.
-    ArrayType (ArrayType f v)
+  = AtomType (AtomType f v)
+  | ArrayType (ArrayType f v)
 
 deriving instance (Show v) => Show (Type NoInfo v)
 
@@ -173,15 +167,6 @@ mkScalarArrayType = flip A mempty
 elemType :: Type f v -> AtomType f v
 elemType (AtomType t) = t
 elemType (ArrayType (A t _)) = t
-
--- | Does this type have Array kind?
-arrayKind :: Type f v -> Bool
-arrayKind ArrayType {} = True
-arrayKind _ = False
-
--- | Does this type have Atom kind?
-atomKind :: Type f v -> Bool
-atomKind = not . arrayKind
 
 -- | Base values.
 data Base

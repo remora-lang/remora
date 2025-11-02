@@ -115,6 +115,14 @@ newtype CheckM a = CheckM {runCheckM :: ExceptT Error (RWS Env () Tag) a}
       MonadError Error
     )
 
+localVNames :: (MonadCheck m) => (VNameEnv -> VNameEnv) -> m a -> m a
+localVNames f =
+  local $ \env -> env {envVNames = f $ envVNames env}
+
+localBinds :: (MonadCheck m) => (BindEnv -> BindEnv) -> m a -> m a
+localBinds f =
+  local $ \env -> env {envBinds = f $ envBinds env}
+
 -- | Lookup something in the environment.
 lookupEnv ::
   ( MonadReader env m,
@@ -128,37 +136,37 @@ lookupEnv ::
 lookupEnv t a look = do
   mb <- asks look
   case mb of
-    Nothing -> throwError $ "Unknown " <> t <> " var lookup: " <> prettyText a
+    Nothing -> throwError $ "Unknown " <> t <> " var: " <> prettyText a
     Just b -> pure b
 
--- | Look-up a variable.
-lookupVNameVar :: (MonadCheck m) => Text -> m VName
-lookupVNameVar v =
+-- | Fetch the unique name for a variable.
+fetchVar :: (MonadCheck m) => Text -> m VName
+fetchVar v =
   lookupEnv "text" v $ (M.!? v) . vnameEnvVars . envVNames
 
--- | Look-up an atom type variable.
-lookupVNameAtomTypeVar :: (MonadCheck m) => Text -> m VName
-lookupVNameAtomTypeVar v =
+-- | Fetch the unique name for an atom type variable.
+fetchAtomTypeVar :: (MonadCheck m) => Text -> m VName
+fetchAtomTypeVar v =
   lookupEnv "text atom type" v $ (M.!? v) . vnameEnvAtomTypeVars . envVNames
 
--- | Look-up an array type variable.
-lookupVNameArrayTypeVarBundle :: (MonadCheck m) => Text -> m (ArrayTypeVarBundle VName)
-lookupVNameArrayTypeVarBundle v =
+-- | Fetch the unique name for an array type variable.
+fetchArrayTypeVar :: (MonadCheck m) => Text -> m (ArrayTypeVarBundle VName)
+fetchArrayTypeVar v =
   lookupEnv "text array type" v $ (M.!? v) . vnameEnvArrayTypeVarBundles . envVNames
 
--- | Look-up a dim variable.
-lookupVNameDimVar :: (MonadCheck m) => Text -> m VName
-lookupVNameDimVar v =
+-- | Fetch the unique name for a dim variable.
+fetchDimVar :: (MonadCheck m) => Text -> m VName
+fetchDimVar v =
   lookupEnv "text dim" v $ (M.!? v) . vnameEnvDimVars . envVNames
 
--- | Look-up a shape variable.
-lookupVNameShapeVar :: (MonadCheck m) => Text -> m VName
-lookupVNameShapeVar v =
+-- | Fetch the unique name for a shape variable.
+fetchShapeVar :: (MonadCheck m) => Text -> m VName
+fetchShapeVar v =
   lookupEnv "text shape" v $ (M.!? v) . vnameEnvShapeVars . envVNames
 
 -- | Look-up the type of a term variable.
-lookupVarType :: (MonadCheck m) => VName -> m (ArrayType Info VName)
-lookupVarType v =
+lookupVar :: (MonadCheck m) => VName -> m (ArrayType Info VName)
+lookupVar v =
   lookupEnv "" v $ (M.!? v) . bindEnvVars . envBinds
 
 -- | Look-up an atom type variable binding.
@@ -182,68 +190,56 @@ lookupShape v =
   asks $ (M.!? v) . bindEnvShapes . envBinds
 
 -- | Bind a source parameter into a local environment.
-bindParam ::
+withParam ::
   (MonadCheck m) =>
-  (ArrayType NoInfo Text -> m (ArrayType Info VName)) ->
-  (Text, ArrayType NoInfo Text) ->
+  (t -> m (ArrayType Info VName)) ->
+  (Text, t) ->
   ((VName, ArrayType Info VName) -> m a) ->
   m a
-bindParam checkArrayType (v, t) m = do
+withParam checkArrayType (v, t) m = do
   vname <- newVName v
   t' <- checkArrayType t
-  Env vnames bs <- ask
-  let vnames' = vnames {vnameEnvVars = M.insert v vname $ vnameEnvVars vnames}
-      bs' = bs {bindEnvVars = M.insert vname t' $ bindEnvVars bs}
-      env' = Env vnames' bs'
-  local (const env') $ m (vname, t')
+  localVNames (\vnames -> vnames {vnameEnvVars = M.insert v vname $ vnameEnvVars vnames}) $
+    localBinds (\bs -> bs {bindEnvVars = M.insert vname t' $ bindEnvVars bs}) $
+      m (vname, t')
 
 -- | Bind a source parameter into a local environment.
-bindParam' ::
-  (MonadCheck m) =>
-  (Text, ArrayType Info VName) ->
-  (VName -> m a) ->
-  m a
-bindParam' (v, t) m = do
+withParam' :: (MonadCheck m) => (Text, ArrayType Info VName) -> (VName -> m a) -> m a
+withParam' (v, t) f = withParam pure (v, t) (f . fst)
+
+-- | Bind a source type parameter into a local environment.
+withTypeParam :: (MonadCheck m) => TypeParam Text -> (TypeParam VName -> m a) -> m a
+withTypeParam (AtomTypeParam v) m = do
   vname <- newVName v
-  Env vnames bs <- ask
-  let vnames' = vnames {vnameEnvVars = M.insert v vname $ vnameEnvVars vnames}
-      bs' = bs {bindEnvVars = M.insert vname t $ bindEnvVars bs}
-      env' = Env vnames' bs'
-  local (const env') $ m vname
+  localVNames
+    ( \vnames ->
+        vnames
+          { vnameEnvAtomTypeVars =
+              M.insert v vname $ vnameEnvAtomTypeVars vnames
+          }
+    )
+    $ m (AtomTypeParam vname)
+withTypeParam (ArrayTypeParam v) m = do
+  vname <- newVName v
+  et_vname <- newVName $ "et_" <> v
+  s_vname <- newVName $ "s_" <> v
+  localVNames
+    ( \vnames ->
+        vnames
+          { vnameEnvArrayTypeVarBundles =
+              M.insert v (ArrayTypeVarBundle vname et_vname s_vname) $
+                vnameEnvArrayTypeVarBundles vnames
+          }
+    )
+    $ m (ArrayTypeParam vname)
 
 -- | Bind a source type parameter into a local environment.
-bindTypeParam :: (MonadCheck m) => TypeParam Text -> (TypeParam VName -> m a) -> m a
-bindTypeParam tvar m = do
-  vname <- newVName $ unTypeParam tvar
-  Env vnames bs <- ask
-  vnames' <-
-    case tvar of
-      AtomTypeParam v ->
-        pure $
-          vnames
-            { vnameEnvAtomTypeVars =
-                M.insert v vname $ vnameEnvAtomTypeVars vnames
-            }
-      ArrayTypeParam v -> do
-        et_vname <- newVName $ "et_" <> v
-        s_vname <- newVName $ "s_" <> v
-        pure $
-          vnames
-            { vnameEnvArrayTypeVarBundles =
-                M.insert v (ArrayTypeVarBundle vname et_vname s_vname) $ vnameEnvArrayTypeVarBundles vnames
-            }
-  let tvar' = (const vname) <$> tvar
-      env' = Env vnames' bs
-  local (const env') $ m tvar'
-
--- | Bind a source type parameter into a local environment.
-bindExtentParam :: (MonadCheck m) => ExtentParam Text -> (ExtentParam VName -> m a) -> m a
-bindExtentParam ivar m = do
-  vname <- newVName $ unExtentParam ivar
-  Env vnames bs <- ask
-  let ivar' = (const vname) <$> ivar
-      vnames' =
-        case ivar of
+withExtentParam :: (MonadCheck m) => ExtentParam Text -> (ExtentParam VName -> m a) -> m a
+withExtentParam p m = do
+  vname <- newVName $ unExtentParam p
+  localVNames
+    ( \vnames ->
+        case p of
           DimParam v ->
             vnames
               { vnameEnvDimVars =
@@ -254,76 +250,62 @@ bindExtentParam ivar m = do
               { vnameEnvShapeVars =
                   M.insert v vname $ vnameEnvShapeVars vnames
               }
-      env' = Env vnames' bs
-  local (const env') $ m ivar'
+    )
+    $ m (vname <$ p)
 
 -- | Bind a type binding.
-bindType ::
+withType ::
   (MonadCheck m) =>
   (Type NoInfo Text -> m (Type Info VName)) ->
   SourcePos ->
   (TypeParam Text, Type NoInfo Text) ->
   ((TypeParam VName, Type Info VName) -> m a) ->
   m a
-bindType checkType pos (tvar, t) m =
-  bindTypeParam tvar $ \tvar' -> do
+withType checkType pos (p, t) m =
+  withTypeParam p $ \p' -> do
     t' <- checkType t
-    Env vnames bs <- ask
-    bs' <-
-      case (tvar', t') of
-        (AtomTypeParam v, AtomType et) ->
-          pure $
-            bs
-              { bindEnvAtomTypes = M.insert v et $ bindEnvAtomTypes bs
-              }
-        (ArrayTypeParam v, ArrayType t) ->
-          pure $
-            bs
-              { bindEnvArrayTypes = M.insert v t $ bindEnvArrayTypes bs
-              }
-        _ ->
-          throwErrorPos pos $
-            T.unlines
-              [ "Incompatible type binding:",
-                prettyText tvar,
-                prettyText t
-              ]
-    let env' = Env vnames bs'
-    local (const env') $ m (tvar', t')
+    f <- case (p', t') of
+      (AtomTypeParam v, AtomType et) ->
+        pure $ \bs ->
+          bs {bindEnvAtomTypes = M.insert v et $ bindEnvAtomTypes bs}
+      (ArrayTypeParam v, ArrayType at) ->
+        pure $ \bs ->
+          bs {bindEnvArrayTypes = M.insert v at $ bindEnvArrayTypes bs}
+      _ ->
+        throwErrorPos pos $
+          T.unlines
+            [ "Incompatible type binding:",
+              prettyText p,
+              prettyText t
+            ]
+    localBinds f $ m (p', t')
 
 -- | Bind an index binding.
-bindExtent ::
+withExtent ::
   (MonadCheck m) =>
   (Extent Text -> m (Extent VName)) ->
   SourcePos ->
   (ExtentParam Text, Extent Text) ->
   ((ExtentParam VName, Extent VName) -> m a) ->
   m a
-bindExtent checkExtent pos (ivar, extent) m =
-  bindExtentParam ivar $ \ivar' -> do
-    extent' <- checkExtent extent
-    Env vnames bs <- ask
-    bs' <-
-      case (ivar', extent') of
-        (DimParam v, Dim d) ->
-          pure $
-            bs
-              { bindEnvDims = M.insert v d $ bindEnvDims bs
-              }
-        (ShapeParam v, Shape s) ->
-          pure $
-            bs
-              { bindEnvShapes = M.insert v s $ bindEnvShapes bs
-              }
-        _ ->
-          throwErrorPos pos $
-            T.unlines
-              [ "Incompatible index binding:",
-                prettyText ivar,
-                prettyText extent
-              ]
-    let env' = Env vnames bs'
-    local (const env') $ m (ivar', extent')
+withExtent checkExtent pos (p, ext) m =
+  withExtentParam p $ \p' -> do
+    ext' <- checkExtent ext
+    f <- case (p', ext') of
+      (DimParam v, Dim d) ->
+        pure $
+          \bs -> bs {bindEnvDims = M.insert v d $ bindEnvDims bs}
+      (ShapeParam v, Shape s) ->
+        pure $
+          \bs -> bs {bindEnvShapes = M.insert v s $ bindEnvShapes bs}
+      _ ->
+        throwErrorPos pos $
+          T.unlines
+            [ "Incompatible extent binding:",
+              prettyText p,
+              prettyText ext
+            ]
+    localBinds f $ m (p', ext')
 
 -- | Do many binds.
 binds :: (a -> (c -> x) -> x) -> [a] -> ([c] -> x) -> x
