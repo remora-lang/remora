@@ -208,7 +208,7 @@ intExp expr@(Unbox is x_e box e _ _) = do
   box' <- intExp box
   arrayValView box' $ \(ns, boxes) -> do
     elems <- mapM unbox boxes
-    pure $ ValArray (length elems : ns) elems
+    pure $ collapse $ ValArray (valShapeOf box' <> ns) elems
   where
     unbox (ValBox extents v) =
       binds ibind (zip (map unExtentParam is) extents) $

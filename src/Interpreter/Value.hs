@@ -11,6 +11,7 @@ module Interpreter.Value
     transpose,
     valConcat,
     collapse,
+    valShapeOf,
   )
 where
 
@@ -85,9 +86,9 @@ baseValViews vs m = m $ map unpack vs
     unpack (ValArray [] [v]) = unpack v
     unpack _ = error "not base"
 
-shapeOf :: Val m -> [Int]
-shapeOf (ValArray s _) = s
-shapeOf _ = mempty
+valShapeOf :: Val m -> [Int]
+valShapeOf (ValArray s _) = s
+valShapeOf _ = mempty
 
 -- | Lifts a scalar value into an arry.
 arrayifyVal :: Val m -> Val m
@@ -144,10 +145,12 @@ valConcat _ = error "concat"
 collapse :: Val m -> Val m
 collapse (ValArray s vs) =
   let vs' = map collapse vs
+      unpack (ValArray _ vs) = vs
+      unpack v = [v]
    in case vs' of
         ValArray s' vs'' : rest
-          | all (\x -> shapeOf x == s') rest ->
-              ValArray (s <> s') $ arrayValViews vs' (concat . map snd)
+          | all (\x -> valShapeOf x == s') rest ->
+              ValArray (s <> s') $ concatMap unpack vs'
           | otherwise -> error $ "collapse: " <> show vs'
         _ -> ValArray s vs'
 collapse v = v
