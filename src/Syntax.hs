@@ -132,7 +132,7 @@ data ArrayType f v
     -- var.
     ArrayTypeVar
       { arrayTypeVar :: v,
-        arrayTypeVarScalar :: f v,
+        arrayTypeVarAtom :: f v,
         arrayTypeVarShape :: f v
       }
 
