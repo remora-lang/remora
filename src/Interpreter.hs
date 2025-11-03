@@ -210,9 +210,8 @@ intExp expr@(Unbox is x_e box e _ _) = do
     elems <- mapM unbox boxes
     pure $ ValArray (length elems : ns) elems
   where
-    unbox (ValBox extents v _) = do
-      extents' <- mapM intExtent extents
-      binds ibind (zip (map unExtentParam is) extents') $
+    unbox (ValBox extents v) =
+      binds ibind (zip (map unExtentParam is) extents) $
         bind x_e v $
           intExp e
     unbox v =
@@ -287,8 +286,9 @@ intAtom (ILambda ps e _ _) = do
     local (const env) $
       binds ibind (zip (map unExtentParam ps) extents) $
         intExp e
-intAtom (Box is e t _) =
-  ValBox is <$> intExp e <*> pure t
+intAtom (Box extents e _ _) = do
+  extents' <- mapM intExtent extents
+  ValBox extents' <$> intExp e
 
 -- | Replicates cells to make shapes match for function application.
 lift :: [Int] -> Val -> ([[Int]], [Val]) -> (Val, [Val])
@@ -319,7 +319,7 @@ lift _ v _ = error $ prettyString v
 apMap :: Val -> ([[Int]], [Val]) -> InterpM Val
 apMap v (sparams, argvs) =
   arrayValView v $ \(shape_f, fs) ->
-    ValArray shape_f <$> zipWithM apply_fun fs arg_splits
+    (collapse . ValArray shape_f) <$> zipWithM apply_fun fs arg_splits
   where
     apply_fun f args =
       apply f (zipWith ValArray sparams args)

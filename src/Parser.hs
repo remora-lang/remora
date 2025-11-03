@@ -300,7 +300,9 @@ pExp =
     pShapeLit = brackets $ many pDecimal
     pUnbox =
       Unbox
-        <$> (lKeyword "unbox" >> (symbol "(" >> (many (pExtentParam <* notFollowedBy (symbol ")")))))
+        <$> ( lKeyword "unbox"
+                >> (symbol "(" >> (many (pExtentParam <* notFollowedBy (symbol ")"))))
+            )
         <*> lId
         <*> (pExp <* symbol ")")
         <*> pExp

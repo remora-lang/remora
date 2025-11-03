@@ -286,5 +286,29 @@ prelude =
           pure $ ValIFun $ \[Left _m, Left _n, Right _s] ->
             pure $ ValFun $ \[v] ->
               pure $ valConcat v
+      ),
+    PreludeVal
+      "iota"
+      ( mkScalarArrayType $
+          Pi
+            [DimParam "d"]
+            ( let arg_t = A Int (ShapeDim $ DimVar "d")
+                  ret_t =
+                    mkScalarArrayType $
+                      Sigma [ShapeParam "s"] $
+                        A Int (ShapeVar "s")
+               in mkScalarArrayType $ [arg_t] :-> ret_t
+            )
+      )
+      ( ValIFun $ \[Left _d] ->
+          pure $ ValFun $ \[shapeval] ->
+            let fromInt (IntVal i) = i
+                fromInt _ = error "fromInt"
+                shape = arrayValView shapeval $ flip baseValViews (map fromInt) . snd
+             in pure $
+                  ValBox [Right shape] $
+                    ValArray
+                      shape
+                      (map (ValBase . IntVal) [0 .. product shape - 1])
       )
   ]
