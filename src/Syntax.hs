@@ -19,6 +19,8 @@ module Syntax
     Atom (..),
     Bind (..),
     Exp (..),
+    HasSrcPos (..),
+    mkScalar,
     arrayElems,
     frameElems,
     flattenExp,
@@ -330,6 +332,10 @@ instance (Show v, Pretty v, Pretty (f (Type f v)), Pretty (f v)) => Pretty (Exp 
   pretty (Let binds body _ _) =
     parens $ "let" <+> hsep (map pretty binds) <+> pretty body
 
+-- | Make a scalar from an 'Atom'.
+mkScalar :: Atom NoInfo v -> Exp NoInfo v
+mkScalar a = Array [1] [a] NoInfo $ posOf a
+
 -- | Gets the 'Atom's of an 'Array' literal.
 arrayElems :: Exp f v -> Maybe [Atom f v]
 arrayElems (Array _ as _ _) = pure as
@@ -369,3 +375,32 @@ instance Pretty Pos where
 instance Pretty SourcePos where
   pretty (SourcePos file l col) =
     pretty file <> ":" <> pretty l <> ":" <> pretty col
+
+-- | Things that have a source position.
+class HasSrcPos x where
+  posOf :: x -> SourcePos
+
+instance HasSrcPos (Bind f v) where
+  posOf (BindVal _ _ _ pos) = pos
+  posOf (BindFun _ _ _ _ pos) = pos
+  posOf (BindType _ _ pos) = pos
+  posOf (BindExtent _ _ pos) = pos
+
+instance HasSrcPos (Atom f v) where
+  posOf (Base _ _ pos) = pos
+  posOf (Lambda _ _ _ pos) = pos
+  posOf (TLambda _ _ _ pos) = pos
+  posOf (ILambda _ _ _ pos) = pos
+  posOf (Box _ _ _ pos) = pos
+
+instance HasSrcPos (Exp f v) where
+  posOf (Var _ _ pos) = pos
+  posOf (Array _ _ _ pos) = pos
+  posOf (EmptyArray _ _ _ pos) = pos
+  posOf (Frame _ _ _ pos) = pos
+  posOf (EmptyFrame _ _ _ pos) = pos
+  posOf (App _ _ _ pos) = pos
+  posOf (TApp _ _ _ pos) = pos
+  posOf (IApp _ _ _ pos) = pos
+  posOf (Unbox _ _ _ _ _ pos) = pos
+  posOf (Let _ _ _ pos) = pos

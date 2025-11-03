@@ -7,7 +7,6 @@ module Prop
     baseTypeOf,
     HasType (..),
     HasShape (..),
-    HasSrcPos (..),
     IsType (..),
     (@=),
     (\\),
@@ -92,37 +91,6 @@ instance HasShape (Type Info VName) where
 instance HasShape (Exp Info VName) where
   shapeOf_ = shapeOf_ . typeOf_
 
--- | Things that have a source position.
-class HasSrcPos x where
-  posOf :: x -> SourcePos
-
-instance HasSrcPos (Bind f v) where
-  posOf (BindVal _ _ _ pos) = pos
-  posOf (BindFun _ _ _ _ pos) = pos
-  posOf (BindTFun _ _ _ _ pos) = pos
-  posOf (BindIFun _ _ _ _ pos) = pos
-  posOf (BindType _ _ pos) = pos
-  posOf (BindExtent _ _ pos) = pos
-
-instance HasSrcPos (Atom f v) where
-  posOf (Base _ _ pos) = pos
-  posOf (Lambda _ _ _ pos) = pos
-  posOf (TLambda _ _ _ pos) = pos
-  posOf (ILambda _ _ _ pos) = pos
-  posOf (Box _ _ _ pos) = pos
-
-instance HasSrcPos (Exp f v) where
-  posOf (Var _ _ pos) = pos
-  posOf (Array _ _ _ pos) = pos
-  posOf (EmptyArray _ _ _ pos) = pos
-  posOf (Frame _ _ _ pos) = pos
-  posOf (EmptyFrame _ _ _ pos) = pos
-  posOf (App _ _ _ pos) = pos
-  posOf (TApp _ _ _ pos) = pos
-  posOf (IApp _ _ _ pos) = pos
-  posOf (Unbox _ _ _ _ _ pos) = pos
-  posOf (Let _ _ _ pos) = pos
-
 -- | Things that are types.
 class IsType x where
   normType :: x -> x
@@ -193,7 +161,7 @@ s \\ Concat [] = pure s
   | last ss @= last ts = Concat (init ss) \\ Concat (init ts)
 (Concat ss) \\ t
   | last ss @= t = pure $ Concat $ init ss
-s \\ t = error $ show (s, t)
+s \\ t = error $ unlines [show s, show t]
 
 -- | @s .<= t@ is true if @s@ is a suffix of @t@.
 (.<=.) :: (Eq v, Ord v, Show v) => Shape v -> Shape v -> Bool

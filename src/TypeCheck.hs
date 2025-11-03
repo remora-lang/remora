@@ -174,6 +174,7 @@ checkExp expr@(App f args _ pos) = do
                     [ "Ill-shaped application:",
                       "Param type: " <> prettyText pt,
                       "Argument: " <> prettyText arg,
+                      "Argument type: " <> prettyText (arrayTypeOf arg),
                       "in",
                       prettyText expr
                     ]

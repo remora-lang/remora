@@ -130,7 +130,7 @@ maximumShape :: (Ord v, Pretty v, Foldable t) => t (Shape v) -> Shape v
 maximumShape =
   foldr
     ( \next shape ->
-        if askShapes (.<) shape next
+        if askShapes SL.isPrefixOf shape next
           then next
           else shape
     )

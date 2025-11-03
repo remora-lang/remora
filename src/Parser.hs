@@ -8,15 +8,15 @@ import Data.Void
 import Syntax hiding
   ( ArrayType,
     Atom,
+    AtomType,
     Bind,
     Dim,
     Exp,
-    ExtentParam,
     Extent,
-    AtomType,
+    ExtentParam,
     Shape,
-    TypeParam,
     Type,
+    TypeParam,
   )
 import Syntax qualified
 import Text.Megaparsec
@@ -323,14 +323,22 @@ pExp =
                       <*> pExp,
                   try $
                     BindVal
-                      <$> (symbol "(" *> lId)
+                      <$> (symbol "(" *> lId <* symbol ":")
                       <*> ((Just <$> pArrayType) <* symbol ")")
                       <*> pExp,
-                  BindFun
-                    <$> (symbol "(" *> lId)
-                    <*> manyLisp pParam
-                    <*> ((option Nothing (lKeyword "->" *> (Just <$> pArrayType))) <* symbol ")")
-                    <*> pExp,
+                  try $
+                    BindFun
+                      <$> lId
+                      <*> manyLisp pParam
+                      <*> pure Nothing
+                      <*> pExp,
+                  try $
+                    BindFun
+                      <$> (symbol "(" *> lId)
+                      <*> (manyLisp pParam)
+                      <*> (symbol ":" *> (Just <$> pArrayType) <* symbol ")")
+                      <*> pExp,
+                  pAtFnBind,
                   lKeyword "t-fun"
                     >> ( BindTFun
                            <$> lId
@@ -367,33 +375,62 @@ pExp =
         tApp pos (Just ts) m =
           TApp m ts NoInfo pos
 
--- pAtFnBind = do
--- void $ symbol "@"
--- f <- lId
--- mts <- choice [Just <$> manyLisp pTypeParam, symbol "_" >> pure Nothing]
--- mextent <- choice [Just <$> manyLisp pExtentParam, symbol "_" >> pure Nothing]
--- params <- manyLisp pParam
--- t <- pArrayType
--- body <- pExp
---
---  pure $
---    \_ pos ->
---      App (iApp pos mextent $ tApp pos mts f) args NoInfo pos
---  where
---    iBind _ Nothing m = m
---    i pos (Just extents) m =
---      BindIFun "f" extents Nothing m pos
+    -- TODO: fix this atrocity
+    pAtFnBind =
+      choice
+        [ -- do
+          --   void $ symbol "@"
+          --   f <- lId
+          --   mts <- choice [Just <$> manyLisp pTypeParam, symbol "_" >> pure Nothing]
+          --   mextents <- choice [Just <$> manyLisp pExtentParam, symbol "_" >> pure Nothing]
+          --   params <- manyLisp pParam
+          --   body <- pExp
+          --   pure $ \pos ->
+          --     BindFun f params Nothing (tBind pos mts $ iBind pos mextents body) pos,
+          do
+            symbol "("
+            void $ symbol "@"
+            f <- lId
+            mts <- choice [Just <$> manyLisp pTypeParam, symbol "_" >> pure Nothing]
+            mextents <- choice [Just <$> manyLisp pExtentParam, symbol "_" >> pure Nothing]
+            params <- manyLisp pParam
+            symbol ":"
+            t <- pArrayType
+            let fun_type = mkScalarArrayType $ map snd params :-> t
+            symbol ")"
+            body <- pExp
+            let funBind pos = BindFun f params (Just t) body pos
+                iBind pos =
+                  case mextents of
+                    Nothing -> funBind pos
+                    Just extents ->
+                      BindIFun
+                        f
+                        extents
+                        (Just fun_type)
+                        (Let [funBind pos] (Var f NoInfo pos) NoInfo pos)
+                        pos
 
---    tBind _ Nothing m = m
---    tBind pos (Just ts) m =
---      BindTFun m ts NoInfo pos
+                tBind pos =
+                  case mts of
+                    Nothing -> iBind pos
+                    Just ts ->
+                      BindTFun
+                        f
+                        ts
+                        Nothing
+                        (Let [iBind pos] (Var f NoInfo pos) NoInfo pos)
+                        pos
+            pure tBind
+        ]
 
 pDim :: Parser Dim
 pDim =
   choice
     [ "$" >> DimVar <$> lId,
       DimN <$> pDecimal,
-      symbol "+" >> Add <$> many pDim
+      parens $ symbol "+" >> Add <$> many pDim,
+      parens $ symbol "*" >> Mul <$> many pDim
     ]
 
 pShapeSplice :: Parser Shape
