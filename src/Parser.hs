@@ -135,12 +135,8 @@ withSrcPos p = do
 withNoInfo :: Parser (NoInfo b -> a) -> Parser a
 withNoInfo = fmap ($ NoInfo)
 
-manyLisp :: Parser a -> Parser [a]
-manyLisp p =
-  choice
-    [ pure <$> try p,
-      parens $ many p
-    ]
+listOf :: Parser a -> Parser [a]
+listOf = parens . many
 
 lId :: Parser Text
 lId = lexeme $ try $ do
@@ -181,10 +177,10 @@ pAtomType =
       symbol "Float" >> pure Float,
       parens $
         choice
-          [ (:->) <$> ((lKeyword "->" <|> lKeyword "→") >> manyLisp pArrayType) <*> pArrayType,
-            Forall <$> ((lKeyword "Forall" <|> lKeyword "∀") >> manyLisp pTypeParam) <*> pArrayType,
-            Pi <$> ((lKeyword "Pi" <|> lKeyword "П") >> manyLisp pExtentParam) <*> pArrayType,
-            Sigma <$> ((lKeyword "Sigma" <|> lKeyword "Σ") >> manyLisp pExtentParam) <*> pArrayType
+          [ (:->) <$> ((lKeyword "->" <|> lKeyword "→") >> listOf pArrayType) <*> pArrayType,
+            Forall <$> ((lKeyword "Forall" <|> lKeyword "∀") >> listOf pTypeParam) <*> pArrayType,
+            Pi <$> ((lKeyword "Pi" <|> lKeyword "П") >> listOf pExtentParam) <*> pArrayType,
+            Sigma <$> ((lKeyword "Sigma" <|> lKeyword "Σ") >> listOf pExtentParam) <*> pArrayType
           ]
     ]
 
@@ -248,20 +244,20 @@ pAtom =
       let pArg = parens $ (,) <$> lId <*> pArrayType
        in withNoInfo $
             Lambda
-              <$> ((lKeyword "fn" <|> lKeyword "λ") >> (manyLisp pArg))
+              <$> ((lKeyword "fn" <|> lKeyword "λ") >> (listOf pArg))
               <*> pExp
     pILambda =
       withNoInfo $
         ILambda
-          <$> ((lKeyword "i-fn" <|> lKeyword "iλ") >> (manyLisp pExtentParam))
+          <$> ((lKeyword "i-fn" <|> lKeyword "iλ") >> (listOf pExtentParam))
           <*> pExp
     pTLambda =
       withNoInfo $
         TLambda
-          <$> ((lKeyword "t-fn" <|> lKeyword "tλ") >> (manyLisp pTypeParam))
+          <$> ((lKeyword "t-fn" <|> lKeyword "tλ") >> (listOf pTypeParam))
           <*> pExp
     pBox =
-      Box <$> (lKeyword "box" >> manyLisp pExtent) <*> pExp <*> pAtomType
+      Box <$> (lKeyword "box" >> listOf pExtent) <*> pExp <*> pAtomType
 
 pExtent :: Parser Extent
 pExtent =
@@ -312,7 +308,7 @@ pExp =
 
     pLet =
       lKeyword "let"
-        >> (Let <$> manyLisp pBind <*> pExp)
+        >> (Let <$> listOf pBind <*> pExp)
       where
         pBind =
           withSrcPos $
@@ -330,28 +326,22 @@ pExp =
                       <*> pExp,
                   try $
                     BindFun
-                      <$> lId
-                      <*> manyLisp pParam
-                      <*> pure Nothing
-                      <*> pExp,
-                  try $
-                    BindFun
-                      <$> (symbol "(" *> lId)
-                      <*> (manyLisp pParam)
-                      <*> (symbol ":" *> (Just <$> pArrayType) <* symbol ")")
+                      <$> (lKeyword "fun" *> lId)
+                      <*> listOf pParam
+                      <*> ((symbol ":" *> (Just <$> pArrayType)) <|> pure Nothing)
                       <*> pExp,
                   pAtFnBind,
                   lKeyword "t-fun"
                     >> ( BindTFun
                            <$> lId
-                           <*> manyLisp pTypeParam
+                           <*> listOf pTypeParam
                            <*> (option Nothing (Just <$> pArrayType))
                            <*> pExp
                        ),
                   lKeyword "i-fun"
                     >> ( BindIFun
                            <$> lId
-                           <*> manyLisp pExtentParam
+                           <*> listOf pExtentParam
                            <*> (option Nothing (Just <$> pArrayType))
                            <*> pExp
                        ),
@@ -362,8 +352,8 @@ pExp =
     pAtFn = do
       void $ symbol "@"
       f <- pExp
-      mts <- choice [Just <$> manyLisp pType, symbol "_" >> pure Nothing]
-      mextent <- choice [Just <$> manyLisp pExtent, symbol "_" >> pure Nothing]
+      mts <- choice [Just <$> listOf pType, symbol "_" >> pure Nothing]
+      mextent <- choice [Just <$> listOf pExtent, symbol "_" >> pure Nothing]
       args <- many pExp
       pure $
         \_ pos ->
@@ -383,23 +373,22 @@ pExp =
         [ -- do
           --   void $ symbol "@"
           --   f <- lId
-          --   mts <- choice [Just <$> manyLisp pTypeParam, symbol "_" >> pure Nothing]
-          --   mextents <- choice [Just <$> manyLisp pExtentParam, symbol "_" >> pure Nothing]
-          --   params <- manyLisp pParam
+          --   mts <- choice [Just <$> listOf pTypeParam, symbol "_" >> pure Nothing]
+          --   mextents <- choice [Just <$> listOf pExtentParam, symbol "_" >> pure Nothing]
+          --   params <- listOf pParam
           --   body <- pExp
           --   pure $ \pos ->
           --     BindFun f params Nothing (tBind pos mts $ iBind pos mextents body) pos,
           do
-            symbol "("
+            lKeyword "fun"
             void $ symbol "@"
             f <- lId
-            mts <- choice [Just <$> manyLisp pTypeParam, symbol "_" >> pure Nothing]
-            mextents <- choice [Just <$> manyLisp pExtentParam, symbol "_" >> pure Nothing]
-            params <- manyLisp pParam
+            mts <- choice [Just <$> listOf pTypeParam, symbol "_" >> pure Nothing]
+            mextents <- choice [Just <$> listOf pExtentParam, symbol "_" >> pure Nothing]
+            params <- listOf pParam
             symbol ":"
             t <- pArrayType
             let fun_type = mkScalarArrayType $ map snd params :-> t
-            symbol ")"
             body <- pExp
             let funBind pos = BindFun f params (Just t) body pos
                 iBind pos =

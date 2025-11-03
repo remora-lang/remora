@@ -10,6 +10,7 @@ module Symbolic
   ( maximumShape,
     askShapes,
     (@=),
+    (\\),
   )
 where
 
@@ -135,3 +136,14 @@ maximumShape =
           else shape
     )
     mempty
+
+(\\) :: (Eq v, Ord v, Show v, Pretty v) => Shape v -> Shape v -> Maybe (Shape v)
+s \\ t
+  | s @= t = Just mempty
+Concat [] \\ _ = Nothing
+s \\ Concat [] = pure s
+(Concat ss) \\ (Concat ts)
+  | last ss @= last ts = Concat (init ss) \\ Concat (init ts)
+(Concat ss) \\ t
+  | last ss @= t = pure $ Concat $ init ss
+s \\ t = error $ unlines [show s, show t]

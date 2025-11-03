@@ -167,7 +167,7 @@ checkExp expr@(App f args _ pos) = do
                     prettyText expr
                   ]
 
-            case shapeOf arg \\ shapeOf pt of
+            case shapeOf arg Symbolic.\\ shapeOf pt of
               Nothing ->
                 throwErrorPos pos $
                   T.unlines
