@@ -231,17 +231,23 @@ intExp expr@(Let bs e _ _) =
       val <- intExp e
       bind v val m
     intBind (BindFun f params _ body _) m = do
+      env <- ask
       flip (bind f) m $ ValFun $ \vals ->
-        binds bind (zip (map fst params) vals) $
-          intExp body
+        local (const env) $
+          binds bind (zip (map fst params) vals) $
+            intExp body
     intBind (BindTFun f params _ body _) m = do
+      env <- ask
       flip (bind f) m $ ValTFun $ \ts ->
-        binds tbind (zip (map unTypeParam params) ts) $
-          intExp body
+        local (const env) $
+          binds tbind (zip (map unTypeParam params) ts) $
+            intExp body
     intBind (BindIFun f params _ body _) m = do
+      env <- ask
       flip (bind f) m $ ValIFun $ \is ->
-        binds ibind (zip (map unExtentParam params) is) $
-          intExp body
+        local (const env) $
+          binds ibind (zip (map unExtentParam params) is) $ do
+            intExp body
     intBind _ m = m
 
 -- | Interpret a 'Dim'.
