@@ -118,7 +118,8 @@ keywords =
     "extent",
     "fun",
     "t-fun",
-    "i-fun"
+    "i-fun",
+    "val"
   ]
 
 lKeyword :: Text -> Parser ()
@@ -316,7 +317,7 @@ pExp =
               choice
                 [ try $
                     BindVal
-                      <$> lId
+                      <$> (lKeyword "val" >> lId)
                       <*> pure Nothing
                       <*> pExp,
                   try $
@@ -326,9 +327,9 @@ pExp =
                       <*> pExp,
                   try $
                     BindFun
-                      <$> (lKeyword "fun" *> lId)
-                      <*> listOf pParam
-                      <*> ((symbol ":" *> (Just <$> pArrayType)) <|> pure Nothing)
+                      <$> (lKeyword "fun" *> symbol "(" *> lId)
+                      <*> many pParam
+                      <*> (((symbol ":" *> (Just <$> pArrayType)) <|> pure Nothing) <* symbol ")")
                       <*> pExp,
                   pAtFnBind,
                   lKeyword "t-fun"
@@ -381,13 +382,15 @@ pExp =
           --     BindFun f params Nothing (tBind pos mts $ iBind pos mextents body) pos,
           do
             lKeyword "fun"
+            symbol "("
             void $ symbol "@"
             f <- lId
             mts <- choice [Just <$> listOf pTypeParam, symbol "_" >> pure Nothing]
             mextents <- choice [Just <$> listOf pExtentParam, symbol "_" >> pure Nothing]
-            params <- listOf pParam
+            params <- many pParam
             symbol ":"
             t <- pArrayType
+            symbol ")"
             let fun_type = mkScalarArrayType $ map snd params :-> t
             body <- pExp
             let funBind pos = BindFun f params (Just t) body pos
