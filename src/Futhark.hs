@@ -10,7 +10,7 @@ import Prettyprinter
 import Prettyprinter.Render.Text
 import Prop
 import RemoraPrelude (Prelude)
-import Syntax hiding (ArrayType, Atom, Dim, Exp, Extent, AtomType, Shape, Type)
+import Syntax hiding (ArrayType, Atom, AtomType, Dim, Exp, Extent, Pat, Shape, Type)
 import Syntax qualified
 import VName
 
@@ -22,11 +22,13 @@ type Atom = Syntax.Atom Info VName
 
 type Shape = Syntax.Shape VName
 
-type AtomType = Syntax.AtomType Info VName
+type AtomType = Syntax.AtomType VName
 
-type ArrayType = Syntax.ArrayType Info VName
+type ArrayType = Syntax.ArrayType VName
 
-type Type = Syntax.Type Info VName
+type Type = Syntax.Type VName
+
+type Pat = Syntax.Pat Info VName
 
 data Env = Env
 
@@ -85,7 +87,7 @@ findRet (_ :-> t) = t
 findRet t = error $ "findRet: unhandled:\n" ++ show t
 
 -- Assumes the lambda has no free variables.
-liftLambda :: [(VName, ArrayType)] -> Exp -> AtomType -> FutharkM F.Name
+liftLambda :: [Pat] -> Exp -> AtomType -> FutharkM F.Name
 liftLambda params body t = do
   params' <- mapM compileParam params
   body' <- mkBody $ pure <$> compileExp body
@@ -127,8 +129,8 @@ compileType :: Type -> FutharkM F.Type
 compileType (Syntax.AtomType t) = compileAtomType t
 compileType (Syntax.ArrayType t) = compileArrayType t
 
-compileParam :: (VName, ArrayType) -> FutharkM (F.LParam F.SOACS)
-compileParam (v, t) = do
+compileParam :: Pat -> FutharkM (F.LParam F.SOACS)
+compileParam (PatId v _ (Info t) _) = do
   let v' = F.VName (F.nameFromText (varName v)) (getTag (varTag v))
   t' <- compileArrayType t
   pure $ F.Param mempty v' t'
@@ -256,7 +258,7 @@ wrapInMain ((e, ret), State stms counter funs) =
       ]
 
 -- | Turn Remora into Futhark.
-compile :: Prelude Info VName FutharkM -> Exp -> Either Error T.Text
+compile :: Prelude VName FutharkM -> Exp -> Either Error T.Text
 compile _prelude e =
   wrapInMain
     <$> runExcept

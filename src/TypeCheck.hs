@@ -19,7 +19,7 @@ import VName
 check ::
   (Monad m) =>
   Exp NoInfo Text ->
-  Either Error (Prelude Info VName m, Exp Info VName)
+  Either Error (Prelude VName m, Exp Info VName)
 check e =
   fst $
     evalRWS
@@ -63,23 +63,41 @@ checkExtent :: (MonadCheck m) => Extent Text -> m (Extent VName)
 checkExtent = mapExtent (fmap Dim . checkDim) (fmap Shape . checkShape)
 
 -- | Check a 'Type'.
-checkType :: (MonadCheck m) => Type NoInfo Text -> m (Type Info VName)
+checkType :: (MonadCheck m) => Type Text -> m (Type VName)
 checkType = fmap normType . checkType'
   where
     checkType' (ArrayType t) = ArrayType <$> checkArrayType t
     checkType' (AtomType t) = AtomType <$> checkAtomType t
 
-checkArrayType :: (MonadCheck m) => ArrayType NoInfo Text -> m (ArrayType Info VName)
+checkArrayTypeExp :: (MonadCheck m) => TypeExp Text -> m (ArrayType VName)
+checkArrayTypeExp t = do
+  t' <- checkTypeExp t
+  case convertArrayTypeExp t' of
+    Nothing ->
+      throwErrorPos (posOf t) $
+        T.unlines
+          [ "Expected an array-kinded type:",
+            prettyText t
+          ]
+    Just at -> pure at
+
+checkAtomTypeExp :: (MonadCheck m) => TypeExp Text -> m (AtomType VName)
+checkAtomTypeExp t = do
+  t' <- checkTypeExp t
+  case convertAtomTypeExp t' of
+    Nothing ->
+      throwErrorPos (posOf t) $
+        T.unlines
+          [ "Expected an atom-kinded type:",
+            prettyText t
+          ]
+    Just at -> pure at
+
+checkArrayType :: (MonadCheck m) => ArrayType Text -> m (ArrayType VName)
 checkArrayType (A t shape) =
   A <$> checkAtomType t <*> checkShape shape
-checkArrayType (ArrayTypeVar v _ _) = do
-  ArrayTypeVarBundle v' et_v' s_v' <- fetchArrayTypeVar v
-  mt <- lookupArrayType v'
-  case mt of
-    Nothing -> pure $ ArrayTypeVar v' (Info et_v') (Info s_v')
-    Just t -> pure t
 
-checkAtomType :: (MonadCheck m) => AtomType NoInfo Text -> m (AtomType Info VName)
+checkAtomType :: (MonadCheck m) => AtomType Text -> m (AtomType VName)
 checkAtomType (AtomTypeVar v) = do
   v' <- fetchAtomTypeVar v
   mt <- lookupAtomType v'
@@ -192,14 +210,14 @@ checkExp expr@(App f args _ pos) = do
           ]
 checkExp expr@(TApp f ts _ pos) = do
   f' <- checkExp f
-  ts' <- mapM checkType ts
+  ts' <- mapM checkTypeExp ts
   case typeOf f' of
     ArrayType (A (Forall pts r) frame_f) -> do
       let check_args (atom_subst, shape_subst) (pt, t) =
-            case (pt, t) of
-              (AtomTypeParam v, AtomType et) ->
+            case (pt, convertTypeExp t) of
+              (AtomTypeParam v, Just (AtomType et)) ->
                 pure (M.insert v et atom_subst, shape_subst)
-              (ArrayTypeParam v, ArrayType (A et s)) ->
+              (ArrayTypeParam v, Just (ArrayType (A et s))) ->
                 pure (M.insert v et atom_subst, M.insert v s shape_subst)
               _ ->
                 throwErrorPos pos $
@@ -288,63 +306,76 @@ checkExp (Let bs e _ pos) = do
     e' <- checkExp e
     pure $ Let bs' e' (Info $ arrayTypeOf e') pos
   where
-    checkMaybeType ::
+    checkMaybeTypeExp ::
       (MonadCheck m) =>
-      Maybe (ArrayType NoInfo Text) -> m (Maybe (ArrayType Info VName))
-    checkMaybeType Nothing = pure Nothing
-    checkMaybeType (Just t) = Just <$> checkArrayType t
+      Maybe (TypeExp Text) -> m (Maybe (TypeExp VName))
+    checkMaybeTypeExp Nothing = pure Nothing
+    checkMaybeTypeExp (Just t) = Just <$> checkTypeExp t
 
     checkAnnot ::
       (MonadCheck m) =>
-      ArrayType Info VName -> Maybe (ArrayType Info VName) -> m ()
+      ArrayType VName -> Maybe (TypeExp VName) -> m ()
     checkAnnot t mannot =
       case mannot of
         Nothing -> pure ()
         Just annot -> do
-          unlessM (t ~= annot) $
-            throwErrorPos pos $
-              T.unlines
-                [ "Type:",
-                  prettyText t,
-                  "doesn't match the annotated type:",
-                  prettyText annot
-                ]
+          case convertArrayTypeExp annot of
+            Just at ->
+              unlessM (t ~= at) $
+                throwErrorPos pos $
+                  T.unlines
+                    [ "Type:",
+                      prettyText t,
+                      "doesn't match the annotated type:",
+                      prettyText annot
+                    ]
+            Nothing ->
+              throwErrorPos pos $
+                T.unlines
+                  [ "Type:",
+                    prettyText t,
+                    "doesn't match the annotated type:",
+                    prettyText annot
+                  ]
 
     withBind :: (MonadCheck m) => Bind NoInfo Text -> (Bind Info VName -> m a) -> m a
     withBind (BindVal v mt ve pos) m = do
       ve' <- checkExp ve
       let t = arrayTypeOf ve'
-      mt' <- checkMaybeType mt
+      mt' <- checkMaybeTypeExp mt
       checkAnnot t mt'
       withParam' (v, t) $ \vname ->
         m $ BindVal vname mt' ve' pos
-    withBind (BindFun f params mt body pos) m = do
-      mt' <- checkMaybeType mt
+    withBind (BindFun f params mt body _ pos) m = do
+      mt' <- checkMaybeTypeExp mt
       (params', body') <-
-        binds (withParam checkArrayType) params $ \params' -> do
+        binds (withPatParam checkTypeExp) params $ \params' -> do
           body' <- checkExp body
           checkAnnot (arrayTypeOf body') mt'
           pure (params', body')
-      withParam' (f, A (map snd params' :-> arrayTypeOf body') mempty) $ \f' ->
-        m $ BindFun f' params' mt' body' pos
-    withBind (BindTFun f params mt body pos) m =
+      let t = map arrayTypeOf params' :-> arrayTypeOf body'
+      withParam' (f, mkScalarArrayType t) $ \f' ->
+        m $ BindFun f' params' mt' body' (Info t) pos
+    withBind (BindTFun f params mt body _ pos) m =
       binds withTypeParam params $ \params' -> do
         body' <- checkExp body
-        mt' <- checkMaybeType mt
+        mt' <- checkMaybeTypeExp mt
         let body_t = arrayTypeOf body'
         checkAnnot body_t mt'
-        withParam' (f, A (Forall params' body_t) mempty) $ \f' ->
-          m $ BindTFun f' params' mt' body' pos
-    withBind (BindIFun f params mt body pos) m =
+        let t = Forall params' body_t
+        withParam' (f, mkScalarArrayType t) $ \f' ->
+          m $ BindTFun f' params' mt' body' (Info t) pos
+    withBind (BindIFun f params mt body _ pos) m =
       binds withExtentParam params $ \params' -> do
         body' <- checkExp body
-        mt' <- checkMaybeType mt
+        mt' <- checkMaybeTypeExp mt
         let body_t = arrayTypeOf body'
         checkAnnot body_t mt'
-        withParam' (f, A (Pi params' body_t) mempty) $ \f' ->
-          m $ BindIFun f' params' mt' body' pos
+        let t = Pi params' body_t
+        withParam' (f, mkScalarArrayType t) $ \f' ->
+          m $ BindIFun f' params' mt' body' (Info t) pos
     withBind (BindType tvar t pos) m =
-      withType checkType pos (tvar, t) $ \(tvar', t') ->
+      withType checkTypeExp (tvar, t) $ \(tvar', t') ->
         m $ BindType tvar' t' pos
     withBind (BindExtent ivar extent pos) m =
       withExtent checkExtent pos (ivar, extent) $ \(ivar', extent') ->
@@ -355,10 +386,10 @@ checkAtom :: (MonadCheck m) => Atom NoInfo Text -> m (Atom Info VName)
 checkAtom (Base b _ pos) =
   pure $ Base b (Info $ baseTypeOf b) pos
 checkAtom (Lambda params e _ pos) = do
-  binds (withParam checkArrayType) params $ \params' -> do
+  binds (withPatParam checkTypeExp) params $ \params' -> do
     e' <- checkExp e
     let r = arrayTypeOf e'
-    pure $ Lambda params' e' (Info $ map snd params' :-> r) pos
+    pure $ Lambda params' e' (Info $ map arrayTypeOf params' :-> r) pos
 checkAtom (TLambda ps e _ pos) =
   binds withTypeParam ps $ \ps' -> do
     e' <- checkExp e
@@ -369,12 +400,12 @@ checkAtom (ILambda ps e _ pos) =
     e' <- checkExp e
     let r = arrayTypeOf e'
     pure $ ILambda ps' e' (Info $ Pi ps' r) pos
-checkAtom atom@(Box extent e box_t pos) = do
+checkAtom atom@(Box extent e box_t _ pos) = do
   extent' <- mapM checkExtent extent
   e' <- checkExp e
-  box_t' <- checkAtomType box_t
-  case box_t' of
-    Sigma is t -> do
+  box_t' <- checkTypeExp box_t
+  case convertAtomTypeExp box_t' of
+    Just bt@(Sigma is t) -> do
       let t' = substitute' (zip is extent') t
       unlessM (arrayTypeOf e' ~= t') $
         throwErrorPos pos $
@@ -385,7 +416,7 @@ checkAtom atom@(Box extent e box_t pos) = do
               "But got:",
               prettyText t'
             ]
-      pure $ Box extent' e' box_t' pos
+      pure $ Box extent' e' box_t' (Info bt) pos
     _ ->
       throwErrorPos pos $
         T.unlines
@@ -393,8 +424,11 @@ checkAtom atom@(Box extent e box_t pos) = do
             prettyText atom
           ]
 
+checkTypeExp :: (MonadCheck m) => TypeExp Text -> m (TypeExp VName)
+checkTypeExp = undefined
+
 -- | Binds prelude bindings into the local environment.
-withPrelude :: (MonadCheck m, Monad n) => m a -> m (Prelude Info VName n, a)
+withPrelude :: (MonadCheck m, Monad n) => m a -> m (Prelude VName n, a)
 withPrelude m = checkPrelude prelude mempty
   where
     checkPrelude [] prelude' =

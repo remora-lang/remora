@@ -41,7 +41,7 @@ instance (Ord v) => Substitute v v (Info v) where
   substitute subst (Info v) =
     maybe (Info v) Info $ subst M.!? v
 
-instance (Ord v) => Substitute v (AtomType f v) (AtomType f v) where
+instance (Ord v) => Substitute v (AtomType v) (AtomType v) where
   substitute subst t@(AtomTypeVar v) =
     fromMaybe t $ subst M.!? v
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
@@ -52,22 +52,17 @@ instance (Ord v) => Substitute v (AtomType f v) (AtomType f v) where
   substitute subst (Sigma pts t) = Sigma pts $ substitute subst t
   substitute _ t = t
 
-instance (Ord v) => Substitute v (AtomType f v) (ArrayType f v) where
+instance (Ord v) => Substitute v (AtomType v) (ArrayType v) where
   substitute subst (A t s) = A (substitute subst t) s
   substitute _ t = t
 
 instance (Eq v, Ord v, Substitute v c c) => Substitute (TypeParam v) c c where
   substitute subst = substitute $ M.mapKeys unTypeParam subst
 
-instance (Eq v, Ord v, Substitute v v (f v)) => Substitute v v (ArrayType f v) where
+instance (Eq v, Ord v) => Substitute v v (ArrayType v) where
   substitute subst (A t s) = A (substitute subst t) (substitute subst s)
-  substitute subst (ArrayTypeVar t et s) =
-    ArrayTypeVar
-      (substitute subst t)
-      (substitute subst et)
-      (substitute subst s)
 
-instance (Eq v, Ord v, Substitute v v (f v)) => Substitute v v (AtomType f v) where
+instance (Eq v, Ord v) => Substitute v v (AtomType v) where
   substitute subst t@(AtomTypeVar v) =
     maybe t AtomTypeVar $ subst M.!? v
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
@@ -121,11 +116,11 @@ instance (Ord v) => Substitute v (Dim v) (Shape v) where
   substitute subst (ShapeDim d) = ShapeDim $ substitute subst d
   substitute subst (Concat shapes) = Concat $ map (substitute subst) shapes
 
-instance (Ord v) => Substitute v (Shape v) (ArrayType f v) where
+instance (Ord v) => Substitute v (Shape v) (ArrayType v) where
   substitute subst (A t s) = A (substitute subst t) (substitute subst s)
   substitute _ t = t
 
-instance (Ord v) => Substitute v (Shape v) (AtomType f v) where
+instance (Ord v) => Substitute v (Shape v) (AtomType v) where
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
   substitute subst (Forall pts t) = Forall pts $ substitute subst t
   substitute subst (Pi pts t) =
@@ -134,11 +129,11 @@ instance (Ord v) => Substitute v (Shape v) (AtomType f v) where
     Sigma pts $ substitute (M.filterWithKey (\k _ -> k `notElem` map unExtentParam pts) subst) t
   substitute _ t = t
 
-instance (Ord v) => Substitute v (Dim v) (ArrayType f v) where
+instance (Ord v) => Substitute v (Dim v) (ArrayType v) where
   substitute subst (A t s) = A (substitute subst t) (substitute subst s)
   substitute _ t = t
 
-instance (Ord v) => Substitute v (Dim v) (AtomType f v) where
+instance (Ord v) => Substitute v (Dim v) (AtomType v) where
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
   substitute subst (Forall pts t) = Forall pts $ substitute subst t
   substitute subst (Pi pts t) =
@@ -156,19 +151,14 @@ instance (Ord v) => Substitute (ExtentParam v) (ExtentParam v) (Info v) where
       subst' = M.fromList [(unExtentParam k, unExtentParam v) | (k, v) <- M.toList subst]
 
 instance
-  ( Substitute (ExtentParam v) (ExtentParam v) (f v),
-    Ord v
-  ) =>
-  Substitute (ExtentParam v) (ExtentParam v) (ArrayType f v)
+  (Ord v) =>
+  Substitute (ExtentParam v) (ExtentParam v) (ArrayType v)
   where
   substitute subst (A t s) = A (substitute subst t) (substitute subst s)
-  substitute subst (ArrayTypeVar t et s) = ArrayTypeVar t et $ substitute subst s
 
 instance
-  ( Substitute (ExtentParam v) (ExtentParam v) (f v),
-    Ord v
-  ) =>
-  Substitute (ExtentParam v) (ExtentParam v) (AtomType f v)
+  (Ord v) =>
+  Substitute (ExtentParam v) (ExtentParam v) (AtomType v)
   where
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
   substitute subst (Forall pts t) = Forall pts $ substitute subst t
@@ -178,11 +168,11 @@ instance
     Sigma pts $ substitute (M.filterWithKey (\k _ -> k `notElem` pts) subst) t
   substitute _ t = t
 
-instance (Ord v) => Substitute (ExtentParam v) (Extent v) (ArrayType f v) where
+instance (Ord v) => Substitute (ExtentParam v) (Extent v) (ArrayType v) where
   substitute subst (A t s) = A (substitute subst t) (substitute subst s)
   substitute _ t = t
 
-instance (Ord v) => Substitute (ExtentParam v) (Extent v) (AtomType f v) where
+instance (Ord v) => Substitute (ExtentParam v) (Extent v) (AtomType v) where
   substitute subst (ts :-> t) = map (substitute subst) ts :-> substitute subst t
   substitute subst (Forall pts t) = Forall pts $ substitute subst t
   substitute subst (Pi pts t) =

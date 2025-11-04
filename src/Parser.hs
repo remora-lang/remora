@@ -14,6 +14,7 @@ import Syntax hiding
     Exp,
     Extent,
     ExtentParam,
+    Pat,
     Shape,
     Type,
     TypeParam,
@@ -52,17 +53,15 @@ type Dim = Syntax.Dim Text
 
 type Shape = Syntax.Shape Text
 
-type Type = Syntax.Type NoInfo Text
-
-type AtomType = Syntax.AtomType NoInfo Text
-
-type ArrayType = Syntax.ArrayType NoInfo Text
+type Type = Syntax.TypeExp Text
 
 type TypeParam = Syntax.TypeParam Text
 
 type ExtentParam = Syntax.ExtentParam Text
 
 type Extent = Syntax.Extent Text
+
+type Pat = Syntax.Pat NoInfo Text
 
 parse :: FilePath -> Text -> Either Text Exp
 parse fname s =
@@ -169,43 +168,41 @@ pExtentParam =
       ShapeParam <$> ("@" >> lId)
     ]
 
-pAtomType :: Parser AtomType
-pAtomType =
-  choice
-    [ AtomTypeVar <$> ("&" >> lId),
-      symbol "Bool" >> pure Bool,
-      symbol "Int" >> pure Int,
-      symbol "Float" >> pure Float,
-      parens $
-        choice
-          [ (:->) <$> ((lKeyword "->" <|> lKeyword "→") >> listOf pArrayType) <*> pArrayType,
-            Forall <$> ((lKeyword "Forall" <|> lKeyword "∀") >> listOf pTypeParam) <*> pArrayType,
-            Pi <$> ((lKeyword "Pi" <|> lKeyword "П") >> listOf pExtentParam) <*> pArrayType,
-            Sigma <$> ((lKeyword "Sigma" <|> lKeyword "Σ") >> listOf pExtentParam) <*> pArrayType
-          ]
-    ]
-
-pArrayType' :: Parser ArrayType
-pArrayType' =
-  choice
-    [ try $ parens $ A <$> (lKeyword "A" >> pAtomType) <*> pShape,
-      ArrayTypeVar <$> ("*" >> lId) <*> pure NoInfo <*> pure NoInfo,
-      brackets $ A <$> pAtomType <*> pShapeSplice
-    ]
-
-pArrayType :: Parser ArrayType
-pArrayType =
-  choice
-    [ pArrayType',
-      (flip A mempty) <$> pAtomType
-    ]
-
 pType :: Parser Type
 pType =
-  choice
-    [ Syntax.ArrayType <$> pArrayType',
-      Syntax.AtomType <$> pAtomType
-    ]
+  withSrcPos $
+    choice $
+      [ TEAtomVar <$> ("&" >> lId),
+        TEArrayVar <$> ("*" >> lId),
+        symbol "Bool" >> pure TEBool,
+        symbol "Int" >> pure TEInt,
+        symbol "Float" >> pure TEFloat,
+        brackets $ TEArray <$> pType <*> pShapeSplice,
+        parens $
+          choice
+            [ TEArray <$> (lKeyword "A" >> pType) <*> pShape,
+              TEArrow
+                <$> ( (lKeyword "->" <|> lKeyword "→")
+                        >> listOf pType
+                    )
+                <*> pType,
+              TEForall
+                <$> ( (lKeyword "Forall" <|> lKeyword "∀")
+                        >> listOf pTypeParam
+                    )
+                <*> pType,
+              TEPi
+                <$> ( (lKeyword "Pi" <|> lKeyword "П")
+                        >> listOf pExtentParam
+                    )
+                <*> pType,
+              TESigma
+                <$> ( (lKeyword "Sigma" <|> lKeyword "Σ")
+                        >> listOf pExtentParam
+                    )
+                <*> pType
+            ]
+      ]
 
 pBase :: Parser Base
 pBase =
@@ -229,36 +226,33 @@ pBase =
 pAtom :: Parser Atom
 pAtom =
   withSrcPos $
-    choice
-      [ withNoInfo $ Base <$> pBase,
-        try $
-          parens $
-            choice
-              [ pLambda,
-                pTLambda,
-                pILambda,
-                pBox
-              ]
-      ]
+    withNoInfo $
+      choice
+        [ Base <$> pBase,
+          try $
+            parens $
+              choice
+                [ pLambda,
+                  pTLambda,
+                  pILambda,
+                  pBox
+                ]
+        ]
   where
     pLambda =
-      let pArg = parens $ (,) <$> lId <*> pArrayType
-       in withNoInfo $
-            Lambda
-              <$> ((lKeyword "fn" <|> lKeyword "λ") >> (listOf pArg))
-              <*> pExp
+      Lambda
+        <$> ((lKeyword "fn" <|> lKeyword "λ") >> (listOf pPat))
+        <*> pExp
     pILambda =
-      withNoInfo $
-        ILambda
-          <$> ((lKeyword "i-fn" <|> lKeyword "iλ") >> (listOf pExtentParam))
-          <*> pExp
+      ILambda
+        <$> ((lKeyword "i-fn" <|> lKeyword "iλ") >> (listOf pExtentParam))
+        <*> pExp
     pTLambda =
-      withNoInfo $
-        TLambda
-          <$> ((lKeyword "t-fn" <|> lKeyword "tλ") >> (listOf pTypeParam))
-          <*> pExp
+      TLambda
+        <$> ((lKeyword "t-fn" <|> lKeyword "tλ") >> (listOf pTypeParam))
+        <*> pExp
     pBox =
-      Box <$> (lKeyword "box" >> listOf pExtent) <*> pExp <*> pAtomType
+      Box <$> (lKeyword "box" >> listOf pExtent) <*> pExp <*> pType
 
 pExtent :: Parser Extent
 pExtent =
@@ -266,6 +260,13 @@ pExtent =
     [ Syntax.Dim <$> pDim,
       Syntax.Shape <$> pShape
     ]
+
+pPat :: Parser Pat
+pPat =
+  withSrcPos $
+    withNoInfo $
+      parens $
+        PatId <$> lId <*> pType
 
 pExp :: Parser Exp
 pExp =
@@ -304,9 +305,6 @@ pExp =
         <*> (pExp <* symbol ")")
         <*> pExp
 
-    pParam :: Parser (Text, ArrayType)
-    pParam = parens $ (,) <$> lId <*> pArrayType
-
     pLet =
       lKeyword "let"
         >> (Let <$> listOf pBind <*> pExp)
@@ -323,28 +321,31 @@ pExp =
                   try $
                     BindVal
                       <$> (symbol "(" *> lId <* symbol ":")
-                      <*> ((Just <$> pArrayType) <* symbol ")")
+                      <*> ((Just <$> pType) <* symbol ")")
                       <*> pExp,
                   try $
-                    BindFun
-                      <$> (lKeyword "fun" *> symbol "(" *> lId)
-                      <*> many pParam
-                      <*> (((symbol ":" *> (Just <$> pArrayType)) <|> pure Nothing) <* symbol ")")
-                      <*> pExp,
+                    withNoInfo $
+                      BindFun
+                        <$> (lKeyword "fun" *> symbol "(" *> lId)
+                        <*> many pPat
+                        <*> (((symbol ":" *> (Just <$> pType)) <|> pure Nothing) <* symbol ")")
+                        <*> pExp,
                   pAtFnBind,
                   lKeyword "t-fun"
-                    >> ( BindTFun
-                           <$> lId
-                           <*> listOf pTypeParam
-                           <*> (option Nothing (Just <$> pArrayType))
-                           <*> pExp
+                    >> ( withNoInfo $
+                           BindTFun
+                             <$> lId
+                             <*> listOf pTypeParam
+                             <*> (option Nothing (Just <$> pType))
+                             <*> pExp
                        ),
                   lKeyword "i-fun"
-                    >> ( BindIFun
-                           <$> lId
-                           <*> listOf pExtentParam
-                           <*> (option Nothing (Just <$> pArrayType))
-                           <*> pExp
+                    >> ( withNoInfo $
+                           BindIFun
+                             <$> lId
+                             <*> listOf pExtentParam
+                             <*> (option Nothing (Just <$> pType))
+                             <*> pExp
                        ),
                   lKeyword "type" >> (BindType <$> pTypeParam <*> pType),
                   lKeyword "extent" >> (BindExtent <$> pExtentParam <*> pExtent)
@@ -387,13 +388,12 @@ pExp =
             f <- lId
             mts <- choice [Just <$> listOf pTypeParam, symbol "_" >> pure Nothing]
             mextents <- choice [Just <$> listOf pExtentParam, symbol "_" >> pure Nothing]
-            params <- many pParam
+            params <- many pPat
             symbol ":"
-            t <- pArrayType
+            t <- pType
             symbol ")"
-            let fun_type = mkScalarArrayType $ map snd params :-> t
             body <- pExp
-            let funBind pos = BindFun f params (Just t) body pos
+            let funBind pos = BindFun f params (Just t) body NoInfo pos
                 iBind pos =
                   case mextents of
                     Nothing -> funBind pos
@@ -401,8 +401,9 @@ pExp =
                       BindIFun
                         f
                         extents
-                        (Just fun_type)
+                        Nothing
                         (Let [funBind pos] (Var f NoInfo pos) NoInfo pos)
+                        NoInfo
                         pos
 
                 tBind pos =
@@ -414,6 +415,7 @@ pExp =
                         ts
                         Nothing
                         (Let [iBind pos] (Var f NoInfo pos) NoInfo pos)
+                        NoInfo
                         pos
             pure tBind
         ]

@@ -7,12 +7,13 @@ import Control.Monad.Trans.Except
 import Data.List qualified as L
 import Data.Map (Map)
 import Data.Map qualified as M
+import Data.Maybe
 import Data.Text (Text)
 import Interpreter.Value hiding (Val)
 import Interpreter.Value qualified as Value
 import Prop hiding ((\\))
 import RemoraPrelude (Prelude, PreludeVal (..))
-import Syntax hiding (Atom, Bind, Dim, Exp, Extent, Shape, Type)
+import Syntax hiding (ArrayType, Atom, Bind, Dim, Exp, Extent, Shape, Type, TypeExp)
 import Syntax qualified
 import Util
 import VName
@@ -27,15 +28,19 @@ type Atom = Syntax.Atom Info VName
 
 type Shape = Syntax.Shape VName
 
-type Type = Syntax.Type Info VName
+type Type = Syntax.Type VName
 
 type Extent = Syntax.Extent VName
 
 type Bind = Syntax.Bind Info VName
 
+type TypeExp = Syntax.TypeExp VName
+
+type ArrayType = Syntax.ArrayType VName
+
 -- | Interpret a program. Takes a type checked prelude to populate the initial
 -- environment with.
-interpret :: Prelude Info VName InterpM -> Exp -> Either Error Val
+interpret :: Prelude VName InterpM -> Exp -> Either Error Val
 interpret prelude e =
   runReader (runExceptT $ runInterpM $ intExp e) (initEnv prelude)
 
@@ -53,7 +58,7 @@ data Env = Env
 
 -- | The initial environment. Takes a type checked prelude to populate the
 -- initial variable and type mappings.
-initEnv :: Prelude Info VName InterpM -> Env
+initEnv :: Prelude VName InterpM -> Env
 initEnv prelude = Env m tm mempty mempty
   where
     m =
@@ -61,7 +66,7 @@ initEnv prelude = Env m tm mempty mempty
         map (\(PreludeVal v _ val) -> (v, val)) prelude
     tm =
       M.fromList $
-        map (\(PreludeVal v t _) -> (v, ArrayType t)) prelude
+        map (\(PreludeVal v t _) -> (v, Syntax.ArrayType t)) prelude
 
 type Error = Text
 
@@ -173,14 +178,14 @@ intExp expr@(TApp e ts _ _) =
     tApply (ValVar f) = do
       f' <- lookupVal f
       case f' of
-        ValTFun func -> func ts
+        ValTFun func -> func $ map (fromJust . convertTypeExp) ts
         _ ->
           error $
             unlines
               [ "intExp: non-type function value in type application",
                 prettyString expr
               ]
-    tApply (ValTFun f) = f ts
+    tApply (ValTFun f) = f $ map (fromJust . convertTypeExp) ts
     tApply (ValArray shape fs) = do
       ValArray shape <$> mapM tApply fs
     tApply _ =
@@ -229,19 +234,19 @@ intExp expr@(Let bs e _ _) =
     intBind (BindVal v _ e _) m = do
       val <- intExp e
       bind v val m
-    intBind (BindFun f params _ body _) m = do
+    intBind (BindFun f params _ body _ _) m = do
       env <- ask
       flip (bind f) m $ ValFun $ \vals ->
         local (const env) $
-          binds bind (zip (map fst params) vals) $
+          binds bind (zip (map patVar params) vals) $
             intExp body
-    intBind (BindTFun f params _ body _) m = do
+    intBind (BindTFun f params _ body _ _) m = do
       env <- ask
       flip (bind f) m $ ValTFun $ \ts ->
         local (const env) $
           binds tbind (zip (map unTypeParam params) ts) $
             intExp body
-    intBind (BindIFun f params _ body _) m = do
+    intBind (BindIFun f params _ body _ _) m = do
       env <- ask
       flip (bind f) m $ ValIFun $ \is ->
         local (const env) $
@@ -265,6 +270,10 @@ intShape (Concat ss) = concat <$> mapM intShape ss
 intExtent :: Extent -> InterpM (Either Int [Int])
 intExtent = mapExtent (fmap Left . intDim) (fmap Right . intShape)
 
+-- | Interpret a type expression.
+intTypeExp :: TypeExp -> ArrayType
+intTypeExp = fromJust . convertArrayTypeExp
+
 -- | Interpret an 'Atom'.
 intAtom :: Atom -> InterpM Val
 intAtom (Base b _ _) = pure $ ValBase b
@@ -272,7 +281,7 @@ intAtom (Lambda ps e _ _) = do
   env <- ask
   pure $ ValFun $ \vs ->
     local (const env) $
-      binds bind (zip (map fst ps) vs) $
+      binds bind (zip (map patVar ps) vs) $
         intExp e
 intAtom (TLambda ps e _ _) = do
   env <- ask
@@ -286,7 +295,7 @@ intAtom (ILambda ps e _ _) = do
     local (const env) $
       binds ibind (zip (map unExtentParam ps) extents) $
         intExp e
-intAtom (Box extents e _ _) = do
+intAtom (Box extents e _ _ _) = do
   extents' <- mapM intExtent extents
   ValBox extents' <$> intExp e
 

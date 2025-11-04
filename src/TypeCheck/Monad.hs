@@ -15,6 +15,7 @@ module TypeCheck.Monad
     lookupArrayType,
     lookupDim,
     lookupShape,
+    withPatParam,
     withParam,
     withParam',
     withTypeParam,
@@ -33,6 +34,7 @@ import Data.Map qualified as M
 import Data.Text (Text)
 import Data.Text qualified as T
 import Prettyprinter
+import Prop
 import Syntax
 import Util
 import VName
@@ -73,11 +75,11 @@ instance Monoid VNameEnv where
 data BindEnv
   = BindEnv
   { -- | Term variables to their types.
-    bindEnvVars :: Map VName (ArrayType Info VName),
+    bindEnvVars :: Map VName (ArrayType VName),
     -- | Atom type vars to types.
-    bindEnvAtomTypes :: Map VName (AtomType Info VName),
+    bindEnvAtomTypes :: Map VName (AtomType VName),
     -- | Array type vars to types.
-    bindEnvArrayTypes :: Map VName (ArrayType Info VName),
+    bindEnvArrayTypes :: Map VName (ArrayType VName),
     -- | Dim vars to 'Dim's.
     bindEnvDims :: Map VName (Dim VName),
     -- | Shape vars to 'Shape's.
@@ -190,17 +192,17 @@ fetchShapeVar v =
   lookupEnv "text shape" v $ (M.!? v) . vnameEnvShapeVars . envVNames
 
 -- | Look-up the type of a term variable.
-lookupVar :: (MonadCheck m) => VName -> m (ArrayType Info VName)
+lookupVar :: (MonadCheck m) => VName -> m (ArrayType VName)
 lookupVar v =
   lookupEnv "" v $ (M.!? v) . bindEnvVars . envBinds
 
 -- | Look-up an atom type variable binding.
-lookupAtomType :: (MonadCheck m) => VName -> m (Maybe (AtomType Info VName))
+lookupAtomType :: (MonadCheck m) => VName -> m (Maybe (AtomType VName))
 lookupAtomType v =
   asks $ (M.!? v) . bindEnvAtomTypes . envBinds
 
 -- | Look-up an array type variable binding.
-lookupArrayType :: (MonadCheck m) => VName -> m (Maybe (ArrayType Info VName))
+lookupArrayType :: (MonadCheck m) => VName -> m (Maybe (ArrayType VName))
 lookupArrayType v =
   asks $ (M.!? v) . bindEnvArrayTypes . envBinds
 
@@ -214,12 +216,30 @@ lookupShape :: (MonadCheck m) => VName -> m (Maybe (Shape VName))
 lookupShape v =
   asks $ (M.!? v) . bindEnvShapes . envBinds
 
+withPatParam ::
+  (MonadCheck m) =>
+  (TypeExp Text -> m (TypeExp VName)) ->
+  Pat NoInfo Text ->
+  (Pat Info VName -> m a) ->
+  m a
+withPatParam checkType (PatId v t _ pos) m = do
+  vname <- newVName v
+  t' <- checkType t
+  case convertArrayTypeExp t' of
+    Nothing ->
+      throwErrorPos pos "Expected array"
+    Just at ->
+      localVNames (\vnames -> vnames {vnameEnvVars = M.insert v vname $ vnameEnvVars vnames}) $
+        localBinds (\bs -> bs {bindEnvVars = M.insert vname at $ bindEnvVars bs}) $
+          m $
+            PatId vname t' (Info at) pos
+
 -- | Bind a source parameter into a local environment.
 withParam ::
   (MonadCheck m) =>
-  (t -> m (ArrayType Info VName)) ->
+  (t -> m (ArrayType VName)) ->
   (Text, t) ->
-  ((VName, ArrayType Info VName) -> m a) ->
+  ((VName, ArrayType VName) -> m a) ->
   m a
 withParam checkArrayType (v, t) m = do
   vname <- newVName v
@@ -229,7 +249,7 @@ withParam checkArrayType (v, t) m = do
       m (vname, t')
 
 -- | Bind a source parameter into a local environment.
-withParam' :: (MonadCheck m) => (Text, ArrayType Info VName) -> (VName -> m a) -> m a
+withParam' :: (MonadCheck m) => (Text, ArrayType VName) -> (VName -> m a) -> m a
 withParam' (v, t) f = withParam pure (v, t) (f . fst)
 
 -- | Bind a source type parameter into a local environment.
@@ -246,8 +266,8 @@ withTypeParam (AtomTypeParam v) m = do
     $ m (AtomTypeParam vname)
 withTypeParam (ArrayTypeParam v) m = do
   vname <- newVName v
-  et_vname <- newVName $ "et_" <> v
-  s_vname <- newVName $ "s_" <> v
+  et_vname <- newVName $ "*" <> v
+  s_vname <- newVName $ "*" <> v
   localVNames
     ( \vnames ->
         vnames
@@ -281,23 +301,22 @@ withExtentParam p m = do
 -- | Bind a type binding.
 withType ::
   (MonadCheck m) =>
-  (Type NoInfo Text -> m (Type Info VName)) ->
-  SourcePos ->
-  (TypeParam Text, Type NoInfo Text) ->
-  ((TypeParam VName, Type Info VName) -> m a) ->
+  (TypeExp Text -> m (TypeExp VName)) ->
+  (TypeParam Text, TypeExp Text) ->
+  ((TypeParam VName, TypeExp VName) -> m a) ->
   m a
-withType checkType pos (p, t) m =
+withType checkTypeExp (p, t) m =
   withTypeParam p $ \p' -> do
-    t' <- checkType t
-    f <- case (p', t') of
-      (AtomTypeParam v, AtomType et) ->
+    t' <- checkTypeExp t
+    f <- case (p', convertTypeExp t') of
+      (AtomTypeParam v, Just (AtomType et)) ->
         pure $ \bs ->
           bs {bindEnvAtomTypes = M.insert v et $ bindEnvAtomTypes bs}
-      (ArrayTypeParam v, ArrayType at) ->
+      (ArrayTypeParam v, Just (ArrayType at)) ->
         pure $ \bs ->
           bs {bindEnvArrayTypes = M.insert v at $ bindEnvArrayTypes bs}
       _ ->
-        throwErrorPos pos $
+        throwErrorPos (posOf t) $
           T.unlines
             [ "Incompatible type binding:",
               prettyText p,

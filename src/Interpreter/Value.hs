@@ -22,9 +22,9 @@ import Syntax qualified
 import Util
 import VName
 
-type Type = Syntax.Type Info VName
+type Type = Syntax.Type VName
 
-type AtomType = Syntax.AtomType Info VName
+type AtomType = Syntax.AtomType VName
 
 type Extent = Syntax.Extent VName
 

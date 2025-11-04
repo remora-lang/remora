@@ -2,9 +2,9 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Prop
-  ( arrayTypeOf,
-    scalarTypeOf,
+  ( scalarTypeOf,
     baseTypeOf,
+    HasArrayType (..),
     HasType (..),
     HasShape (..),
     IsType (..),
@@ -12,9 +12,13 @@ module Prop
     (\\),
     (.<=.),
     maximumShape,
+    convertTypeExp,
+    convertAtomTypeExp,
+    convertArrayTypeExp,
   )
 where
 
+import Control.Applicative
 import Control.Monad
 import Data.Maybe
 import Prettyprinter
@@ -25,30 +29,37 @@ import Syntax
 import Util
 import VName
 
-arrayTypeOf :: Exp Info VName -> ArrayType Info VName
-arrayTypeOf = normType . arrayTypeOf_
-  where
-    arrayTypeOf_ (Var _ (Info t) _) = t
-    arrayTypeOf_ (Array _ _ (Info t) _) = t
-    arrayTypeOf_ (EmptyArray _ _ (Info t) _) = t
-    arrayTypeOf_ (Frame _ _ (Info t) _) = t
-    arrayTypeOf_ (EmptyFrame _ _ (Info t) _) = t
-    arrayTypeOf_ (App _ _ (Info (t, _)) _) = t
-    arrayTypeOf_ (TApp _ _ (Info t) _) = t
-    arrayTypeOf_ (IApp _ _ (Info t) _) = t
-    arrayTypeOf_ (Unbox _ _ _ _ (Info t) _) = t
-    arrayTypeOf_ (Let _ _ (Info t) _) = t
+class HasArrayType x where
+  arrayTypeOf :: x -> ArrayType VName
+  arrayTypeOf = normType . arrayTypeOf_
 
-scalarTypeOf :: Atom Info VName -> AtomType Info VName
+  arrayTypeOf_ :: x -> ArrayType VName
+
+instance HasArrayType (Exp Info VName) where
+  arrayTypeOf_ (Var _ (Info t) _) = t
+  arrayTypeOf_ (Array _ _ (Info t) _) = t
+  arrayTypeOf_ (EmptyArray _ _ (Info t) _) = t
+  arrayTypeOf_ (Frame _ _ (Info t) _) = t
+  arrayTypeOf_ (EmptyFrame _ _ (Info t) _) = t
+  arrayTypeOf_ (App _ _ (Info (t, _)) _) = t
+  arrayTypeOf_ (TApp _ _ (Info t) _) = t
+  arrayTypeOf_ (IApp _ _ (Info t) _) = t
+  arrayTypeOf_ (Unbox _ _ _ _ (Info t) _) = t
+  arrayTypeOf_ (Let _ _ (Info t) _) = t
+
+instance HasArrayType (Pat Info VName) where
+  arrayTypeOf_ (PatId _ _ (Info t) _) = t
+
+scalarTypeOf :: Atom Info VName -> AtomType VName
 scalarTypeOf = normType . scalarTypeOf_
   where
     scalarTypeOf_ (Base _ (Info t) _) = t
     scalarTypeOf_ (Lambda _ _ (Info t) _) = t
     scalarTypeOf_ (TLambda _ _ (Info t) _) = t
     scalarTypeOf_ (ILambda _ _ (Info t) _) = t
-    scalarTypeOf_ (Box _ _ t _) = t
+    scalarTypeOf_ (Box _ _ _ (Info t) _) = t
 
-baseTypeOf :: Base -> AtomType f VName
+baseTypeOf :: Base -> AtomType VName
 baseTypeOf BoolVal {} = Bool
 baseTypeOf IntVal {} = Int
 baseTypeOf FloatVal {} = Float
@@ -56,10 +67,10 @@ baseTypeOf FloatVal {} = Float
 -- | Things that have a type.
 class HasType x where
   -- | Returns a normalized type.
-  typeOf :: x -> Type Info VName
+  typeOf :: x -> Type VName
   typeOf = normType . typeOf_
 
-  typeOf_ :: x -> Type Info VName
+  typeOf_ :: x -> Type VName
 
 instance HasType Base where
   typeOf_ = AtomType . baseTypeOf
@@ -68,6 +79,9 @@ instance HasType (Atom Info VName) where
   typeOf_ = AtomType . scalarTypeOf
 
 instance HasType (Exp Info VName) where
+  typeOf_ = ArrayType . arrayTypeOf
+
+instance HasType (Pat Info VName) where
   typeOf_ = ArrayType . arrayTypeOf
 
 -- | Things that have a shape.
@@ -80,11 +94,10 @@ class HasShape x where
 instance HasShape (Atom f VName) where
   shapeOf_ _ = mempty
 
-instance HasShape (ArrayType Info VName) where
+instance HasShape (ArrayType VName) where
   shapeOf_ (A _ s) = s
-  shapeOf_ (ArrayTypeVar _ _ (Info s)) = ShapeVar s
 
-instance HasShape (Type Info VName) where
+instance HasShape (Type VName) where
   shapeOf_ (ArrayType t) = shapeOf t
   shapeOf_ _ = mempty
 
@@ -98,7 +111,7 @@ class IsType x where
 
 infix 4 ~=
 
-instance IsType (AtomType Info VName) where
+instance IsType (AtomType VName) where
   normType (ts :-> r) = map normType ts :-> normType r
   normType (Forall pts t) = Forall pts $ normType t
   normType (Pi pts t) = Pi pts $ normType t
@@ -128,7 +141,7 @@ instance IsType (AtomType Info VName) where
         substitute' (zip ps xs) r ~= substitute' (zip qs xs) t
   t ~= r = pure $ t == r
 
-instance IsType (ArrayType Info VName) where
+instance IsType (ArrayType VName) where
   normType (A t s) = A (normType t) (normShape s)
   normType t = t
 
@@ -136,7 +149,7 @@ instance IsType (ArrayType Info VName) where
     (t ~= y) ^&& pure (s Symbolic.@= x)
   t ~= r = pure $ t == r
 
-instance IsType (Type Info VName) where
+instance IsType (Type VName) where
   normType (AtomType t) = AtomType $ normType t
   normType (ArrayType t) = ArrayType $ normType t
 
@@ -179,3 +192,37 @@ maximumShape =
     )
     mempty
     . foldMap ((\x -> [x]) . normShape)
+
+convertTypeExp :: (Ord v) => TypeExp v -> Maybe (Type v)
+convertTypeExp t =
+  (AtomType <$> convertAtomTypeExp t)
+    <|> (ArrayType <$> convertArrayTypeExp t)
+
+convertAtomTypeExp :: (Ord v) => TypeExp v -> Maybe (AtomType v)
+convertAtomTypeExp (TEAtomVar v _) = pure $ AtomTypeVar v
+convertAtomTypeExp (TEBool _) = pure Bool
+convertAtomTypeExp (TEInt _) = pure Int
+convertAtomTypeExp (TEFloat _) = pure Float
+convertAtomTypeExp (TEArrow ts t _) =
+  (:->) <$> mapM convertArrayTypeExp ts <*> convertArrayTypeExp t
+convertAtomTypeExp (TEForall ps t _) =
+  Forall ps <$> convertArrayTypeExp t
+convertAtomTypeExp (TEPi ps t _) =
+  Pi ps <$> convertArrayTypeExp t
+convertAtomTypeExp (TESigma ps t _) =
+  Sigma ps <$> convertArrayTypeExp t
+convertAtomTypeExp _ = Nothing
+
+convertArrayTypeExp :: (Ord v) => TypeExp v -> Maybe (ArrayType v)
+convertArrayTypeExp = convertArrayTypeExp'
+  where
+    convertArrayTypeExp' (TEArray t s _) = do
+      t' <- convertArrayTypeExp t
+      case t' of
+        A et s'
+          | s' @= mempty || s @= mempty -> pure $ A et (s <> s')
+        _ -> Nothing
+    convertArrayTypeExp' (TEArrayVar v _) =
+      pure $ A (AtomTypeVar v) (ShapeVar v)
+    convertArrayTypeExp' t =
+      A <$> convertAtomTypeExp t <*> mempty
