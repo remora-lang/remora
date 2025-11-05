@@ -4,10 +4,9 @@
 ; https://github.com/AccelerateHS/accelerate-examples/tree/master/examples/n-body
 (let (
 (type &mass         Float)
-(type *position     [Float 3]) ; maybe should implicitly declare &*position and @*position
-(type *acceleration [Float 3]) ; then [*position (+ $n 1)] is just sugar for
-(type *velocity     [Float 3]) ; [&*position (+ $n 1) @*position]
-                               ; and then just ban * in those syntactic categories
+(type *position     [Float 3])
+(type *acceleration [Float 3])
+(type *velocity     [Float 3])
 
 (fun (dot (x [Float 3]) (y [Float 3]) : Float)
   (@reduce (Float) (2 []) f.+ (f.* x y)))
