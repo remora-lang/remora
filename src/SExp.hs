@@ -84,6 +84,7 @@ instance
   ( IsString s,
     SExpable v s,
     SExpable (f (AtomType v)) s,
+    SExpable (f (Type v)) s,
     SExpable (f (ArrayType v)) s,
     SExpable (f (ArrayType v, Shape v)) s
   ) =>
@@ -142,6 +143,7 @@ instance
   ( IsString s,
     SExpable v s,
     SExpable (f (AtomType v)) s,
+    SExpable (f (Type v)) s,
     SExpable (f (ArrayType v)) s,
     SExpable (f (ArrayType v, Shape v)) s
   ) =>
@@ -185,11 +187,12 @@ instance
         toSExp t,
         toSExp pos
       ]
-  toSExp (BindType v t pos) =
+  toSExp (BindType v t t' pos) =
     SList
       [ "bind-type",
         toSExp v,
         toSExp t,
+        toSExp t',
         toSExp pos
       ]
   toSExp (BindExtent v extent pos) =
@@ -204,6 +207,7 @@ instance
   ( IsString s,
     SExpable v s,
     SExpable (f (AtomType v)) s,
+    SExpable (f (Type v)) s,
     SExpable (f (ArrayType v)) s,
     SExpable (f (ArrayType v, Shape v)) s
   ) =>

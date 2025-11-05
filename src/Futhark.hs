@@ -4,13 +4,15 @@ import Control.Monad.Error.Class
 import Control.Monad.Reader hiding (lift)
 import Control.Monad.State hiding (State)
 import Control.Monad.Trans.Except
+import Data.Map (Map)
+import Data.Map qualified as M
 import Data.Text qualified as T
 import Futhark.IR.SOACS qualified as F
 import Prettyprinter
 import Prettyprinter.Render.Text
 import Prop
 import RemoraPrelude (Prelude)
-import Syntax hiding (ArrayType, Atom, AtomType, Dim, Exp, Extent, Pat, Shape, Type)
+import Syntax hiding (ArrayType, Atom, AtomType, Bind, Dim, Exp, Extent, Pat, Shape, Type)
 import Syntax qualified
 import VName
 
@@ -28,9 +30,16 @@ type ArrayType = Syntax.ArrayType VName
 
 type Type = Syntax.Type VName
 
+type TypeExp = Syntax.TypeExp VName
+
 type Pat = Syntax.Pat Info VName
 
+type Bind = Syntax.Bind Info VName
+
 data Env = Env
+  { envTypeBinds :: Map VName F.Type,
+    envFunBinds :: Map VName (F.FunDef F.SOACS)
+  }
 
 type Error = T.Text
 
@@ -219,9 +228,44 @@ compileExp e@(App f xs (Info (t, pframe)) _) = do
     intShape (ShapeVar s) = error "intShape: AAAAAAAAAAAAAAAAAAA"
     intShape (ShapeDim d) = pure $ intDim d
     intShape (Concat ss) = concat $ map intShape ss
+compileExp (Let bs e _ _) =
+  compileWithBinds bs $ compileExp e
 compileExp e = error $ "compileExp: unhandled:\n" ++ show e
 
+compileWithBind :: Bind -> FutharkM a -> FutharkM a
+compileWithBind (BindType param _ (Info t) _) m = do
+  t' <- compileType t
+  flip local m $
+    \env ->
+      env
+        { envTypeBinds =
+            M.insert (unTypeParam param) t' $ envTypeBinds env
+        }
+compileWithBind (BindFun f params _ body (Info ret) _) m = do
+  params' <- mapM compileParam params
+  body' <- mkBody $ pure <$> compileExp body
+  ret' <- compileArrayType $ findRet ret
+  let fun =
+        F.FunDef
+          { F.funDefEntryPoint = Nothing,
+            F.funDefAttrs = mempty,
+            F.funDefName = F.nameFromText $ varName f,
+            F.funDefRetType = [(F.toDecl (F.staticShapes1 ret') F.Nonunique, mempty)],
+            F.funDefParams = map (fmap (flip F.toDecl F.Nonunique)) params',
+            F.funDefBody = body'
+          }
+  addFunction fun
+  flip local m $
+    \env -> env {envFunBinds = M.insert f fun $ envFunBinds env}
+
+compileWithBinds :: [Bind] -> FutharkM a -> FutharkM a
+compileWithBinds [] m = m
+compileWithBinds (b : bs) m =
+  compileWithBind b $ compileWithBinds bs m
+
 valueType :: F.Type -> F.ValueType
+valueType (F.Prim pt) =
+  F.ValueType F.Signed mempty pt
 valueType (F.Array pt shape _) =
   F.ValueType F.Signed (F.Rank (F.shapeRank shape)) pt
 valueType t = error $ "valueType: unhandled " ++ show t
@@ -272,7 +316,8 @@ compile _prelude e =
               )
               initialState
           )
-          Env
+          initialEnv
       )
   where
     initialState = State mempty 0 mempty
+    initialEnv = Env mempty mempty

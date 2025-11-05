@@ -378,9 +378,11 @@ checkExp (Let bs e _ pos) = do
         let t = Pi params' body_t
         withParam' (f, mkScalarArrayType t) $ \f' ->
           m $ BindIFun f' params' mt' body' (Info t) pos
-    withBind (BindType tvar t pos) m =
+    withBind (BindType tvar t _ pos) m =
       withType checkTypeExp (tvar, t) $ \(tvar', t') ->
-        m $ BindType tvar' t' pos
+        case convertTypeExp t' of
+          Nothing -> throwErrorPos pos $ "Invalid type."
+          Just t'' -> m $ BindType tvar' t' (Info t'') pos
     withBind (BindExtent ivar extent pos) m =
       withExtent checkExtent pos (ivar, extent) $ \(ivar', extent') ->
         m $ BindExtent ivar' extent' pos

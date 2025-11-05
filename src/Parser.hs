@@ -347,7 +347,7 @@ pExp =
                              <*> (option Nothing (Just <$> pType))
                              <*> pExp
                        ),
-                  lKeyword "type" >> (BindType <$> pTypeParam <*> pType),
+                  lKeyword "type" >> (BindType <$> pTypeParam <*> pType <*> pure NoInfo),
                   lKeyword "extent" >> (BindExtent <$> pExtentParam <*> pExtent)
                 ]
 

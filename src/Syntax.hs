@@ -272,7 +272,7 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Atom f v) where
 -- | Binds
 data Bind f v
   = BindVal v (Maybe (TypeExp v)) (Exp f v) SourcePos
-  | BindType (TypeParam v) (TypeExp v) SourcePos
+  | BindType (TypeParam v) (TypeExp v) (f (Type v)) SourcePos
   | BindExtent (ExtentParam v) (Extent v) SourcePos
   | BindFun v [Pat f v] (Maybe (TypeExp v)) (Exp f v) (f (AtomType v)) SourcePos
   | BindTFun v [TypeParam v] (Maybe (TypeExp v)) (Exp f v) (f (AtomType v)) SourcePos
@@ -303,7 +303,7 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Bind f v) where
         <+> parens (hsep (map pretty params))
         <+> pretty mt
         <+> pretty body
-  pretty (BindType tvar t _) =
+  pretty (BindType tvar t _ _) =
     parens $ pretty tvar <+> pretty t
   pretty (BindExtent ivar extent _) =
     parens $ pretty ivar <+> pretty extent
@@ -423,7 +423,7 @@ class HasSrcPos x where
 instance HasSrcPos (Bind f v) where
   posOf (BindVal _ _ _ pos) = pos
   posOf (BindFun _ _ _ _ _ pos) = pos
-  posOf (BindType _ _ pos) = pos
+  posOf (BindType _ _ _ pos) = pos
   posOf (BindExtent _ _ pos) = pos
 
 instance HasSrcPos (Atom f v) where
