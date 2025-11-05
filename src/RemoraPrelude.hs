@@ -12,11 +12,11 @@ import Data.Text (Text)
 import Interpreter.Value
 import Syntax
 
-type Prelude f v m = [PreludeVal f v m]
+type Prelude v m = [PreludeVal v m]
 
-data PreludeVal f v m = PreludeVal v (ArrayType f v) (Val m)
+data PreludeVal v m = PreludeVal v (ArrayType v) (Val m)
 
-prelude :: (Monad m) => Prelude NoInfo Text m
+prelude :: (Monad m) => Prelude Text m
 prelude =
   [ PreludeVal
       "head"
@@ -286,5 +286,29 @@ prelude =
           pure $ ValIFun $ \[Left _m, Left _n, Right _s] ->
             pure $ ValFun $ \[v] ->
               pure $ valConcat v
+      ),
+    PreludeVal
+      "iota"
+      ( mkScalarArrayType $
+          Pi
+            [DimParam "d"]
+            ( let arg_t = A Int (ShapeDim $ DimVar "d")
+                  ret_t =
+                    mkScalarArrayType $
+                      Sigma [ShapeParam "s"] $
+                        A Int (ShapeVar "s")
+               in mkScalarArrayType $ [arg_t] :-> ret_t
+            )
+      )
+      ( ValIFun $ \[Left _d] ->
+          pure $ ValFun $ \[shapeval] ->
+            let fromInt (IntVal i) = i
+                fromInt _ = error "fromInt"
+                shape = arrayValView shapeval $ flip baseValViews (map fromInt) . snd
+             in pure $
+                  ValBox [Right shape] $
+                    ValArray
+                      shape
+                      (map (ValBase . IntVal) [0 .. product shape - 1])
       )
   ]

@@ -173,7 +173,7 @@ normShape (ShapeDim d) = ShapeDim $ normDim d
 normShape (Concat ss) =
   case merged of
     [s] -> s
-    _ -> Concat $ sort merged
+    _ -> Concat merged
   where
     merged =
       flip concatMap ss $ \s ->

@@ -4,13 +4,15 @@ import Control.Monad.Error.Class
 import Control.Monad.Reader hiding (lift)
 import Control.Monad.State hiding (State)
 import Control.Monad.Trans.Except
+import Data.Map (Map)
+import Data.Map qualified as M
 import Data.Text qualified as T
 import Futhark.IR.SOACS qualified as F
 import Prettyprinter
 import Prettyprinter.Render.Text
 import Prop
 import RemoraPrelude (Prelude)
-import Syntax hiding (ArrayType, Atom, Dim, Exp, Extent, AtomType, Shape, Type)
+import Syntax hiding (ArrayType, Atom, AtomType, Bind, Dim, Exp, Extent, Pat, Shape, Type)
 import Syntax qualified
 import VName
 
@@ -22,13 +24,21 @@ type Atom = Syntax.Atom Info VName
 
 type Shape = Syntax.Shape VName
 
-type AtomType = Syntax.AtomType Info VName
+type AtomType = Syntax.AtomType VName
 
-type ArrayType = Syntax.ArrayType Info VName
+type ArrayType = Syntax.ArrayType VName
 
-type Type = Syntax.Type Info VName
+type Type = Syntax.Type VName
+
+type TypeExp = Syntax.TypeExp VName
+
+type Pat = Syntax.Pat Info VName
+
+type Bind = Syntax.Bind Info VName
 
 data Env = Env
+  { envFunBinds :: Map VName (F.FunDef F.SOACS)
+  }
 
 type Error = T.Text
 
@@ -85,7 +95,7 @@ findRet (_ :-> t) = t
 findRet t = error $ "findRet: unhandled:\n" ++ show t
 
 -- Assumes the lambda has no free variables.
-liftLambda :: [(VName, ArrayType)] -> Exp -> AtomType -> FutharkM F.Name
+liftLambda :: [Pat] -> Exp -> AtomType -> FutharkM F.Name
 liftLambda params body t = do
   params' <- mapM compileParam params
   body' <- mkBody $ pure <$> compileExp body
@@ -127,8 +137,8 @@ compileType :: Type -> FutharkM F.Type
 compileType (Syntax.AtomType t) = compileAtomType t
 compileType (Syntax.ArrayType t) = compileArrayType t
 
-compileParam :: (VName, ArrayType) -> FutharkM (F.LParam F.SOACS)
-compileParam (v, t) = do
+compileParam :: Pat -> FutharkM (F.LParam F.SOACS)
+compileParam (PatId v _ (Info t) _) = do
   let v' = F.VName (F.nameFromText (varName v)) (getTag (varTag v))
   t' <- compileArrayType t
   pure $ F.Param mempty v' t'
@@ -217,9 +227,38 @@ compileExp e@(App f xs (Info (t, pframe)) _) = do
     intShape (ShapeVar s) = error "intShape: AAAAAAAAAAAAAAAAAAA"
     intShape (ShapeDim d) = pure $ intDim d
     intShape (Concat ss) = concat $ map intShape ss
+compileExp (Let bs e _ _) =
+  compileWithBinds bs $ compileExp e
 compileExp e = error $ "compileExp: unhandled:\n" ++ show e
 
+compileWithBind :: Bind -> FutharkM a -> FutharkM a
+compileWithBind BindType {} m = m
+compileWithBind BindExtent {} m = m
+compileWithBind (BindFun f params _ body (Info ret) _) m = do
+  params' <- mapM compileParam params
+  body' <- mkBody $ pure <$> compileExp body
+  ret' <- compileArrayType $ findRet ret
+  let fun =
+        F.FunDef
+          { F.funDefEntryPoint = Nothing,
+            F.funDefAttrs = mempty,
+            F.funDefName = F.nameFromText $ varName f,
+            F.funDefRetType = [(F.toDecl (F.staticShapes1 ret') F.Nonunique, mempty)],
+            F.funDefParams = map (fmap (flip F.toDecl F.Nonunique)) params',
+            F.funDefBody = body'
+          }
+  addFunction fun
+  flip local m $
+    \env -> env {envFunBinds = M.insert f fun $ envFunBinds env}
+
+compileWithBinds :: [Bind] -> FutharkM a -> FutharkM a
+compileWithBinds [] m = m
+compileWithBinds (b : bs) m =
+  compileWithBind b $ compileWithBinds bs m
+
 valueType :: F.Type -> F.ValueType
+valueType (F.Prim pt) =
+  F.ValueType F.Signed mempty pt
 valueType (F.Array pt shape _) =
   F.ValueType F.Signed (F.Rank (F.shapeRank shape)) pt
 valueType t = error $ "valueType: unhandled " ++ show t
@@ -256,7 +295,7 @@ wrapInMain ((e, ret), State stms counter funs) =
       ]
 
 -- | Turn Remora into Futhark.
-compile :: Prelude Info VName FutharkM -> Exp -> Either Error T.Text
+compile :: Prelude VName FutharkM -> Exp -> Either Error T.Text
 compile _prelude e =
   wrapInMain
     <$> runExcept
@@ -270,7 +309,8 @@ compile _prelude e =
               )
               initialState
           )
-          Env
+          initialEnv
       )
   where
     initialState = State mempty 0 mempty
+    initialEnv = Env mempty

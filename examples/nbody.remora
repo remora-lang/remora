@@ -2,41 +2,84 @@
 ; https://github.com/diku-dk/futhark-benchmarks/tree/master/accelerate/nbody
 ; which is based on the one from Accelerate:
 ; https://github.com/AccelerateHS/accelerate-examples/tree/master/examples/n-body
+(let (
+(type &mass         Float)
+(type *position     [Float 3])
+(type *acceleration [Float 3])
+(type *velocity     [Float 3])
 
-(let (((reduce3 (-> ((A (-> ((A Float (shape)) (A Float (shape))) (A Float (shape))) (shape))
-                     (A Float (shape 3)))
-                    (A Float (shape))))
-       (i-app (t-app reduce Float) 2 (shape)))
-      (dot3 ((x (A Float (shape 3)))
-             (y (A Float (shape 3)))
-             )
-        Float
-        (reduce3 f.+ (f.* x y)))
-      (accel ((epsilon Float)
-              (x_pos (A Float (shape 3)))
-              (x_mass Float)
-              (y_pos (A Float (shape 3)))
-              (y_mass Float))
-        (A Float (shape 3))
-        (let (((r (A Float (shape 3))) (f.- x_pos y_pos))
-              ((rsqr Float) (f.+ (dot3 r r) (f.* epsilon epsilon)))
-              ((invr Float) (f./ 1.0 (sqrt rsqr)))
-              ((invr3 Float) (f.* (f.* invr invr) invr))
-              ((s Float) (f.* y_mass invr3)))
-          (f.* s r)))
-      (advance_pos ((time_step Float)
-                    (position (A Float (shape 3)))
-                    (velocity (A Float (shape 3)))
-                    )
-        (A Float (shape 3))
-        (f.+ position (f.* time_step velocity)))
-      (advance_vel ((time_step Float)
-                    (velocity (A Float (shape 3)))
-                    (acceleration (A Float (shape 3)))
-                    )
-        (A Float (shape 3))
-        (f.+ velocity (f.* time_step acceleration)))
+(fun (dot (x [Float 3]) (y [Float 3]) : Float)
+  (@reduce (Float) (2 []) f.+ (f.* x y)))
 
-      )
+(fun (vec-+ (x [Float 3]) (y [Float 3]) : [Float 3])
+  (f.+ x y))
 
-  )
+(fun (accel
+  (epsilon Float)
+  (x_pos   *position)
+  (x_mass  &mass)
+  (y_pos   *position)
+  (y_mass  &mass) : *acceleration)
+  (let
+    ((val r      (f.- x_pos y_pos))
+     (val rsqr   (f.+ (dot r r) (f.* epsilon epsilon)))
+     (val invr   (f./ 1.0 (sqrt rsqr)))
+     (val invr3  (f.* (f.* invr invr) invr))
+     (val s      (f.* y_mass invr3)))
+    (f.* s r)))
+
+(fun (advance_pos
+  (time_step Float)
+  (position  *position)
+  (velocity  *velocity) : *position)
+  (f.+ position (f.* time_step velocity)))
+
+(fun (advance_vel
+  (time_step     Float)
+  (velocity     *velocity)
+  (acceleration *acceleration) : *velocity)
+  (f.+ velocity (f.* time_step acceleration )))
+
+(fun (@calc_accels _ ($n)
+  (epsilon   Float)
+  (positions [*position (+ $n 1)])
+  (masses    [&mass (+ $n 1)]) : [*acceleration (+ $n 1)])
+  (let
+    ((fun (compute_accels (position *position) (mass &mass) : [*acceleration (+ $n 1)])
+       (accel epsilon position mass positions masses))
+
+     (fun (move (position *position) (mass &mass) : *acceleration)
+       (let ((val accels (compute_accels position mass)))
+         (@reduce (Float) ($n [3]) vec-+ accels))))
+
+    (move positions masses)))
+
+(fun (@advance_positions _ ($n)
+  (time_step  Float)
+  (positions  [*position (+ $n 1)])
+  (velocities [*velocity (+ $n 1)]) : [*position (+ $n 1)])
+  (advance_pos time_step positions velocities))
+
+(fun (@advance_velocities _ ($n)
+  (epsilon    Float)
+  (time_step  Float)
+  (positions  [*position (+ $n 1)])
+  (velocities [*velocity (+ $n 1)])
+  (masses     [&mass (+ $n 1)]) : [*velocity (+ $n 1)])
+  (let
+    ((val accels (@calc_accels _ ($n) epsilon positions masses)))
+    (advance_vel time_step velocities accels)))
+
+(fun (@advance_bodies _ ($n)
+  (epsilon    Float)
+  (time_step  Float)
+  (positions  [*position (+ $n 1)])
+  (velocities [*velocity (+ $n 1)])
+  (masses     [&mass (+ $n 1)]) : [Float 2 (+ $n 1) 3])
+  (let
+    ((val accels (@calc_accels _ ($n) epsilon positions masses)))
+    [(advance_pos time_step positions velocities)
+     (advance_vel time_step velocities accels)])))
+
+(@calc_accels _ (1) 1.0 [[1.0 2.0 3.0] [4.0 5.0 6.0]] [1.0 2.0])
+)
