@@ -43,11 +43,10 @@
 
 (fun (@calc_accels _ ($n)
   (epsilon   Float)
-  ;; it would be nice to be able to write [*position (+ $n 1)]
-  (positions [Float (+ $n 1) 3])
-  (masses    [Float (+ $n 1)]) : [Float (+ $n 1) 3])
+  (positions [*position (+ $n 1)])
+  (masses    [&mass (+ $n 1)]) : [*acceleration (+ $n 1)])
   (let
-    ((fun (compute_accels (position *position) (mass &mass) : [Float (+ $n 1) 3])
+    ((fun (compute_accels (position *position) (mass &mass) : [*acceleration (+ $n 1)])
        (accel epsilon position mass positions masses))
 
      (fun (move (position *position) (mass &mass) : *acceleration)
@@ -58,16 +57,16 @@
 
 (fun (@advance_positions _ ($n)
   (time_step  Float)
-  (positions  [Float (+ $n 1) 3])
-  (velocities [Float (+ $n 1) 3]) : [Float (+ $n 1) 3])
+  (positions  [*position (+ $n 1)])
+  (velocities [*velocity (+ $n 1)]) : [*position (+ $n 1)])
   (advance_pos time_step positions velocities))
 
 (fun (@advance_velocities _ ($n)
   (epsilon    Float)
   (time_step  Float)
-  (positions  [Float (+ $n 1) 3])
-  (velocities [Float (+ $n 1) 3])
-  (masses     [Float (+ $n 1)]) : [Float (+ $n 1) 3])
+  (positions  [*position (+ $n 1)])
+  (velocities [*velocity (+ $n 1)])
+  (masses     [&mass (+ $n 1)]) : [*velocity (+ $n 1)])
   (let
     ((val accels (@calc_accels _ ($n) epsilon positions masses)))
     (advance_vel time_step velocities accels)))
@@ -75,9 +74,9 @@
 (fun (@advance_bodies _ ($n)
   (epsilon    Float)
   (time_step  Float)
-  (positions  [Float (+ $n 1) 3])
-  (velocities [Float (+ $n 1) 3])
-  (masses     [Float (+ $n 1)]) : [Float 2 (+ $n 1) 3])
+  (positions  [*position (+ $n 1)])
+  (velocities [*velocity (+ $n 1)])
+  (masses     [&mass (+ $n 1)]) : [Float 2 (+ $n 1) 3])
   (let
     ((val accels (@calc_accels _ ($n) epsilon positions masses)))
     [(advance_pos time_step positions velocities)
