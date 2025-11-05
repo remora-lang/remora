@@ -37,8 +37,7 @@ type Pat = Syntax.Pat Info VName
 type Bind = Syntax.Bind Info VName
 
 data Env = Env
-  { envTypeBinds :: Map VName F.Type,
-    envFunBinds :: Map VName (F.FunDef F.SOACS)
+  { envFunBinds :: Map VName (F.FunDef F.SOACS)
   }
 
 type Error = T.Text
@@ -233,14 +232,8 @@ compileExp (Let bs e _ _) =
 compileExp e = error $ "compileExp: unhandled:\n" ++ show e
 
 compileWithBind :: Bind -> FutharkM a -> FutharkM a
-compileWithBind (BindType param _ (Info t) _) m = do
-  t' <- compileType t
-  flip local m $
-    \env ->
-      env
-        { envTypeBinds =
-            M.insert (unTypeParam param) t' $ envTypeBinds env
-        }
+compileWithBind BindType {} m = m
+compileWithBind BindExtent {} m = m
 compileWithBind (BindFun f params _ body (Info ret) _) m = do
   params' <- mapM compileParam params
   body' <- mkBody $ pure <$> compileExp body
@@ -320,4 +313,4 @@ compile _prelude e =
       )
   where
     initialState = State mempty 0 mempty
-    initialEnv = Env mempty mempty
+    initialEnv = Env mempty
