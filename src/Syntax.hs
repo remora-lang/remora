@@ -315,11 +315,11 @@ data Exp f v
   | -- | Array literals.
     Array [Int] [Atom f v] (f (ArrayType v)) SourcePos
   | -- | Empty arrays.
-    EmptyArray [Int] (AtomType v) (f (ArrayType v)) SourcePos
+    EmptyArray [Int] (TypeExp v) (f (ArrayType v)) SourcePos
   | -- | Frame literals.
     Frame [Int] [Exp f v] (f (ArrayType v)) SourcePos
   | -- | Empty frames.
-    EmptyFrame [Int] (AtomType v) (f (ArrayType v)) SourcePos
+    EmptyFrame [Int] (TypeExp v) (f (ArrayType v)) SourcePos
   | -- | Function application.
     App (Exp f v) [Exp f v] (f (ArrayType v, Shape v)) SourcePos
   | -- | Type application.

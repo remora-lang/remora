@@ -98,12 +98,8 @@ checkArrayType (A t shape) =
   A <$> checkAtomType t <*> checkShape shape
 
 checkAtomType :: (MonadCheck m) => AtomType Text -> m (AtomType VName)
-checkAtomType (AtomTypeVar v) = do
-  v' <- fetchAtomTypeVar v
-  mt <- lookupAtomType v'
-  case mt of
-    Nothing -> pure $ AtomTypeVar v'
-    Just t -> pure t
+checkAtomType (AtomTypeVar v) =
+  AtomTypeVar <$> fetchAtomTypeVar v
 checkAtomType Bool = pure Bool
 checkAtomType Int = pure Int
 checkAtomType Float = pure Float
@@ -141,11 +137,15 @@ checkExp expr@(Array ns as _ pos) = do
       let et = scalarTypeOf a'
       pure $ Array ns as' (Info $ A et (intsToShape ns)) pos
 checkExp expr@(EmptyArray ns t _ pos) = do
-  t' <- checkAtomType t
+  t' <- checkTypeExp t
   unless (product ns == 0) $
     throwErrorPos pos $
       "Empty array has a non-empty shape: " <> prettyText expr
-  pure $ EmptyArray ns t' (Info $ A t' (intsToShape ns)) pos
+  case convertAtomTypeExp t' of
+    Nothing ->
+      throwErrorPos pos $
+        "Non-scalar kinded type annotation on empty arra."
+    Just et -> pure $ EmptyArray ns t' (Info $ A et (intsToShape ns)) pos
 checkExp expr@(Frame ns es _ pos) = do
   es' <- mapM checkExp es
   case es' of
@@ -162,11 +162,15 @@ checkExp expr@(Frame ns es _ pos) = do
       let A et s = arrayTypeOf e'
       pure $ Frame ns es' (Info $ A et ((intsToShape ns) <> s)) pos
 checkExp expr@(EmptyFrame ns t _ pos) = do
-  t' <- checkAtomType t
+  t' <- checkTypeExp t
   unless (product ns == 0) $
     throwErrorPos pos $
       "Empty frame has a non-empty shape: " <> prettyText expr
-  pure $ EmptyFrame ns t' (Info $ A t' (intsToShape ns)) pos
+  case convertAtomTypeExp t' of
+    Nothing ->
+      throwErrorPos pos $
+        "Non-scalar kinded type annotation on empty arra."
+    Just et -> pure $ EmptyFrame ns t' (Info $ A et (intsToShape ns)) pos
 checkExp expr@(App f args _ pos) = do
   f' <- checkExp f
   args' <- mapM checkExp args
@@ -425,7 +429,34 @@ checkAtom atom@(Box extent e box_t _ pos) = do
           ]
 
 checkTypeExp :: (MonadCheck m) => TypeExp Text -> m (TypeExp VName)
-checkTypeExp = undefined
+checkTypeExp (TEAtomVar v pos) = do
+  vname <- fetchAtomTypeVar v
+  mt <- lookupAtomType vname
+  case mt of
+    Nothing -> pure $ TEAtomVar vname pos
+    Just t -> pure t
+checkTypeExp (TEArrayVar v pos) = do
+  ArrayTypeVarBundle vname et_vname s_vname <- fetchArrayTypeVar v
+  mt <- lookupArrayType vname
+  case mt of
+    Nothing -> pure $ TEArrayVar vname pos
+    Just t -> pure t
+checkTypeExp (TEBool pos) = pure $ TEBool pos
+checkTypeExp (TEInt pos) = pure $ TEInt pos
+checkTypeExp (TEFloat pos) = pure $ TEFloat pos
+checkTypeExp (TEArray t s pos) =
+  TEArray <$> checkTypeExp t <*> checkShape s <*> pure pos
+checkTypeExp (TEArrow ts r pos) =
+  TEArrow <$> mapM checkTypeExp ts <*> checkTypeExp r <*> pure pos
+checkTypeExp (TEForall params t pos) =
+  binds withTypeParam params $ \params' ->
+    TEForall params' <$> checkTypeExp t <*> pure pos
+checkTypeExp (TEPi params t pos) =
+  binds withExtentParam params $ \params' ->
+    TEPi params' <$> checkTypeExp t <*> pure pos
+checkTypeExp (TESigma params t pos) = do
+  binds withExtentParam params $ \params' -> do
+    TESigma params' <$> checkTypeExp t <*> pure pos
 
 -- | Binds prelude bindings into the local environment.
 withPrelude :: (MonadCheck m, Monad n) => m a -> m (Prelude VName n, a)

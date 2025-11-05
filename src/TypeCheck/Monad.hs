@@ -77,9 +77,9 @@ data BindEnv
   { -- | Term variables to their types.
     bindEnvVars :: Map VName (ArrayType VName),
     -- | Atom type vars to types.
-    bindEnvAtomTypes :: Map VName (AtomType VName),
+    bindEnvAtomTypes :: Map VName (TypeExp VName),
     -- | Array type vars to types.
-    bindEnvArrayTypes :: Map VName (ArrayType VName),
+    bindEnvArrayTypes :: Map VName (TypeExp VName),
     -- | Dim vars to 'Dim's.
     bindEnvDims :: Map VName (Dim VName),
     -- | Shape vars to 'Shape's.
@@ -197,12 +197,12 @@ lookupVar v =
   lookupEnv "" v $ (M.!? v) . bindEnvVars . envBinds
 
 -- | Look-up an atom type variable binding.
-lookupAtomType :: (MonadCheck m) => VName -> m (Maybe (AtomType VName))
+lookupAtomType :: (MonadCheck m) => VName -> m (Maybe (TypeExp VName))
 lookupAtomType v =
   asks $ (M.!? v) . bindEnvAtomTypes . envBinds
 
 -- | Look-up an array type variable binding.
-lookupArrayType :: (MonadCheck m) => VName -> m (Maybe (ArrayType VName))
+lookupArrayType :: (MonadCheck m) => VName -> m (Maybe (TypeExp VName))
 lookupArrayType v =
   asks $ (M.!? v) . bindEnvArrayTypes . envBinds
 
@@ -222,12 +222,17 @@ withPatParam ::
   Pat NoInfo Text ->
   (Pat Info VName -> m a) ->
   m a
-withPatParam checkType (PatId v t _ pos) m = do
+withPatParam checkType p@(PatId v t _ pos) m = do
   vname <- newVName v
   t' <- checkType t
   case convertArrayTypeExp t' of
     Nothing ->
-      throwErrorPos pos "Expected array"
+      throwErrorPos pos $
+        T.unlines
+          [ "Expected array",
+            prettyText p,
+            T.pack $ show t
+          ]
     Just at ->
       localVNames (\vnames -> vnames {vnameEnvVars = M.insert v vname $ vnameEnvVars vnames}) $
         localBinds (\bs -> bs {bindEnvVars = M.insert vname at $ bindEnvVars bs}) $
@@ -308,13 +313,13 @@ withType ::
 withType checkTypeExp (p, t) m =
   withTypeParam p $ \p' -> do
     t' <- checkTypeExp t
-    f <- case (p', convertTypeExp t') of
-      (AtomTypeParam v, Just (AtomType et)) ->
+    f <- case p' of
+      AtomTypeParam v ->
         pure $ \bs ->
-          bs {bindEnvAtomTypes = M.insert v et $ bindEnvAtomTypes bs}
-      (ArrayTypeParam v, Just (ArrayType at)) ->
+          bs {bindEnvAtomTypes = M.insert v t' $ bindEnvAtomTypes bs}
+      ArrayTypeParam v ->
         pure $ \bs ->
-          bs {bindEnvArrayTypes = M.insert v at $ bindEnvArrayTypes bs}
+          bs {bindEnvArrayTypes = M.insert v t' $ bindEnvArrayTypes bs}
       _ ->
         throwErrorPos (posOf t) $
           T.unlines
