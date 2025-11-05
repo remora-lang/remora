@@ -215,11 +215,8 @@ convertAtomTypeExp _ = Nothing
 
 convertArrayTypeExp :: (Ord v) => TypeExp v -> Maybe (ArrayType v)
 convertArrayTypeExp (TEArray t s _) = do
-  t' <- convertArrayTypeExp t
-  case t' of
-    A et s'
-      | s' @= mempty || s @= mempty -> pure $ A et (s <> s')
-    _ -> Nothing
+  A et s' <- convertArrayTypeExp t
+  pure $ A et (s <> s')
 convertArrayTypeExp (TEArrayVar v _) =
   pure $ A (AtomTypeVar v) (ShapeVar v)
 convertArrayTypeExp t =
