@@ -7,8 +7,8 @@
 (fun (dot (x [Float 3]) (y [Float 3]) : Float)
   (f.reduce3 f.+ (f.* x y)))
 
-(fun (vec-+ (x [Float 3]) (y [Float 3]) : [Float 3])
-  (f.+ x y))
+(fun (sqrt (x Float) : Float)
+  (f.^ x (f./ 1.0 2.0)))
 
 (fun (accel
   (epsilon Float)
@@ -19,7 +19,7 @@
   (let
     ((val r      (f.- x_pos y_pos))
      (val rsqr   (f.+ (dot r r) (f.* epsilon epsilon)))
-     (val invr   (f./ 1.0 (f.^ rsqr (f./ 1.0 2.0))))
+     (val invr   (f./ 1.0 (sqrt rsqr)))
      (val invr3  (f.* (f.* invr invr) invr))
      (val s      (f.* y_mass invr3)))
     (f.* s r))))
