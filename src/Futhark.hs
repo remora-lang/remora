@@ -209,7 +209,7 @@ compileVName v =
   F.VName (F.nameFromText (varName v)) (getTag (varTag v))
 
 compileName :: VName -> F.Name
-compileName v = F.nameFromText (varName v) 4 a 4 a1d32445
+compileName v = F.nameFromText (varName v)
 
 etaExpand :: Exp -> FutharkM (F.Lambda F.SOACS)
 etaExpand e@(Var f (Info (A (ts :-> r) s)) _)
