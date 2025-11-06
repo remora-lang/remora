@@ -177,7 +177,7 @@ checkExp expr@(App f args _ pos) = do
   case arrayifyType $ typeOf f' of
     ArrayType (A (pts :-> ret) frame_f) -> do
       let check_args pt arg = do
-            let pt_elem = arrayTypeScalar pt
+            let pt_elem = arrayTypeAtom pt
                 arg_elem = elemType $ typeOf arg
             unlessM (pt_elem ~= arg_elem) $
               throwErrorPos pos $
@@ -203,7 +203,7 @@ checkExp expr@(App f args _ pos) = do
               Just frame_a -> pure frame_a
       frames <- zipWithM check_args pts args'
       let principal = Symbolic.maximumShape $ frame_f : frames
-          ret' = A (arrayTypeScalar ret) (principal <> arrayTypeShape ret)
+          ret' = A (arrayTypeAtom ret) (principal <> arrayTypeShape ret)
       pure $ App f' args' (Info (ret', principal)) pos
     t ->
       throwErrorPos pos $

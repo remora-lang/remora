@@ -1,19 +1,24 @@
 module Futhark (FutharkM, compile) where
 
+import Control.Monad
 import Control.Monad.Error.Class
 import Control.Monad.Reader hiding (lift)
 import Control.Monad.State hiding (State)
 import Control.Monad.Trans.Except
 import Data.Map (Map)
 import Data.Map qualified as M
+import Data.Maybe
 import Data.Text qualified as T
+import Debug.Trace
 import Futhark.IR.SOACS qualified as F
 import Prettyprinter
 import Prettyprinter.Render.Text
 import Prop
 import RemoraPrelude (Prelude)
+import Substitute
 import Syntax hiding (ArrayType, Atom, AtomType, Bind, Dim, Exp, Extent, Pat, Shape, Type)
 import Syntax qualified
+import Util
 import VName
 
 type Dim = Syntax.Dim VName
@@ -36,16 +41,17 @@ type Pat = Syntax.Pat Info VName
 
 type Bind = Syntax.Bind Info VName
 
-data Env = Env
-  { envFunBinds :: Map VName (F.FunDef F.SOACS)
-  }
+type Extent = Syntax.Extent VName
 
 type Error = T.Text
+
+data Env = Env
 
 data State = State
   { stateStms :: F.Stms F.SOACS,
     stateCounter :: Int,
-    stateFuns :: [F.FunDef F.SOACS]
+    stateFuns :: [F.FunDef F.SOACS],
+    stateFunBinds :: Map VName (F.FunDef F.SOACS)
   }
 
 -- | The Futhark generator monad.
@@ -76,6 +82,13 @@ newVar = do
   x <- gets stateCounter
   modify $ \s -> s {stateCounter = succ x}
   pure $ F.VName "v" x
+
+binds :: [F.Type] -> F.Exp F.SOACS -> FutharkM [F.VName]
+binds ts e = do
+  vs <- mapM (const newVar) ts
+  let p = F.Pat $ zipWith F.PatElem vs ts
+  emit $ F.Let p (F.defAux ()) e
+  pure vs
 
 bind :: F.Type -> F.Exp F.SOACS -> FutharkM F.VName
 bind t e = do
@@ -125,7 +138,7 @@ compileShape s = error $ "compileShape: unhandled:\n" ++ show s
 compileAtomType :: AtomType -> FutharkM F.Type
 compileAtomType Bool = pure $ F.Prim F.Bool
 compileAtomType Int = pure $ F.Prim $ F.IntType F.Int32
-compileAtomType Float = pure $ F.Prim $ F.FloatType F.Float64
+compileAtomType Float = pure $ F.Prim $ F.FloatType F.Float32
 compileAtomType t = error $ "compileAtomType: unhandled:\n" ++ show t
 
 compileArrayType :: ArrayType -> FutharkM F.Type
@@ -140,7 +153,7 @@ compileType (Syntax.ArrayType t) = compileArrayType t
 
 compileParam :: Pat -> FutharkM (F.LParam F.SOACS)
 compileParam (PatId v _ (Info t) _) = do
-  let v' = F.VName (F.nameFromText (varName v)) (getTag (varTag v))
+  let v' = compileVName v
   t' <- compileArrayType t
   pure $ F.Param mempty v' t'
 
@@ -153,9 +166,9 @@ compileAtom (Base (FloatVal x) _ _) =
   pure $ F.Constant $ F.FloatValue $ F.Float32Value x
 compileAtom e = error $ "compileAtom: unhandled:\n" ++ show e
 
-map1 :: Int -> ArrayType -> F.Name -> [F.VName] -> F.Type -> FutharkM F.VName
-map1 dim (A (pts :-> r) shape) f xss@[_, _] t
-  | shape == mempty = do
+map1 :: F.BinOp -> Int -> ArrayType -> [F.VName] -> F.Type -> FutharkM F.VName
+map1 op dim (A (pts :-> r) shape) xss@[_, _] t
+  | shape @= mempty = do
       x' <- newVar
       y' <- newVar
       pts' <- mapM compileArrayType pts
@@ -163,7 +176,7 @@ map1 dim (A (pts :-> r) shape) f xss@[_, _] t
       body <-
         mkBody $
           pure . F.Var
-            <$> bind r' (F.BasicOp (F.BinOp (F.Add F.Int32 F.OverflowWrap) (F.Var x') (F.Var y')))
+            <$> bind r' (F.BasicOp (F.BinOp op (F.Var x') (F.Var y')))
       bind t
         $ F.Op
         $ F.Screma
@@ -176,10 +189,151 @@ map1 dim (A (pts :-> r) shape) f xss@[_, _] t
           body
 map1 _ t _ xss _ = error $ "map1: unhandled\n" ++ show t ++ "\n" ++ show xss
 
+rep :: F.VName -> ArrayType -> Shape -> FutharkM F.VName
+rep x t s
+  | s @= mempty = pure x
+  | otherwise = do
+      s' <- compileShape s
+      t' <- compileArrayType $ A (arrayTypeAtom t) (s <> arrayTypeShape t)
+      bind t' $ F.BasicOp $ F.Replicate s' (F.Var x)
+
+lookupFun :: VName -> FutharkM (F.FunDef F.SOACS)
+lookupFun f = do
+  mdef <- gets $ (M.!? f) . stateFunBinds
+  case mdef of
+    Nothing -> error $ "lookupFun: unknown fun\n" ++ show f
+    Just def -> pure def
+
+compileVName :: VName -> F.VName
+compileVName v =
+  F.VName (F.nameFromText (varName v)) (getTag (varTag v))
+
+compileName :: VName -> F.Name
+compileName v = F.nameFromText (varName v) 4 a 4 a1d32445
+
+etaExpand :: Exp -> FutharkM (F.Lambda F.SOACS)
+etaExpand e@(Var f (Info (A (ts :-> r) s)) _)
+  | s @= mempty = do
+      case (lookup (varName f, arrayTypeAtom r) binops, ts) of
+        (Just op, [t_x, t_y]) -> do
+          x <- newVar
+          y <- newVar
+          t_x' <- compileArrayType t_x
+          t_y' <- compileArrayType t_y
+          r' <- compileArrayType r
+          let params = [F.Param mempty x t_x', F.Param mempty y t_y']
+              args = [(F.Var x, F.Observe), (F.Var y, F.Observe)]
+
+          body <-
+            mkBody $
+              (pure . F.Var) <$> bind r' (F.BasicOp (F.BinOp op (F.Var x) (F.Var y)))
+
+          pure
+            F.Lambda
+              { F.lambdaParams = params,
+                F.lambdaReturnType = [r'],
+                F.lambdaBody = body
+              }
+        (Nothing, _) -> do
+          def <- lookupFun f
+          params <- forM (F.funDefParams def) $ \(F.Param a v t) -> do
+            x <- newVar
+            pure $ F.Param a x t
+
+          let args = map ((,F.Observe) . F.Var . F.paramName) params
+              mrt = mapM (F.hasStaticShape . F.fromDecl . fst) $ F.funDefRetType def
+              rt =
+                case mrt of
+                  Nothing -> error $ "etaExpand: not static shape:\n" ++ show e
+                  Just rt' -> rt'
+          body <-
+            mkBody $
+              (map F.Var)
+                <$> binds rt (F.Apply (compileName f) args (F.funDefRetType def) F.Unsafe)
+          pure
+            F.Lambda
+              { F.lambdaParams = (fmap . fmap) F.fromDecl params,
+                F.lambdaReturnType = rt,
+                F.lambdaBody = body
+              }
+etaExpand e = error $ "etaExpand: unhandled\n" ++ show e
+
+mkSizeSubExp :: Shape -> F.SubExp
+mkSizeSubExp (ShapeDim (DimN n)) =
+  F.Constant $ F.IntValue $ F.Int64Value $ fromIntegral n
+mkSizeSubExp s = error $ "sizeOfShape: unhandled\n" ++ show s
+
+compileReduce :: Exp -> [Exp] -> FutharkM (F.SOAC F.SOACS)
+compileReduce op xss = do
+  xss' <- traverse compileExp xss
+  ts <- mapM (compileAtomType . arrayTypeAtom . arrayTypeOf) xss
+  idlam <- idLambda ts
+  red <- mkReduce
+  pure
+    $ F.Screma
+      (mkSizeSubExp $ shapeOf $ head xss)
+      (map asVar xss')
+    $ F.redomapSOAC [red] idlam
+  where
+    asVar (F.Var v) = v
+
+    mkNeutral (F.Prim pt) = F.Constant $ F.blankPrimValue pt
+    mkNeutral t = error $ "mkNeutral: unhandled\n" ++ show t
+
+    mkNeutrals = map mkNeutral . F.lambdaReturnType
+
+    idLambda :: [F.Type] -> FutharkM (F.Lambda F.SOACS)
+    idLambda ts = do
+      params <- forM ts $ \t -> do
+        x <- newVar
+        pure $ F.Param mempty x t
+      stms <- gets stateStms
+
+      body <-
+        mkBody $
+          pure $
+            map (F.Var . F.paramName) params
+      pure $
+        F.Lambda
+          { F.lambdaParams = params,
+            F.lambdaReturnType = ts,
+            F.lambdaBody = body
+          }
+
+    mkReduce :: FutharkM (F.Reduce F.SOACS)
+    mkReduce = do
+      lam <- etaExpand op
+      pure $
+        F.Reduce
+          { F.redComm = F.Commutative,
+            F.redLambda = lam,
+            F.redNeutral = mkNeutrals lam
+          }
+
 compileFunExp :: Exp -> FutharkM F.Name
 compileFunExp (Array [] [(Lambda params body (Info t) _)] _ _) =
   liftLambda params body t
-compileFunExp e = pure $ error $ "compileFunExp: unhandled\n" ++ show e
+compileFunExp (Var f _ _) = pure $ F.nameFromText $ varName f
+compileFunExp e = error $ "compileFunExp: unhandled\n" ++ show e
+
+binops :: [((T.Text, AtomType), F.BinOp)]
+binops =
+  [ (("+", Int), F.Add F.Int32 F.OverflowWrap),
+    (("-", Int), F.Sub F.Int32 F.OverflowWrap),
+    (("f.*", Float), F.FMul F.Float32),
+    (("f.+", Float), F.FAdd F.Float32),
+    (("f.-", Float), F.FSub F.Float32),
+    (("f./", Float), F.FDiv F.Float32),
+    (("f.^", Float), F.FPow F.Float32)
+  ]
+
+compileBinOp :: F.BinOp -> ArrayType -> Exp -> Exp -> FutharkM F.SubExp
+compileBinOp op t x y = do
+  x' <- compileExp x
+  y' <- compileExp y
+  t' <- compileArrayType t
+  F.Var <$> bind t' (F.BasicOp (F.BinOp op x' y'))
+compileBinOp v _ _ _ = error $ "compileBinOp: unhandled\n" ++ show v
 
 compileExp :: Exp -> FutharkM F.SubExp
 compileExp (Array [] [x] _ _) = compileAtom x
@@ -191,17 +345,24 @@ compileExp e@(Array [_] elems (Info (A elem_t _)) _) = do
 compileExp (Var v _ _) =
   let v' = F.VName (F.nameFromText (varName v)) (getTag (varTag v))
    in pure $ F.Var v'
-compileExp (App (Var v _ _) [x, y] (Info (t, pframe)) _)
-  | Just op <- lookup (varName v, t) binops = do
-      x' <- compileExp x
-      y' <- compileExp y
+compileExp (App (Var v _ _) (op : xss) (Info (t, pframe)) _)
+  | "f.reduce3" == varName v = do
+      red <- compileReduce op xss
       t' <- compileArrayType t
-      F.Var <$> bind t' (F.BasicOp (F.BinOp op x' y'))
+      F.Var <$> bind t' (F.Op red)
+compileExp e@(App f@(Var v _ _) [x, y] (Info (t, pframe)) _)
+  | Just op <- lookup (varName v, arrayTypeAtom t) binops =
+      case pframe of
+        ShapeDim (DimN n) -> do
+          x' <- compileExp x
+          y' <- compileExp y
+          x'' <- rep (asVar x') (arrayTypeOf x) $ fromMaybe mempty (pframe \\ shapeOf x)
+          y'' <- rep (asVar y') (arrayTypeOf y) $ fromMaybe mempty (pframe \\ shapeOf y)
+          F.Var <$> (map1 op n (arrayTypeOf f) [x'', y''] =<< compileArrayType t)
+        Concat [] -> compileBinOp op t x y
+        _ -> error $ "compileExp: unhandled\n" ++ show e
   where
-    binops =
-      [ (("+", A Int (Concat [])), F.Add F.Int32 F.OverflowWrap),
-        (("-", A Int (Concat [])), F.Sub F.Int32 F.OverflowWrap)
-      ]
+    asVar (F.Var v) = v
 compileExp e@(App f xs (Info (t, pframe)) _) = do
   f' <- compileFunExp f
   xs' <- traverse compileExp xs
@@ -214,7 +375,6 @@ compileExp e@(App f xs (Info (t, pframe)) _) = do
           (map (,F.Observe) xs')
           [(F.staticShapes1 $ flip F.toDecl F.Nonunique t', mempty)]
           F.Safe
-    [d] -> F.Var <$> map1 d (arrayTypeOf f) f' (map asVar xs') t'
     _ -> error $ "compileExp: unhandled:\n" ++ show e
   where
     asVar (F.Var v) = v
@@ -229,13 +389,13 @@ compileExp e@(App f xs (Info (t, pframe)) _) = do
     intShape (ShapeDim d) = pure $ intDim d
     intShape (Concat ss) = concat $ map intShape ss
 compileExp (Let bs e _ _) =
-  compileWithBinds bs $ compileExp e
+  mapM compileBind bs >> compileExp e
 compileExp e = error $ "compileExp: unhandled:\n" ++ show e
 
-compileWithBind :: Bind -> FutharkM a -> FutharkM a
-compileWithBind BindType {} m = m
-compileWithBind BindExtent {} m = m
-compileWithBind (BindFun f params _ body (Info ret) _) m = do
+compileBind :: Bind -> FutharkM ()
+compileBind BindType {} = pure ()
+compileBind BindExtent {} = pure ()
+compileBind (BindFun f params _ body (Info ret) _) = do
   params' <- mapM compileParam params
   body' <- mkBody $ pure <$> compileExp body
   ret' <- compileArrayType $ findRet ret
@@ -249,13 +409,14 @@ compileWithBind (BindFun f params _ body (Info ret) _) m = do
             F.funDefBody = body'
           }
   addFunction fun
-  flip local m $
-    \env -> env {envFunBinds = M.insert f fun $ envFunBinds env}
-
-compileWithBinds :: [Bind] -> FutharkM a -> FutharkM a
-compileWithBinds [] m = m
-compileWithBinds (b : bs) m =
-  compileWithBind b $ compileWithBinds bs m
+  modify $
+    \s -> s {stateFunBinds = M.insert f fun $ stateFunBinds s}
+compileBind (BindVal v _ e _) = do
+  t <- compileArrayType $ arrayTypeOf e
+  e' <- (F.BasicOp . F.SubExp) <$> compileExp e
+  let v' = F.VName (F.nameFromText (varName v)) (getTag (varTag v))
+  emit $ F.Let (F.Pat [F.PatElem v' t]) (F.defAux ()) e'
+compileBind b = error $ "compileBind: unhandled " ++ show b
 
 valueType :: F.Type -> F.ValueType
 valueType (F.Prim pt) =
@@ -265,7 +426,7 @@ valueType (F.Array pt shape _) =
 valueType t = error $ "valueType: unhandled " ++ show t
 
 wrapInMain :: ((F.SubExp, F.Type), State) -> T.Text
-wrapInMain ((e, ret), State stms counter funs) =
+wrapInMain ((e, ret), State stms counter funs _) =
   renderStrict . layoutPretty defaultLayoutOptions $
     vsep
       [ "name_source" <+> braces (pretty counter),
@@ -310,8 +471,7 @@ compile _prelude e =
               )
               initialState
           )
-          initialEnv
+          Env
       )
   where
-    initialState = State mempty 0 mempty
-    initialEnv = Env mempty
+    initialState = State mempty 0 mempty mempty
