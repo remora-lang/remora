@@ -65,6 +65,7 @@ emit stm = modify $ \s -> s {stateStms = stateStms s <> F.oneStm stm}
 collect :: FutharkM a -> FutharkM (a, F.Stms F.SOACS)
 collect m = do
   old_stms <- gets stateStms
+  modify $ \s -> s {stateStms = mempty}
   x <- m
   stms <- gets stateStms
   modify $ \s -> s {stateStms = old_stms}
