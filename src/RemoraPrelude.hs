@@ -213,6 +213,12 @@ prelude =
           pure $ ValArray mempty [ValBase $ FloatVal $ x + y]
       ),
     PreludeVal
+      "f.^"
+      (mkScalarArrayType $ [A Float mempty, A Float mempty] :-> A Float mempty)
+      ( ValFun $ \args -> baseValViews args $ \[FloatVal x, FloatVal y] ->
+          pure $ ValArray mempty [ValBase $ FloatVal $ x ** y]
+      ),
+    PreludeVal
       "f.-"
       (mkScalarArrayType $ [A Float mempty, A Float mempty] :-> A Float mempty)
       ( ValFun $ \args -> baseValViews args $ \[FloatVal x, FloatVal y] ->
@@ -310,5 +316,20 @@ prelude =
                     ValArray
                       shape
                       (map (ValBase . IntVal) [0 .. product shape - 1])
+      ),
+    PreludeVal
+      "f.reduce3"
+      ( mkScalarArrayType $
+          let elem_type = A Float mempty
+              op_type = A ([elem_type, elem_type] :-> elem_type) mempty
+              arg_type =
+                A
+                  Float
+                  (ShapeDim (DimN 3))
+              res_type = A Float mempty
+           in [op_type, arg_type] :-> res_type
+      )
+      ( ValFun $ \[ValArray _ [ValFun op], ValArray _ (v : vs)] ->
+          foldM (\l r -> op [l, r]) v vs
       )
   ]

@@ -17,11 +17,12 @@ repl = runInputT defaultSettings loop
       minput <- getInputLine ">> "
       case minput of
         Nothing -> loop
-        Just input ->
+        Just input -> do
           let m = do
                 expr <- parse "" (T.pack input)
                 (prelude, expr') <- check expr
                 interpret prelude expr'
-           in case m of
-                Left err -> liftIO $ T.putStrLn err
-                Right v -> liftIO $ T.putStrLn $ prettyText v
+          case m of
+            Left err -> liftIO $ T.putStrLn err
+            Right v -> liftIO $ T.putStrLn $ prettyText v
+          loop

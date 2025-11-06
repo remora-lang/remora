@@ -163,7 +163,7 @@ instance (Show v, Pretty v) => Pretty (AtomType v) where
 data ArrayType v
   = -- | An array type literal consisting of an atom type and a shape.
     A
-    { arrayTypeScalar :: AtomType v,
+    { arrayTypeAtom :: AtomType v,
       arrayTypeShape :: Shape v
     }
   deriving (Eq, Show)
