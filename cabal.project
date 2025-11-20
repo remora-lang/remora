@@ -1,5 +1,6 @@
 packages:
- .
+ ./remora-lang.cabal
+ /home/gts3242/Projects/mocha/futhark/futhark.cabal
 
 allow-newer: base
 

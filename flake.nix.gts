@@ -10,6 +10,7 @@
       shellInputs =  [ (pkgs.haskellPackages.ghcWithPackages (hpkgs: with pkgs; [ 
         hpkgs.cabal-install 
         hpkgs.haskell-language-server
+        hpkgs.stack
       ]))
                        pkgs.z3 ];
     in {
