@@ -257,7 +257,7 @@ pAtom =
 pExtent :: Parser Extent
 pExtent =
   choice
-    [ Syntax.Dim <$> pDim,
+    [ try $ Syntax.Dim <$> pDim,
       Syntax.Shape <$> pShape
     ]
 
@@ -330,21 +330,19 @@ pExp =
                         <*> many pPat
                         <*> (((symbol ":" *> (Just <$> pType)) <|> pure Nothing) <* symbol ")")
                         <*> pExp,
-                  pAtFnBind,
-                  lKeyword "t-fun"
-                    >> ( withNoInfo $
-                           BindTFun
-                             <$> lId
-                             <*> listOf pTypeParam
-                             <*> (option Nothing (Just <$> pType))
-                             <*> pExp
-                       ),
+                  try $ pAtFnBind,
+                  withNoInfo $
+                    BindTFun
+                      <$> (lKeyword "t-fun" *> symbol "(" *> lId)
+                      <*> listOf pTypeParam
+                      <*> (((symbol ":" *> (Just <$> pType)) <|> pure Nothing) <* symbol ")")
+                      <*> pExp,
                   lKeyword "i-fun"
                     >> ( withNoInfo $
                            BindIFun
-                             <$> lId
+                             <$> (symbol "(" *> lId)
                              <*> listOf pExtentParam
-                             <*> (option Nothing (Just <$> pType))
+                             <*> (((symbol ":" *> (Just <$> pType)) <|> pure Nothing) <* symbol ")")
                              <*> pExp
                        ),
                   lKeyword "type" >> (BindType <$> pTypeParam <*> pType <*> pure NoInfo),
@@ -425,8 +423,7 @@ pDim =
   choice
     [ "$" >> DimVar <$> lId,
       DimN <$> pDecimal,
-      parens $ symbol "+" >> Add <$> many pDim,
-      parens $ symbol "*" >> Mul <$> many pDim
+      parens $ (symbol "+" >> Add <$> many pDim) <|> (symbol "*" >> Mul <$> many pDim)
     ]
 
 pShapeSplice :: Parser Shape
@@ -437,7 +434,7 @@ pShape :: Parser Shape
 pShape =
   choice
     [ "@" >> ShapeVar <$> lId,
-      Syntax.ShapeDim <$> pDim,
+      try $ Syntax.ShapeDim <$> pDim,
       parens $
         choice
           [ lKeyword "dims" >> Syntax.Concat <$> many (ShapeDim <$> pDim),
