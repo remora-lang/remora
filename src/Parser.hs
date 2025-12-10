@@ -320,7 +320,7 @@ pExp =
                       <*> pExp,
                   try $
                     BindVal
-                      <$> (symbol "(" *> lId <* symbol ":")
+                      <$> (lKeyword "val" >> symbol "(" *> lId <* symbol ":")
                       <*> ((Just <$> pType) <* symbol ")")
                       <*> pExp,
                   try $

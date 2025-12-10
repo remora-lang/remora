@@ -1,4 +1,8 @@
 ; closures
-(let (add-n (n Int) (-> Int Int) (fn (x Int) (+ n x)))
-  ((add-n [1 2]) [3 4])
+(let (
+
+(fun (add-n (n Int) : (-> (Int) Int))
+  (fn ((x Int)) (+ n x)))
+)
+((add-n [1 2]) [3 4])
 )

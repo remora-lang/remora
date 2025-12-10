@@ -1,1 +1,1 @@
-(unbox ($d contents (@iota _ 1 [5])) contents)
+(unbox ($d contents (@iota _ (1) [5])) contents)

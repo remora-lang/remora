@@ -1,8 +1,9 @@
 ; let vals
-(let ((x Int 5)
-      (y Int 10)
-      (z Int 15)
-      (a Int 20)
-      )
-  a
-  )
+(let (
+  (val (x : Int) 5)
+  (val (y : Int) 10)
+  (val (z : Int) 15)
+  (val (a : Int) 20)
+   )
+a
+)

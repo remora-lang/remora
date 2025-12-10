@@ -1,5 +1,8 @@
 ; box
-(let (my-box (Sigma $d (A Int (dims $d)))
-             (box (dims 3) [1 2 3] (Sigma $d (A Int (dims $d)))))
-  (unbox ($d xs my-box) xs)
-  )
+(let (
+
+(val (my-box : (Sigma ($d) (A Int (dims $d))))
+  (box (3) [1 2 3] (Sigma ($d) (A Int (dims $d)))))
+)
+(unbox ($d xs my-box) xs)
+)
