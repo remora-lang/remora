@@ -4,88 +4,85 @@
     flake-parts.url = "github:hercules-ci/flake-parts";
     haskell-flake.url = "github:srid/haskell-flake";
   };
-  outputs = inputs@{ self, nixpkgs, flake-parts, ... }:
+  outputs =
+    inputs@{
+      self,
+      nixpkgs,
+      flake-parts,
+      ...
+    }:
     flake-parts.lib.mkFlake { inherit inputs; } {
       systems = nixpkgs.lib.systems.flakeExposed;
       imports = [ inputs.haskell-flake.flakeModule ];
 
-      perSystem = { self', pkgs, ... }: {
-
-        # Typically, you just want a single project named "default". But
-        # multiple projects are also possible, each using different GHC version.
-        haskellProjects.default = {
-          # The base package set representing a specific GHC version.
-          # By default, this is pkgs.haskellPackages.
-          # You may also create your own. See https://community.flake.parts/haskell-flake/package-set
-          basePackages = pkgs.haskell.packages.ghc910;
-
-
-          # Extra package information. See https://community.flake.parts/haskell-flake/dependency
-          #
-          # Note that local packages are automatically included in `packages`
-          # (defined by `defaults.packages` option).
-          #
-          packages = {
-            # aeson.source = "1.5.0.0";      # Override aeson to a custom version from Hackage
-            # shower.source = inputs.shower; # Override shower to a custom source path
+      perSystem =
+        { self', pkgs, ... }:
+        let
+          haskellPackages = pkgs.haskell.packages.ghc910.override {
+            overrides = self: super: {
+              sbv =
+                (self.callHackageDirect {
+                  pkg = "sbv";
+                  ver = "13.5";
+                  sha256 = "sha256-9/BvbA6uyI1qJ52fKyaR8fhQp1gkx8yIp8wYS1EOuHk=";
+                } { }).overrideAttrs
+                  (old: {
+                    doCheck = false;
+                  });
+            };
           };
-          settings = {
-            #  aeson = {
-            #    check = false;
-            #  };
-            #  relude = {
-            #    haddock = false;
-            #    broken = false;
-            #  };
-          };
-
-          devShell = {
-            # Enabled by default
-            # enable = true;
-
-            # Programs you want to make available in the shell.
-            # Default programs can be disabled by setting to 'null'
-            # tools = hp: { fourmolu = hp.fourmolu; ghcid = null; };
-
-            # Check that haskell-language-server works
-            hlsCheck.enable = true; # Requires sandbox to be disabled
-          };
-        };
-
-        # haskell-flake doesn't set the default package, but you can do it here.
-        packages.default = self'.packages.remora-all;
-
-        packages = {
-          remora-all = pkgs.buildEnv {
-            name = "remora-all";
-            paths = [
-              self'.packages.remora-lang
-              self'.packages.remora-docs
-            ];
-          };
-
-          remora-docs = pkgs.stdenv.mkDerivation {
-            pname = "remora-docs";
-            version = "0.1";
-
-            src = ./.;
-            nativeBuildInputs = [
-              pkgs.sphinx
-            ];
-
-            phases = [  "buildPhase" "installPhase" ];
-
-            buildPhase = ''
-               mkdir -p "docs/_build/html"
-               sphinx-build -b html "$src/docs" "docs/_build/html"
-            '';
-
+          remora-wrapped = pkgs.stdenv.mkDerivation {
+            name = "remora-wrapped";
+            nativeBuildInputs = [ pkgs.makeWrapper ];
+            src = self'.packages.remora-lang;
             installPhase = ''
-              mkdir -p "$out/docs"
-              cp -r docs/_build/html "$out/docs/html"
+              mkdir -p $out/bin
+              makeWrapper $src/bin/remora $out/bin/remora \
+                --prefix PATH : "${pkgs.z3}/bin"
             '';
           };
+        in
+        {
+          haskellProjects.default = {
+            basePackages = haskellPackages;
+            devShell = {
+              tools = hp: { z3 = pkgs.z3; };
+              hlsCheck.enable = true;
+            };
+          };
+
+          packages.default = self'.packages.remora-all;
+
+          packages = {
+            inherit remora-wrapped;
+
+            remora-all = pkgs.buildEnv {
+              name = "remora-all";
+              paths = [
+                remora-wrapped
+                self'.packages.remora-docs
+              ];
+            };
+
+            remora-docs = pkgs.stdenv.mkDerivation {
+              pname = "remora-docs";
+              version = "0.1";
+              src = ./.;
+              nativeBuildInputs = [ pkgs.sphinx ];
+              phases = [
+                "buildPhase"
+                "installPhase"
+              ];
+              buildPhase = ''
+                mkdir -p "docs/_build/html"
+                sphinx-build -b html "$src/docs" "docs/_build/html"
+              '';
+              installPhase = ''
+                mkdir -p "$out/docs"
+                cp -r docs/_build/html "$out/docs/html"
+              '';
+            };
+          };
         };
-      };
     };
 }
