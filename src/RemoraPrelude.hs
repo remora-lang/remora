@@ -44,9 +44,9 @@ prelude =
             )
       )
       ( ValTFun $ \[_t] ->
-          pure $ ValIFun $ \[_d, _s] ->
-            pure $ ValFun $ \[ValArray (d : ds) vs] ->
-              pure $ ValArray (d - 1 : ds) $ init vs
+          pure $ ValIFun $ \[_d, _s] -> do
+            pure $ ValFun $ \[ValArray (_ : ds) vs] -> do
+              pure $ ValArray ds $ take (product ds) vs
       ),
     PreludeVal
       "tail"
