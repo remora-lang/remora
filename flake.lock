@@ -68,7 +68,24 @@
       "inputs": {
         "flake-parts": "flake-parts",
         "haskell-flake": "haskell-flake",
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs",
+        "sbv": "sbv"
+      }
+    },
+    "sbv": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1770174660,
+        "narHash": "sha256-bc9zBeyvKQQqhKrp1ToG3lFRGhWjPXZB7I5sxt1Smm8=",
+        "owner": "LeventErkok",
+        "repo": "sbv",
+        "rev": "a5afd98bec9630370e5d7d5a72ba5320e4c14a8a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "LeventErkok",
+        "repo": "sbv",
+        "type": "github"
       }
     }
   },
