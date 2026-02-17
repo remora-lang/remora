@@ -11,6 +11,7 @@ import Control.Monad
 import Data.Text (Text)
 import Interpreter.Value
 import Syntax
+import Data.List qualified as L
 
 type Prelude v m = [PreludeVal v m]
 
@@ -318,18 +319,16 @@ prelude =
                       (map (ValBase . IntVal) [0 .. product shape - 1])
       ),
     PreludeVal
-      "f.reduce3"
-      ( mkScalarArrayType $
-          let elem_type = A Float mempty
-              op_type = A ([elem_type, elem_type] :-> elem_type) mempty
-              arg_type =
-                A
-                  Float
-                  (ShapeDim (DimN 3))
-              res_type = A Float mempty
-           in [op_type, arg_type] :-> res_type
-      )
-      ( ValFun $ \[ValArray _ [ValFun op], ValArray _ (v : vs)] ->
-          foldM (\l r -> op [l, r]) v vs
-      )
+      "transpose2d"
+      (mkScalarArrayType $
+          Forall
+            [AtomTypeParam "t"]
+              (mkScalarArrayType $ (Pi [DimParam "m", DimParam "n"]
+                ( let arg_t = A (AtomTypeVar "t") (Concat $ map (ShapeDim . DimVar) ["m", "n"])
+                      ret_t = A (AtomTypeVar "t") (Concat $ map (ShapeDim . DimVar) ["n", "m"])
+                    in mkScalarArrayType $ [arg_t] :-> ret_t ))))
+      ( ValTFun $ \_ ->
+          pure $ ValIFun $ \[Left _m , Left _n] ->
+            pure $ ValFun $ \[ValArray [m, n] elts] -> pure $ ValArray [n, m]
+                                                       (concat $ L.transpose $ split n elts))
   ]

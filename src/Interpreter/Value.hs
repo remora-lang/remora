@@ -134,7 +134,7 @@ rep n = concatMap $ replicate n
 
 transpose :: Val m -> Val m
 transpose (ValArray (m : n : ss) vss) =
-  ValArray (m : n : ss) $ concat $ L.transpose $ split m vss
+  ValArray (n : m : ss) $ concat $ L.transpose $ split n vss
 transpose v = v
 
 valConcat :: Val m -> Val m

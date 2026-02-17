@@ -3,39 +3,54 @@
 
 
 (let (
-  (val input ...) ; real world input
-  (val weights ...) ; real world input
-  (val bias ...) ; real world input
-  (fun (@replicate (t) ($d @s) (in [t @s]) : [t $d @s])
-    ((array [] (fn ((x [Int])) in)) (@iota _ ($d))))
-  (fun (@pad/2 (t) ($n $m $p) (in [t $n $m])
-                              (zero [t]) : [t (+ $n $p $p) (+ $m $p $p)])
-    ???)
-  (fun (@subarray/2 (t) ($in-out1 $in-out2 $diff1 $diff2)
-                    (in [t ])
-                    (offset [int 2])))
-  ; restrict to square imgs for now
-  (fun (@im2col (t) ($n ???) (im [t $n $n]) : [t $w ???])
-    ; reshape is type cast, no data movement
-    ; TODO: might need transpose
-    (flatten (t) ???
-      (flatten (t) ???
-        (subarray/2 (pad/2 (t) (???) im) (indices-of/2))))
+;  (val input ...) ; real world input
+;  (val weights ...) ; real world input
+;  (val bias ...) ; real world input
+;  (fun (@replicate (t) ($d @s) (in [t @s]) : [t $d @s])
+;    ((array [] (fn ((x [Int])) in)) (@iota _ ($d))))
+;  (fun (@pad/2 (t) ($n $m $p) (in [t $n $m])
+;                              (zero [t]) : [t (+ $n $p $p) (+ $m $p $p)])
+;    ???)
+;  (fun (@subarray/2 (t) ($in-out1 $in-out2 $diff1 $diff2)
+;                    (in [t ])
+;                    (offset [int 2])))
+;  ; restrict to square imgs for now
+;  (fun (@im2col (t) ($n ???) (im [t $n $n]) : [t $w ???])
+;    ; reshape is type cast, no data movement
+;    ; TODO: might need transpose
+;    (flatten (t) ???
+;      (flatten (t) ???
+;        (subarray/2 (pad/2 (t) (???) im) (indices-of/2))))
   ; done
-  (fun (@vec-f.+ _ ($n) (A [Float $n]) (B (Float $n)) : [Float $n])
-    (f.+ A B))
-  ; done
-  (fun (@v*m _ ($n $m) (A [Float $n])
-                       (B [Float $n $m]) : [Float $n $m])
-    (@reduce (Float) ($m []) f.+ (f.* A B)))
-  ; done delta n -> n-1
-  (fun (@matmul _ ($n $m-1 $o) (A [Float $n (+ 1 $m-1)])
-                               (B [Float (+ 1 $m-1) $o]) : [Float $n $o]
-             ; will this partial app work?
-    (@reduce (Float) ($m-1 [$o]) (@vec-f.+ _ ($o)) (@v*m _ ($m $o) A B))))
-  ; stride is omitted as in example stride = dilation = 1
-  (fun (@conv-2d _ ($n $k $in-c $out-c $o $p)
-                (in [Float $in-c $n $n])
-                (w  [Float $out-c $in-c $k $k]))
-    (@matmul (@im2col (Float) ) w))
-  (conv-2d{| n-1 k-1 in-ch-1 (+ 1 o-1) stride pad} input weights bias))
+  ; (fun (@vec-f.+ _ ($n) (v [Float $n]) (w [Float $n]) : [Float $n])
+  ;   (f.+ v w))
+  (fun (@dot _ ($n-1) (v [Float (+ 1 $n-1)]) (w [Float (+ 1 $n-1)]) : [Float])
+    (@reduce (Float) ($n-1 []) f.+ (f.* v w)))
+  (fun (@lifted_dot _ ($m-1 $o) (v [Float (+ 1 $m-1)]) (M [Float (+ 1 $m-1) $o]) : [Float $o])
+    (@dot _ ($m-1) v (@transpose2d (Float) ((+ 1 $m-1) $o) M)))
+  (fun (@matmul _ ($n $m-1 $o-1) (xss [Float $n (+ 1 $m-1)])
+                                 (yss [Float (+ 1 $m-1) (+ 1 $o-1)]) : [Float $n (+ $o-1 1)])
+      (@lifted_dot _ ($m-1 (+ 1 $o-1)) xss yss))
+;  ; stride is omitted as in example stride = dilation = 1
+;  (fun (@conv-2d _ ($n $k $in-c $out-c $o $p)
+;                (in [Float $in-c $n $n])
+;                (w  [Float $out-c $in-c $k $k]))
+;    (@matmul (@im2col (Float) ) w))
+;  (conv-2d{| n-1 k-1 in-ch-1 (+ 1 o-1) stride pad} input weights bias)
+  )
+  ; (@vec-f.+ _ (3) [1.0 2.0 3.0] [4.0 5.0 6.0])
+  ; (@iota _ (4)) -- BROKEN
+  ;(@v*m _ (3 1) [1.0 2.0] [[4.0 5.0] [6.0 7.0] [8.0 9.0]])
+  ; (@matmul _ (3 3 1)
+  ;          [[0.0 1.0 2.0 3.0]
+  ;           [4.0 5.0 6.0 7.0]
+  ;           [8.0 9.0 10.0 11.0]]
+  ;          [[0.0 1.0]
+  ;           [2.0 3.0]
+  ;           [4.0 5.0]
+  ;           [6.0 7.0]])
+  ;(@matmul _ (3 1 1) [[2.0 7.0] [4.0 0.5] [0.7 0.6]] [[3.0 5.0] [1.0 4.0]])
+  ; (@dot _ (2) [1.0 2.0 3.0] [[4.0 5.0 6.0] [1.0 2.0 3.0]])
+  ; (@transpose2d (Int) (3 2) [[1 2] [3 4] [5 6]])
+  (@transpose2d (Int) (2 3) [[1 2 3] [4 5 6]])
+)
