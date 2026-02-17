@@ -3,6 +3,10 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     flake-parts.url = "github:hercules-ci/flake-parts";
     haskell-flake.url = "github:srid/haskell-flake";
+    sbv = {
+      url = "github:LeventErkok/sbv";
+      flake = false;
+    };
   };
   outputs =
     inputs@{
@@ -18,19 +22,6 @@
       perSystem =
         { self', pkgs, ... }:
         let
-          haskellPackages = pkgs.haskell.packages.ghc910.override {
-            overrides = self: super: {
-              sbv =
-                (self.callHackageDirect {
-                  pkg = "sbv";
-                  ver = "13.5";
-                  sha256 = "sha256-9/BvbA6uyI1qJ52fKyaR8fhQp1gkx8yIp8wYS1EOuHk=";
-                } { }).overrideAttrs
-                  (old: {
-                    doCheck = false;
-                  });
-            };
-          };
           remora-wrapped = pkgs.stdenv.mkDerivation {
             name = "remora-wrapped";
             nativeBuildInputs = [ pkgs.makeWrapper ];
@@ -44,9 +35,13 @@
         in
         {
           haskellProjects.default = {
-            basePackages = haskellPackages;
+            packages.sbv.source = inputs.sbv;
+            settings.sbv.check = false; # sbv tests fail
             devShell = {
-              tools = hp: { z3 = pkgs.z3; };
+              tools = hp: {
+                z3 = pkgs.z3;
+                nixfmt = pkgs.nixfmt;
+              };
               hlsCheck.enable = true;
             };
           };
