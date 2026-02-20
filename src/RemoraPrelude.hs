@@ -319,6 +319,15 @@ prelude =
                       (map (ValBase . IntVal) [0 .. product shape - 1])
       ),
     PreludeVal
+      "iota/static"
+      ( mkScalarArrayType $
+          Pi [ShapeParam "s"] $
+            A Int (ShapeVar "s")
+      )
+      ( ValIFun $ \[Right s] ->
+          pure $ ValArray s (map (ValBase . IntVal) [0 .. product s - 1])
+      ),
+    PreludeVal
       "transpose2d"
       (mkScalarArrayType $
           Forall
