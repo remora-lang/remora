@@ -63,7 +63,7 @@ instance Pretty (Val m) where
   pretty (ValArray [_] vs) =
     group $ brackets (hsep (map pretty vs))
   pretty (ValArray shape vs) =
-    pretty $ splitvs shape vs
+    pretty $ splitvs (reverse shape) vs
     where
       splitvs [d] vs' = ValArray [d] vs'
       splitvs (d : ds) vs' =
