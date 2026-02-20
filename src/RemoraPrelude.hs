@@ -117,8 +117,7 @@ prelude =
                             :-> A
                               (AtomTypeVar "t")
                               ( Concat
-                                  [ ShapeDim $ DimVar "m",
-                                    ShapeDim $ DimVar "n",
+                                  [ ShapeDim $ Add [ DimVar "m", DimVar "n"],
                                     ShapeVar "s"
                                   ]
                               )
@@ -339,5 +338,11 @@ prelude =
       ( ValTFun $ \_ ->
           pure $ ValIFun $ \[Left _m , Left _n] ->
             pure $ ValFun $ \[ValArray [m, n] elts] -> pure $ ValArray [n, m]
-                                                       (concat $ L.transpose $ split n elts))
+                                                       (concat $ L.transpose $ split n elts)),
+    PreludeVal
+      "undefined"
+      (mkScalarArrayType $
+        Forall [AtomTypeParam "t"]
+         (mkScalarArrayType (Pi [ShapeParam "s"] $ A (AtomTypeVar "t") (ShapeVar "s"))))
+      undefined
   ]

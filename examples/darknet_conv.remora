@@ -6,28 +6,36 @@
 ;  (val input ...) ; real world input
 ;  (val weights ...) ; real world input
 ;  (val bias ...) ; real world input
-;  (fun (@replicate (t) ($d @s) (in [t @s]) : [t $d @s])
-;    ((array [] (fn ((x [Int])) in)) (@iota _ ($d))))
-;  (fun (@pad/2 (t) ($n $m $p) (in [t $n $m])
-;                              (zero [t]) : [t (+ $n $p $p) (+ $m $p $p)])
-;    ???)
+  ; DONE
+  (fun (@replicate (&t) (@f @s) (in [&t @s]) : [&t @f @s])
+    ((array [] (fn ((x [Int])) in)) (i-app iota/static [@f])))
+  ; DONE
+  (fun (@pad/2 (&t) ($n $p) (in [&t $n $n])
+                            (zero [&t]) : [&t (+ $n $p $p) (+ $n $p $p)])
+    (let ((val (vert-pad : [&t $p (+ $p $p $n)]) (@replicate (&t) ([$p (+ $p $p $n)] []) zero))
+          (val (hor-pad : [&t $p]) (@replicate (&t) ([$p] []) zero)))
+      (@append (&t) ($p (+ $n $p) [(+ $p $p $n)])
+         vert-pad
+         (@append (&t) ($n $p [(+ $p $p $n)])
+           (@append (&t) ($p (+ $n $p) []) hor-pad (@append (&t) ($n $p []) in hor-pad))
+           vert-pad))))
 ;  (fun (@subarray/2 (t) ($in-out1 $in-out2 $diff1 $diff2)
 ;                    (in [t ])
 ;                    (offset [int 2])))
 ;  ; restrict to square imgs for now
 ;  (fun (@im2col (t) ($n ???) (im [t $n $n]) : [t $w ???])
 ;    ; reshape is type cast, no data movement
-;    ; TODO: might need transpose
-;    (flatten (t) ???
-;      (flatten (t) ???
-;        (subarray/2 (pad/2 (t) (???) im) (indices-of/2))))
-  ; done
-  ; (fun (@vec-f.+ _ ($n) (v [Float $n]) (w [Float $n]) : [Float $n])
-  ;   (f.+ v w))
+;    (@transpose2d (t) ???
+;       (flatten (t) ???
+;           (flatten (t) ???
+;               (subarray/2 (pad/2 (t) (???) im) (indices-of/2)))))
+  ; DONE
   (fun (@dot _ ($n-1) (v [Float (+ 1 $n-1)]) (w [Float (+ 1 $n-1)]) : [Float])
     (@reduce (Float) ($n-1 []) f.+ (f.* v w)))
+  ; DONE
   (fun (@lifted_dot _ ($m-1 $o) (v [Float (+ 1 $m-1)]) (M [Float (+ 1 $m-1) $o]) : [Float $o])
     (@dot _ ($m-1) v (@transpose2d (Float) ((+ 1 $m-1) $o) M)))
+  ; DONE
   (fun (@matmul _ ($n $m-1 $o-1) (xss [Float $n (+ 1 $m-1)])
                                  (yss [Float (+ 1 $m-1) (+ 1 $o-1)]) : [Float $n (+ $o-1 1)])
       (@lifted_dot _ ($m-1 (+ 1 $o-1)) xss yss))
@@ -36,7 +44,6 @@
 ;                (in [Float $in-c $n $n])
 ;                (w  [Float $out-c $in-c $k $k]))
 ;    (@matmul (@im2col (Float) ) w))
-;  (conv-2d{| n-1 k-1 in-ch-1 (+ 1 o-1) stride pad} input weights bias)
   )
   ; (@vec-f.+ _ (3) [1.0 2.0 3.0] [4.0 5.0 6.0])
   ; (i-app iota/static [4 2])
@@ -53,4 +60,8 @@
   ; (@dot _ (2) [1.0 2.0 3.0] [[4.0 5.0 6.0] [1.0 2.0 3.0]])
   ; (@transpose2d (Int) (3 2) [[1 2] [3 4] [5 6]])
   ;(@transpose2d (Int) (2 3) [[1 2 3] [4 5 6]])
+  ;(conv-2d{| n-1 k-1 in-ch-1 (+ 1 o-1) stride pad} input weights bias)
+  ;(@replicate (Int) ([2 3] [4]) [1 2 3 4])
+  (@pad/2 (Int) (5 2) (i-app iota/static [5 5]) 0)
+  ;(@append (Int) (3 2 []) (i-app iota/static [3 3]) [0 0])
 )
