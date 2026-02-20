@@ -63,11 +63,11 @@ instance Pretty (Val m) where
   pretty (ValArray [_] vs) =
     group $ brackets (hsep (map pretty vs))
   pretty (ValArray shape vs) =
-    pretty $ splitvs (reverse shape) vs
+    pretty $ splitvs shape vs
     where
       splitvs [d] vs' = ValArray [d] vs'
       splitvs (d : ds) vs' =
-        ValArray [d] $ map (splitvs ds) $ split d vs'
+        ValArray [d] $ map (splitvs ds) $ split (product ds) vs'
       splitvs x y = error $ unlines [show x, show y, show (ValArray shape vs)]
   pretty (ValBox is v) =
     parens $ "box" <+> hsep (map (either pretty pretty) is) <+> pretty v
