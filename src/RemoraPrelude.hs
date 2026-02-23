@@ -344,5 +344,18 @@ prelude =
       (mkScalarArrayType $
         Forall [AtomTypeParam "t"]
          (mkScalarArrayType (Pi [ShapeParam "s"] $ A (AtomTypeVar "t") (ShapeVar "s"))))
-      undefined
+      undefined,
+    PreludeVal
+      "index2d"
+      (mkScalarArrayType $
+        Forall [AtomTypeParam "t"] $
+          mkScalarArrayType (Pi [DimParam "m", DimParam "n"]
+            (let arr_t = A (AtomTypeVar "t") $ Concat $ map (ShapeDim . DimVar) ["m", "n"]
+                 idx_t = A Int $ ShapeDim $ DimN 2
+                 ret_t = A (AtomTypeVar "t") $ Concat [] in
+               mkScalarArrayType $ [arr_t, idx_t] :-> ret_t)))
+      (ValTFun $ \_ ->
+          pure $ ValIFun $ \[_, _] ->
+            pure $ ValFun $ \[ValArray [_, n] elts, ValArray [2] [ValBase (IntVal i), ValBase (IntVal j)]] ->
+                              pure $ elts L.!! (n * i + j))
   ]

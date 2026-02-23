@@ -19,9 +19,18 @@
          (@append (&t) ($n $p [(+ $p $p $n)])
            (@append (&t) ($p (+ $n $p) []) hor-pad (@append (&t) ($n $p []) in hor-pad))
            vert-pad))))
-;  (fun (@subarray/2 (t) ($in-out1 $in-out2 $diff1 $diff2)
-;                    (in [t ])
-;                    (offset [int 2])))
+   ; DONE
+   (i-fun (idxs-of/2 ($m $n) : [Int $m $n 2])
+     ((fn ((i [Int]))
+        ((fn ((j [Int])) [i j]) (i-app iota/static [$n])))
+      (i-app iota/static [$m])))
+
+  (fun (@subarray/2 (&t) ($in-out $out)
+                    (in [&t (+ $in-out $out) (+ $in-out $out)])
+                    (offset [Int 2]) : [&t $out $out])
+     (@index2d (&t) ((+ $in-out $out) (+ $in-out $out))
+                    in
+                    (+ offset (i-app idxs-of/2 $out $out))))
 ;  ; restrict to square imgs for now
 ;  (fun (@im2col (t) ($n ???) (im [t $n $n]) : [t $w ???])
 ;    ; reshape is type cast, no data movement
@@ -62,6 +71,10 @@
   ;(@transpose2d (Int) (2 3) [[1 2 3] [4 5 6]])
   ;(conv-2d{| n-1 k-1 in-ch-1 (+ 1 o-1) stride pad} input weights bias)
   ;(@replicate (Int) ([2 3] [4]) [1 2 3 4])
-  (@pad/2 (Int) (5 2) (i-app iota/static [5 5]) 0)
+  ;(@pad/2 (Int) (5 2) (i-app iota/static [5 5]) 0)
   ;(@append (Int) (3 2 []) (i-app iota/static [3 3]) [0 0])
+  ;(@index2d (Int) (2 4) (i-app iota/static [2 4]) [0 2])
+  ; (i-app idxs-of/2 3 4)
+  ;(@subarray/2 (Int) (3 2) (i-app iota/static [5 5]) [0 1])
+  (+ [0 1 2] (i-app iota/static [4 4]))
 )
