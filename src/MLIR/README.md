@@ -1,4 +1,11 @@
-{- Haskell datatype that corresponds to the MLIR Remora dialect
+# Walk Futhark IR and emit MLIR, or maybe XDSL
+
+# XDSL
+
+https://github.com/xdslproject/xdsl
+
+
+# MLIR notes
 
 MLIR ref: https://mlir.llvm.org/docs/LangRef/
 
@@ -33,26 +40,3 @@ region: { ^bb1(%result : i32):
            return %then_result : i32 }
 
 type synonym: !avx_m128 = vector<4 x f32>
-
--}
-
-module MLIR where
-
-import Futhark.Pass
-
-newtype EmitMLIRM a = WriterT 
-
-data MLIR =
-  | Constant { constType :: String, constName :: String}
-  | Op { opName :: String }
-
-emitMLIRProg :: Prog rep -> IO String
-emitMLIRProg prog = do
-  let consts = progConsts prog
-      funs = progFuns prog
-  mlirEnv' <- map emitMLIRConst consts initMLIREnv
-  mlirEnv'' <- map emitMLIRFun funs mlirEnv'
-  
-
-
-
