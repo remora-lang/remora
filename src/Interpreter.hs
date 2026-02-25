@@ -259,6 +259,7 @@ intDim :: Dim -> InterpM Int
 intDim (DimVar d) = lookupDim d
 intDim (DimN d) = pure d
 intDim (Add ds) = sum <$> mapM intDim ds
+intDim (Mul ds) = product <$> mapM intDim ds
 
 -- | Interpret a 'Shape'.
 intShape :: Shape -> InterpM [Int]

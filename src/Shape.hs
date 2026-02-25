@@ -157,7 +157,7 @@ normDim (Mul ds) =
       foldr discriminate (1, []) $
         flip concatMap ds $ \d' ->
           case normDim d' of
-            Add ds' -> ds'
+            Mul ds' -> ds'
             d'' -> pure d''
     discriminate d' =
       case d' of

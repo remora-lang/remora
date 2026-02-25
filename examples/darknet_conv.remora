@@ -24,20 +24,49 @@
      ((fn ((i [Int]))
         ((fn ((j [Int])) [i j]) (i-app iota/static [$n])))
       (i-app iota/static [$m])))
-
+   ; TODO
+   (i-fun (idxs-of/im2col ($m $n $k) : [Int (* $m $n $k) 3])
+     (@flatten (Int) ($m (* $n $k) [3])
+       (@flatten (Int) ($n $k [3])
+          ((fn ((i [Int]))
+            ((fn ((j [Int]))
+               ((fn ((l [Int])) [i j l])
+                (i-app iota/static [$k])))
+             (i-app iota/static [$n])))
+           (i-app iota/static [$m])))))
+  ; DONE
   (fun (@subarray/2 (&t) ($in-out $out)
                     (in [&t (+ $in-out $out) (+ $in-out $out)])
                     (offset [Int 2]) : [&t $out $out])
      (@index2d (&t) ((+ $in-out $out) (+ $in-out $out))
                     in
-                    (+ offset (i-app idxs-of/2 $out $out))))
-;  ; restrict to square imgs for now
-;  (fun (@im2col (t) ($n ???) (im [t $n $n]) : [t $w ???])
-;    ; reshape is type cast, no data movement
-;    (@transpose2d (t) ???
-;       (flatten (t) ???
-;           (flatten (t) ???
-;               (subarray/2 (pad/2 (t) (???) im) (indices-of/2)))))
+                    (+ (@replicate (Int) ([$out $out] [2]) offset) (i-app idxs-of/2 $out $out))))
+  (fun (@vec-subarray/2 (&t) ($c $in-out $out)
+                        (in [&t $c (+ $in-out $out) (+ $in-out $out)])
+                        (offset [Int $c 2]) : [&t $c $out $out])
+     (@subarray/2 (&t) ($in-out $out) in offset))
+  ; ; restrict to square imgs for now
+  ; (fun (@im2col _ ($n-k $k $p) (im [Float (+ $n-k $k) (+ $n-k $k)])
+  ;                               (w [Float $k $k])
+  ;                               : [Float (* $k $k) (* (+ $n-k $p $p 1) (+ $n-k $p $p 1))])
+  ;   ; reshape is type cast, no data movement
+  ;   (@transpose2d (Float) ((* (+ $n-k $p $p 1) (+ $n-k $p $p 1)) (* $k $k))
+  ;      (@flatten (Float) ((+ $n-k $p $p 1) (+ $n-k $p $p 1) [(* $k $k)])
+  ;          (@flatten (Float) ($k $k [])
+  ;              (@subarray/2 (Float) ((+ $n-k $p $p) $k)
+  ;                           (@pad/2 (Float) ((+ $n-k $k) $p) im 0.0)
+  ;                           (i-app idxs-of/2 (+ $n-k $p $p 1) (+ $n-k $p $p 1)))))))
+
+  (fun (@im2col/int _ ($n-k $k $p $in-c)
+                    (im [Int $in-c (+ $n-k $k) (+ $n-k $k)])
+                    : [Int (* (+ $n-k $p $p 1) (+ $n-k $p $p 1)) (* $k $k $in-c)])
+    (@flatten (Int) ((+ $n-k $p $p 1) (+ $n-k $p $p 1) [(* $k $k)])
+       (@flatten (Int) ($in-c (* $k $k) [])
+          (@flatten (Int) ($k $k [])
+              (@vec-subarray/2 (Int) ($in-c (+ $n-k $p $p) $k)
+                               (@pad/2 (Int) ((+ $n-k $k) $p) im 0) ; [in-c (+ 2p n) (+ 2p n)]
+                               (@replicate (Int) ([$in-c] [(+ $n-k $p $p 1) (+ $n-k $p $p 1) 2])
+                                           (i-app idxs-of/2 (+ $n-k $p $p 1) (+ $n-k $p $p 1))))))))
   ; DONE
   (fun (@dot _ ($n-1) (v [Float (+ 1 $n-1)]) (w [Float (+ 1 $n-1)]) : [Float])
     (@reduce (Float) ($n-1 []) f.+ (f.* v w)))
@@ -48,11 +77,17 @@
   (fun (@matmul _ ($n $m-1 $o-1) (xss [Float $n (+ 1 $m-1)])
                                  (yss [Float (+ 1 $m-1) (+ 1 $o-1)]) : [Float $n (+ $o-1 1)])
       (@lifted_dot _ ($m-1 (+ 1 $o-1)) xss yss))
-;  ; stride is omitted as in example stride = dilation = 1
-;  (fun (@conv-2d _ ($n $k $in-c $out-c $o $p)
-;                (in [Float $in-c $n $n])
-;                (w  [Float $out-c $in-c $k $k]))
-;    (@matmul (@im2col (Float) ) w))
+  ; stride is omitted as in example stride = dilation = 1
+  ; (fun (@conv-2d _ ($n-k $k $in-c $out-c $p)
+  ;               (in [Float $in-c (+ $n-k $k) (+ $n-k $k)])
+  ;               (w  [Float $in-c $k $k $out-c])
+  ;               : [Float $out-c (* (+ $n-k $p $p 1) (+ $n-k $p $p 1))])
+  ;   (@matmul _ ()
+  ;            ; out*out x k*k*in
+  ;            (@im2col _ ($n-k $k $p $in-c) in)
+  ;            ; matrix k*k*in x out
+  ;            (@flatten (Float) ($in-c (* $k $k) [$out-c])
+  ;               (@flatten (Float) ($k $k [$out-c]) w))))
   )
   ; (@vec-f.+ _ (3) [1.0 2.0 3.0] [4.0 5.0 6.0])
   ; (i-app iota/static [4 2])
@@ -75,6 +110,14 @@
   ;(@append (Int) (3 2 []) (i-app iota/static [3 3]) [0 0])
   ;(@index2d (Int) (2 4) (i-app iota/static [2 4]) [0 2])
   ; (i-app idxs-of/2 3 4)
-  ;(@subarray/2 (Int) (3 2) (i-app iota/static [5 5]) [0 1])
-  (+ [0 1 2] (i-app iota/static [4 4]))
+  ;(@subarray/2 (Int) (3 2) (i-app iota/static [5 5]) [1 0])
+  ;(+ (@replicate (Int) ([3 3] [2]) [1 2]) (i-app idxs-of/2 3 3))
+  ;(@im2col/int _ (2 3 1) (i-app iota/static [5 5]))
+  ; (@transpose2d (Int) (25 9)
+  ; (@flatten (Int) (5 5 [9])
+  ; (@flatten (Int) (3 3 [])
+  ; (@subarray/2 (Int) (4 3)
+  ;                    (@pad/2 (Int) (5 1) (i-app iota/static [5 5]) 0)
+  ;                    (i-app idxs-of/2 5 5)))))
+  (i-app idxs-of/im2col 2 3 3)
 )
