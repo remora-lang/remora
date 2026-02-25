@@ -29,6 +29,10 @@ nix shell --extra-experimental-features flakes
 ```
 
 ### With Cabal
+If you do not use Nix, you can build with `cabal`. To do so, you must have a
+working Haskell installation on your machine;
+[`GHCup`](https://www.haskell.org/ghcup/) is the recommended installer.
+
 To install `remora` to your local binary directory (defaults to `~/.local/bin`):
 
 ```bash
