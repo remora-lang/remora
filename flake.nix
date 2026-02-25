@@ -25,7 +25,7 @@
           remora-wrapped = pkgs.stdenv.mkDerivation {
             name = "remora-wrapped";
             nativeBuildInputs = [ pkgs.makeWrapper ];
-            src = self'.packages.remora-lang;
+            src = self'.packages.remora;
             installPhase = ''
               mkdir -p $out/bin
               makeWrapper $src/bin/remora $out/bin/remora \
@@ -46,7 +46,7 @@
             };
           };
 
-          packages.default = self'.packages.remora-all;
+          packages.default = self'.packages.remora;
 
           packages = {
             inherit remora-wrapped;
