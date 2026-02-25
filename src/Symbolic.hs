@@ -14,6 +14,7 @@ module Symbolic
   )
 where
 
+import Control.Monad
 import Control.Monad.State.Class
 import Control.Monad.Trans
 import Control.Monad.Trans.State (StateT, evalStateT)
@@ -127,13 +128,16 @@ askShapes op s t =
 (@=) :: (Ord v, Pretty v) => Shape v -> Shape v -> Bool
 (@=) = askShapes (.==)
 
-maximumShape :: (Ord v, Pretty v, Foldable t) => t (Shape v) -> Shape v
+maximumShape :: (Ord v, Pretty v, Foldable t) => t (Shape v) -> Maybe (Shape v)
 maximumShape =
-  foldr
+  foldM
     ( \next shape ->
         if askShapes SL.isPrefixOf shape next
-          then next
-          else shape
+          then pure next
+          else
+            if askShapes SL.isPrefixOf next shape
+              then pure shape
+              else mempty
     )
     mempty
 

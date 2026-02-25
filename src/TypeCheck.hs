@@ -202,9 +202,16 @@ checkExp expr@(App f args _ pos) = do
                     ]
               Just frame_a -> pure frame_a
       frames <- zipWithM check_args pts args'
-      let principal = Symbolic.maximumShape $ frame_f : frames
-          ret' = A (arrayTypeAtom ret) (principal <> arrayTypeShape ret)
-      pure $ App f' args' (Info (ret', principal)) pos
+      case Symbolic.maximumShape $ frame_f : frames of
+        Nothing ->
+          throwErrorPos pos $
+            T.unlines
+              [ "Ill-shaped application:",
+                prettyText expr
+              ]
+        Just principal ->
+          let ret' = A (arrayTypeAtom ret) (principal <> arrayTypeShape ret)
+           in pure $ App f' args' (Info (ret', principal)) pos
     t ->
       throwErrorPos pos $
         T.unlines
