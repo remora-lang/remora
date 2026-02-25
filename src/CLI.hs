@@ -4,6 +4,7 @@
 module CLI (main) where
 
 import CLI.REPL qualified
+import Control.Monad
 import Data.Maybe
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -13,9 +14,17 @@ import Interpreter qualified
 import Parser qualified
 import SExp
 import System.Console.CmdArgs
+import System.FilePath (dropExtension, takeFileName, (</>))
+import System.IO
+import System.Process
 import TypeCheck
 import Util
 import Prelude hiding (exp)
+
+data FutharkBackend
+  = C
+  | CUDA
+  deriving (Data, Typeable, Show, Eq)
 
 data RemoraMode
   = REPL
@@ -25,7 +34,8 @@ data RemoraMode
       }
   | Futhark
       { file :: Maybe FilePath,
-        expr :: Maybe String
+        expr :: Maybe String,
+        backend :: Maybe FutharkBackend
       }
   | Parse
       { file :: Maybe FilePath,
@@ -66,7 +76,12 @@ futhark :: RemoraMode
 futhark =
   Futhark
     { file = Nothing &= help "Turn the passed file into Futhark.",
-      expr = Nothing &= help "Turn the passed expression into Futhark."
+      expr = Nothing &= help "Turn the passed expression into Futhark.",
+      backend =
+        Nothing
+          &= name "backend"
+          &= help "Emit backend code (c|cuda). If omitted, print Futhark IR."
+          &= typ "c|cuda"
     }
     &= details
       [ "Turn a Remora program into Futhark.",
@@ -99,7 +114,7 @@ main = do
       case m of
         Left err -> T.putStrLn err
         Right v -> T.putStrLn $ prettyText v
-    Futhark mfile mexpr -> do
+    Futhark mfile mexpr mbackend -> do
       input <- handleInput mfile mexpr
       let m = do
             expr <- doParse mfile input
@@ -107,7 +122,12 @@ main = do
             Futhark.compile prelude expr'
       case m of
         Left err -> T.putStrLn err
-        Right v -> T.putStrLn $ prettyText v
+        Right v ->
+          case mbackend of
+            Nothing -> T.putStrLn $ prettyText v
+            Just backend -> do
+              res <- futharkCompile backend (takeFileName $ dropExtension $ fromMaybe "<cli>" mfile) v
+              putStrLn res
     Parse mfile mexpr sexp -> do
       input <- handleInput mfile mexpr
       case doParse mfile input of
@@ -122,3 +142,24 @@ main = do
     handleInput Nothing Nothing = T.getContents
 
     doParse mfile = Parser.parse (fromMaybe "<cli>" mfile)
+
+    futharkCompile :: FutharkBackend -> String -> Text -> IO String
+    futharkCompile backend fname ir = do
+      let src = "." </> (fname <> ".fut_soacs")
+      T.writeFile src ir
+      readProcess
+        "futhark"
+        ( ["dev"]
+            <> args backend
+            <> [src]
+        )
+        []
+      where
+        args C =
+          [ "--seq-mem",
+            "--backend=c"
+          ]
+        args CUDA =
+          [ "--gpu-mem",
+            "--backend=cuda"
+          ]
