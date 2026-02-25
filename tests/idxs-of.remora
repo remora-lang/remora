@@ -1,0 +1,10 @@
+(let(
+  (i-fun (idxs-of/2 ($m $n) : [Int $m $n 2])
+    ((fn ((i [Int]))
+       ((fn ((j [Int])) [i j]) (i-app iota/static [$n])))
+     (i-app iota/static [$m])))
+  (fun (@vec-+ _ ($m) (x [Int $m]) (y [Int $m]) : [Int $m])
+    (+ x y))
+)
+  (@vec-+ _ (2) [0 1] (i-app idxs-of/2 3 3))
+)

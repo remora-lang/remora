@@ -1,5 +1,5 @@
 cabal-version:      3.0
-name:               remora-lang
+name:               remora
 version:            0.1.0.0
 -- synopsis:
 -- description:
@@ -51,6 +51,8 @@ library
       transformers,
       cmdargs,
       haskeline,
+      process,
+      filepath,
       sbv,
       futhark == 0.25.33
 
@@ -65,9 +67,9 @@ executable remora
         base >=4.19.2.0,
         cmdargs,
         haskeline,
-        remora-lang
+        remora
 
-test-suite remora-lang-test
+test-suite remora-test
     import:           common
     -- other-modules:
     -- other-extensions:
@@ -76,4 +78,4 @@ test-suite remora-lang-test
     main-is:          Main.hs
     build-depends:
         base >=4.19.2.0,
-        remora-lang
+        remora
