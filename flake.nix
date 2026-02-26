@@ -58,26 +58,6 @@
           );
 
           packages.default = self'.packages.remora;
-          packages = {
-            remora-docs = pkgs.stdenv.mkDerivation {
-              pname = "remora-docs";
-              version = "0.1";
-              src = ./.;
-              nativeBuildInputs = [ pkgs.sphinx ];
-              phases = [
-                "buildPhase"
-                "installPhase"
-              ];
-              buildPhase = ''
-                mkdir -p "docs/_build/html"
-                sphinx-build -b html "$src/docs" "docs/_build/html"
-              '';
-              installPhase = ''
-                mkdir -p "$out/docs"
-                cp -r docs/_build/html "$out/docs/html"
-              '';
-            };
-          };
         };
     };
 }

@@ -7,9 +7,6 @@
 - `cabal`
 - `z3`
 
-#### Optional:
-- `sphinx` (to build documentation)
-
 ### Run dependencies
 #### Required:
 - `z3`
