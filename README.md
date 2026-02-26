@@ -2,23 +2,22 @@
 
 ## Requirements
 ### Build dependencies
-- `ghc` (tested with 9.10.3)
-- `cabal`
+#### Required:
+- [`ghc`](https://www.haskell.org/ghc/) (tested with 9.10.3)
+- [`cabal`](https://www.haskell.org/cabal/download.html)
+- [`z3`](https://github.com/Z3Prover/z3)
 
 ### Run dependencies
 #### Required:
-- `z3`
+- [`z3`](https://github.com/Z3Prover/z3)
 
 #### Optional:
-- `sphinx` (to build documentation)
-- `futhark` (to compile to C/CUDA)
-- CUDA Toolkit (to compile to CUDA)
+- [`futhark`](https://futhark-lang.org) (to compile to C/CUDA)
+- [CUDA Toolkit](https://developer.nvidia.com/cuda/toolkit) (to compile to CUDA)
 - An Nvidia GPU (to execute binaries produced via the CUDA backend)
 
-## Building
-### With Nix (recommended)
-If you use Nix, the easiest option is to enter a development shell that provides
-the `remora` binary:
+### Obtaining dependencies
+If you use Nix, the easiest option is to enter a development shell that provides all dependencies via
 ```
 $ nix develop
 ```
@@ -28,13 +27,19 @@ If flakes aren’t enabled on your system, either enable them globally or run:
 $ nix develop --extra-experimental-features flakes
 ```
 
-### With Cabal
-If you do not use Nix, you can build with `cabal`. To do so, you must have a
-working Haskell installation on your machine;
-[`GHCup`](https://www.haskell.org/ghcup/) is the recommended installer.
+If you don't use Nix, you'll have to install the required dependencies
+yourself. In this case, [`GHCup`](https://www.haskell.org/ghcup/) is the
+recommended installer to obtain a Haskell installation.
 
+### CUDA requirements
+Compiling to CUDA requires the [CUDA
+Toolkit](https://developer.nvidia.com/cuda/toolkit). The compiler also needs to
+be able to find the CUDA libraries; see
+[here](https://futhark.readthedocs.io/en/latest/man/futhark-cuda.html#environment)
+for specific environment variable instructions.
+
+## Building
 To install `remora` to your local binary directory (defaults to `~/.local/bin`):
-
 ```
 $ cabal install
 ```
@@ -90,15 +95,3 @@ Reading input from TTY.
 Send EOF (CTRL-d) after typing all input values.
 [3i32, 6i32]
 ```
-
-##### Compiling with the CUDA backend
-Compiling to CUDA requires the [CUDA Toolkit](https://developer.nvidia.com/cuda/toolkit). The compiler also needs to
-be able to find the CUDA libraries; see
-[here](https://futhark.readthedocs.io/en/latest/man/futhark-cuda.html#environment)
-for specific environment variable instructions.
-
-If you're running on NixOS
-```
-$ nix develop '.#cuda'
-```
-should populate the environment variables appropriately and also pulls in the CUDA toolkit dependency.
