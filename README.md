@@ -55,8 +55,7 @@ You can also ask for help for a specific mode. For example:
 $ remora interpret --help
 ```
 
-## Examples
-### Remora Interpreter
+### Interpreter
 `remora` can interpret either in a REPL
 ```
 $ remora repl
@@ -69,7 +68,7 @@ $ remora interpret -f tests/basic0.remora
 [3 6]
 ```
 
-### Remora Compiler
+### Compiler
 The compiler is in early stages. At the moment, it can compile a limited
 monomorphic, first-order subset of the language to C or CUDA (via Futhark). The
 compiler generates Futhark IR code that is then parsed and compiled by Futhark
@@ -82,7 +81,7 @@ $ remora futhark -f tests/basic0.remora
 
 If no backend is specified via `-b`/`--backend=`, `remora futhark` simply
 outputs Futhark IR. Specifying a backend will yield a target `.c` file as well
-an excutable binary in current directory:
+an excutable binary in the current directory:
 ```
 $ remora futhark -f tests/basic0.remora --backend=cuda
 $ ./basic0
@@ -91,8 +90,10 @@ Send EOF (CTRL-d) after typing all input values.
 [3i32, 6i32]
 ```
 
-#### Environment
-`remora futhark --backend=cuda` depends on various CUDA libraries; see
+##### Compiling to CUDA requirements
+Compiling to CUDA (and running the resulting binary) requires an Nvidia GPU as
+well as the [CUDA Toolkit](https://developer.nvidia.com/cuda/toolkit). The
+compiler also needs to be able to find the CUDA libraries; see
 [here](https://futhark.readthedocs.io/en/latest/man/futhark-cuda.html#environment)
 for specific environment variable instructions.
 
@@ -101,3 +102,8 @@ If you're running on NixOS
 $ nix develop '.#cuda'
 ```
 should populate the environment variables appropriately and also pulls in the CUDA toolkit dependency.
+
+
+
+#### Environment
+`remora futhark --backend=cuda` depends on various CUDA libraries;
