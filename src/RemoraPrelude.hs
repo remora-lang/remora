@@ -8,10 +8,10 @@ module RemoraPrelude
 where
 
 import Control.Monad
+import Data.List qualified as L
 import Data.Text (Text)
 import Interpreter.Value
 import Syntax
-import Data.List qualified as L
 
 type Prelude v m = [PreludeVal v m]
 
@@ -117,7 +117,7 @@ prelude =
                             :-> A
                               (AtomTypeVar "t")
                               ( Concat
-                                  [ ShapeDim $ Add [ DimVar "m", DimVar "n"],
+                                  [ ShapeDim $ Add [DimVar "m", DimVar "n"],
                                     ShapeVar "s"
                                   ]
                               )
@@ -237,6 +237,21 @@ prelude =
           pure $ ValArray mempty [ValBase $ FloatVal $ x / y]
       ),
     PreludeVal
+      "f.reduce3"
+      ( mkScalarArrayType $
+          let elem_type = A Float mempty
+              op_type = A ([elem_type, elem_type] :-> elem_type) mempty
+              arg_type =
+                A
+                  Float
+                  (ShapeDim (DimN 3))
+              res_type = A Float mempty
+           in [op_type, arg_type] :-> res_type
+      )
+      ( ValFun $ \[ValArray _ [ValFun op], ValArray _ (v : vs)] ->
+          foldM (\l r -> op [l, r]) v vs
+      ),
+    PreludeVal
       "sqrt"
       (mkScalarArrayType $ [A Float mempty] :-> A Float mempty)
       ( ValFun $ \args -> baseValViews args $ \[FloatVal x] ->
@@ -328,34 +343,52 @@ prelude =
       ),
     PreludeVal
       "transpose2d"
-      (mkScalarArrayType $
+      ( mkScalarArrayType $
           Forall
             [AtomTypeParam "t"]
-              (mkScalarArrayType $ (Pi [DimParam "m", DimParam "n"]
-                ( let arg_t = A (AtomTypeVar "t") (Concat $ map (ShapeDim . DimVar) ["m", "n"])
-                      ret_t = A (AtomTypeVar "t") (Concat $ map (ShapeDim . DimVar) ["n", "m"])
-                    in mkScalarArrayType $ [arg_t] :-> ret_t ))))
+            ( mkScalarArrayType $
+                ( Pi
+                    [DimParam "m", DimParam "n"]
+                    ( let arg_t = A (AtomTypeVar "t") (Concat $ map (ShapeDim . DimVar) ["m", "n"])
+                          ret_t = A (AtomTypeVar "t") (Concat $ map (ShapeDim . DimVar) ["n", "m"])
+                       in mkScalarArrayType $ [arg_t] :-> ret_t
+                    )
+                )
+            )
+      )
       ( ValTFun $ \_ ->
-          pure $ ValIFun $ \[Left _m , Left _n] ->
-            pure $ ValFun $ \[ValArray [m, n] elts] -> pure $ ValArray [n, m]
-                                                       (concat $ L.transpose $ split n elts)),
+          pure $ ValIFun $ \[Left _m, Left _n] ->
+            pure $ ValFun $ \[ValArray [m, n] elts] ->
+              pure $
+                ValArray
+                  [n, m]
+                  (concat $ L.transpose $ split n elts)
+      ),
     PreludeVal
       "undefined"
-      (mkScalarArrayType $
-        Forall [AtomTypeParam "t"]
-         (mkScalarArrayType (Pi [ShapeParam "s"] $ A (AtomTypeVar "t") (ShapeVar "s"))))
+      ( mkScalarArrayType $
+          Forall
+            [AtomTypeParam "t"]
+            (mkScalarArrayType (Pi [ShapeParam "s"] $ A (AtomTypeVar "t") (ShapeVar "s")))
+      )
       undefined,
     PreludeVal
       "index2d"
-      (mkScalarArrayType $
-        Forall [AtomTypeParam "t"] $
-          mkScalarArrayType (Pi [DimParam "m", DimParam "n"]
-            (let arr_t = A (AtomTypeVar "t") $ Concat $ map (ShapeDim . DimVar) ["m", "n"]
-                 idx_t = A Int $ ShapeDim $ DimN 2
-                 ret_t = A (AtomTypeVar "t") $ Concat [] in
-               mkScalarArrayType $ [arr_t, idx_t] :-> ret_t)))
-      (ValTFun $ \_ ->
+      ( mkScalarArrayType $
+          Forall [AtomTypeParam "t"] $
+            mkScalarArrayType
+              ( Pi
+                  [DimParam "m", DimParam "n"]
+                  ( let arr_t = A (AtomTypeVar "t") $ Concat $ map (ShapeDim . DimVar) ["m", "n"]
+                        idx_t = A Int $ ShapeDim $ DimN 2
+                        ret_t = A (AtomTypeVar "t") $ Concat []
+                     in mkScalarArrayType $ [arr_t, idx_t] :-> ret_t
+                  )
+              )
+      )
+      ( ValTFun $ \_ ->
           pure $ ValIFun $ \[_, _] ->
             pure $ ValFun $ \[ValArray [_, n] elts, ValArray [2] [ValBase (IntVal i), ValBase (IntVal j)]] ->
-                              pure $ elts L.!! (n * i + j))
+              pure $ elts L.!! (n * i + j)
+      )
   ]
