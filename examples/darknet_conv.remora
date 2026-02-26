@@ -3,9 +3,8 @@
 
 
 (let (
-;  (val input ...) ; real world input
-;  (val weights ...) ; real world input
-;  (val bias ...) ; real world input
+  (val input (i-app (t-app undefined Float) [3 608 608])) ; real world input
+  (val weights (i-app (t-app undefined Float) [3 3 3 32])) ; real world input
   ; DONE
   (fun (@replicate (&t) (@f @s) (in [&t @s]) : [&t @f @s])
     ((array [] (fn ((x [Int])) in)) (i-app iota/static [@f])))
@@ -45,17 +44,6 @@
                         (in [&t $c (+ $in-out $out) (+ $in-out $out)])
                         (offset [Int $c 2]) : [&t $c $out $out])
      (@subarray/2 (&t) ($in-out $out) in offset))
-  ; ; restrict to square imgs for now
-  ; (fun (@im2col _ ($n-k $k $p) (im [Float (+ $n-k $k) (+ $n-k $k)])
-  ;                               (w [Float $k $k])
-  ;                               : [Float (* $k $k) (* (+ $n-k $p $p 1) (+ $n-k $p $p 1))])
-  ;   ; reshape is type cast, no data movement
-  ;   (@transpose2d (Float) ((* (+ $n-k $p $p 1) (+ $n-k $p $p 1)) (* $k $k))
-  ;      (@flatten (Float) ((+ $n-k $p $p 1) (+ $n-k $p $p 1) [(* $k $k)])
-  ;          (@flatten (Float) ($k $k [])
-  ;              (@subarray/2 (Float) ((+ $n-k $p $p) $k)
-  ;                           (@pad/2 (Float) ((+ $n-k $k) $p) im 0.0)
-  ;                           (i-app idxs-of/2 (+ $n-k $p $p 1) (+ $n-k $p $p 1)))))))
 
   (fun (@im2col/int _ ($n-k $k $p $in-c)
                     (im [Int $in-c (+ $n-k $k) (+ $n-k $k)])
@@ -67,6 +55,17 @@
                                (@pad/2 (Int) ((+ $n-k $k) $p) im 0) ; [in-c (+ 2p n) (+ 2p n)]
                                (@replicate (Int) ([$in-c] [2])
                                            (i-app idxs-of/2 (+ $n-k $p $p 1) (+ $n-k $p $p 1))))))))
+
+  (fun (@im2col _ ($n-k $k $p $in-c)
+                    (im [Float $in-c (+ $n-k $k) (+ $n-k $k)])
+                    : [Float (* (+ $n-k $p $p 1) (+ $n-k $p $p 1)) (* $k $k $in-c)])
+    (@flatten (Float) ((+ $n-k $p $p 1) (+ $n-k $p $p 1) [(* $in-c $k $k)])
+       (@flatten (Float) ($in-c (* $k $k) [])
+          (@flatten (Float) ($k $k [])
+              (@vec-subarray/2 (Float) ($in-c (+ $n-k $p $p) $k)
+                               (@pad/2 (Float) ((+ $n-k $k) $p) im 0.0) ; [in-c (+ 2p n) (+ 2p n)]
+                               (@replicate (Int) ([$in-c] [2])
+                                           (i-app idxs-of/2 (+ $n-k $p $p 1) (+ $n-k $p $p 1))))))))
   ; DONE
   (fun (@dot _ ($n-1) (v [Float (+ 1 $n-1)]) (w [Float (+ 1 $n-1)]) : [Float])
     (@reduce (Float) ($n-1 []) f.+ (f.* v w)))
@@ -74,20 +73,21 @@
   (fun (@lifted_dot _ ($m-1 $o) (v [Float (+ 1 $m-1)]) (M [Float (+ 1 $m-1) $o]) : [Float $o])
     (@dot _ ($m-1) v (@transpose2d (Float) ((+ 1 $m-1) $o) M)))
   ; DONE
-  (fun (@matmul _ ($n $m-1 $o-1) (xss [Float $n (+ 1 $m-1)])
-                                 (yss [Float (+ 1 $m-1) (+ 1 $o-1)]) : [Float $n (+ $o-1 1)])
-      (@lifted_dot _ ($m-1 (+ 1 $o-1)) xss yss))
+  (fun (@matmul _ ($n $m-1 $o) (xss [Float $n (+ 1 $m-1)])
+                                 (yss [Float (+ 1 $m-1) $o]) : [Float $n $o])
+      (@lifted_dot _ ($m-1 $o) xss yss))
   ; stride is omitted as in example stride = dilation = 1
-  ; (fun (@conv-2d _ ($n-k $k $in-c $out-c $p)
-  ;               (in [Float $in-c (+ $n-k $k) (+ $n-k $k)])
-  ;               (w  [Float $in-c $k $k $out-c])
-  ;               : [Float $out-c (* (+ $n-k $p $p 1) (+ $n-k $p $p 1))])
-  ;   (@matmul _ ()
-  ;            ; out*out x k*k*in
-  ;            (@im2col _ ($n-k $k $p $in-c) in)
-  ;            ; matrix k*k*in x out
-  ;            (@flatten (Float) ($in-c (* $k $k) [$out-c])
-  ;               (@flatten (Float) ($k $k [$out-c]) w))))
+  (fun (@conv-2d _ ($n-k $k $in-c $out-c $p)
+                (in [Float $in-c (+ $n-k $k) (+ $n-k $k)])
+                (w  [Float $in-c $k $k $out-c])
+                : [Float (* (+ $n-k $p $p 1) (+ $n-k $p $p 1)) $out-c])
+    (@matmul _ ((* (+ $n-k $p $p 1) (+ $n-k $p $p 1)) (- (* $k $k $in-c) 1) $out-c)
+             ; out*out x k*k*in-c
+             ;(i-app (t-app undefined Float) [(* (+ $n-k $p $p 1) (+ $n-k $p $p 1)) (* $k $k $in-c)])
+             (@im2col _ ($n-k $k $p $in-c) in)
+             ; matrix k*k*in-c x out-c
+             (@flatten (Float) ($in-c (* $k $k) [$out-c])
+                (@flatten (Float) ($k $k [$out-c]) w))))
   )
   ; (@vec-f.+ _ (3) [1.0 2.0 3.0] [4.0 5.0 6.0])
   ; (i-app iota/static [4 2])
@@ -116,9 +116,17 @@
   ; (@transpose2d (Int) (25 9)
   ; (@flatten (Int) (5 5 [9])
   ; (@flatten (Int) (3 3 [])
-  (@vec-subarray/2 (Int) (2 4 3)
-                     (@pad/2 (Int) (5 1) (i-app iota/static [2 5 5]) 0)
-                     (@replicate (Int) ([2] [2]) (i-app idxs-of/2 5 5)))
+  ; (@vec-subarray/2 (Int) (2 4 3)
+  ;                    (@pad/2 (Int) (5 1) (i-app iota/static [2 5 5]) 0)
+  ;                    (@replicate (Int) ([2] [2]) (i-app idxs-of/2 5 5)))
   ; (i-app idxs-of/im2col 2 3 3)
   ;(+ [1 0] (i-app iota/static [2 5 5]))
+  ;(@im2col/int _ (2 3 1 2) (i-app iota/static [2 5 5]))
+  ; (@matmul _ (25 17 3)
+  ;   (@im2col _ (2 3 1 2) (i->f (i-app iota/static [2 5 5])))
+  ;   (@flatten (Float) (2 9 [4]) (@flatten (Float) (3 3 [4]) (i->f (i-app iota/static [2 3 3 4])))))
+  ;[1 2]
+  ;; n = 5, k = 3, p = 1, in-c = 2, out-c = 4
+  ;(@conv-2d _ (2 3 2 4 1) (i->f (i-app iota/static [2 5 5])) (@replicate (Float) ([2 3 3 4] []) 1.0))
+  (@conv-2d _ (605 3 3 32 1) input weights)
 )

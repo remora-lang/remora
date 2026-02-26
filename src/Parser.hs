@@ -151,7 +151,7 @@ lId = lexeme $ try $ do
       isSpace c
         || c `elem` ['(', ')', '[', ']', '{', '}', '"', ',', '\'', '`', ';', '#', '|', '\\', '@']
 
-pDecimal :: Parser Int
+pDecimal :: Parser Integer
 pDecimal = lexeme L.decimal
 
 pTypeParam :: Parser TypeParam
@@ -220,7 +220,7 @@ pBase =
     pNum =
       choice
         [ try $ FloatVal <$> lexeme L.float,
-          IntVal <$> pDecimal
+          IntVal . fromIntegral <$> pDecimal
         ]
 
 pAtom :: Parser Atom
@@ -295,7 +295,7 @@ pExp =
         )
     ]
   where
-    pShapeLit = brackets $ many pDecimal
+    pShapeLit = brackets $ many (fromIntegral <$> pDecimal)
     pUnbox =
       Unbox
         <$> ( lKeyword "unbox"
@@ -423,7 +423,7 @@ pDim =
   choice
     [ "$" >> DimVar <$> lId,
       DimN <$> pDecimal,
-      parens $ (symbol "+" >> Add <$> many pDim) <|> (symbol "*" >> Mul <$> many pDim)
+      parens $ (symbol "+" >> Add <$> many pDim) <|> (symbol "*" >> Mul <$> many pDim) <|> (symbol "-" >> Sub <$> many pDim)
     ]
 
 pShapeSplice :: Parser Shape

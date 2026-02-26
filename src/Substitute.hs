@@ -86,6 +86,7 @@ instance (Ord v) => Substitute v (Dim v) (Dim v) where
   substitute subst (DimVar v) = fromMaybe (DimVar v) $ subst M.!? v
   substitute _ (DimN d) = DimN d
   substitute subst (Add ds) = Add $ map (substitute subst) ds
+  substitute subst (Sub ds) = Sub $ map (substitute subst) ds
   substitute subst (Mul ds) = Mul $ map (substitute subst) ds
 
 instance (Ord v) => Substitute v (Shape v) (Shape v) where
@@ -104,6 +105,7 @@ instance (Eq v, Ord v) => Substitute v v (Dim v) where
   substitute subst (DimVar v) = DimVar $ substitute subst v
   substitute _ (DimN d) = DimN d
   substitute subst (Add ds) = Add $ map (substitute subst) ds
+  substitute subst (Sub ds) = Sub $ map (substitute subst) ds
   substitute subst (Mul ds) = Mul $ map (substitute subst) ds
 
 instance (Eq v, Ord v) => Substitute v v (Shape v) where

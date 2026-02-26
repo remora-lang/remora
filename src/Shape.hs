@@ -21,17 +21,20 @@ import Data.Bifunctor
 import Data.List (sort)
 import Data.Maybe
 import Prettyprinter
+import Util (prettyString)
 
 -- | Dimensions.
 data Dim v
   = -- | A dimension variable.
     DimVar v
   | -- | A numeric dimension.
-    DimN Int
+    DimN Integer
   | -- | Addition of dimensions.
     Add [Dim v]
   | -- | Multiplication of dimensions.
     Mul [Dim v]
+  | -- | Subtraction of dimensions.
+    Sub [Dim v]
   deriving (Show, Eq, Ord)
 
 instance (Show v, Pretty v) => Pretty (Dim v) where
@@ -39,6 +42,7 @@ instance (Show v, Pretty v) => Pretty (Dim v) where
   pretty (DimN d) = pretty d
   pretty (Add ds) = parens $ hsep ("+" : map pretty ds)
   pretty (Mul ds) = parens $ hsep ("*" : map pretty ds)
+  pretty (Sub ds) = parens $ hsep ("-" : map pretty ds)
 
 instance Semigroup (Dim v) where
   d <> e = Add [d, e]
@@ -147,6 +151,8 @@ normDim (Add ds) =
       case d' of
         DimN n -> first (+ n)
         DimVar v -> second (DimVar v :)
+        Sub ds -> second (Sub ds :)
+        Mul ds -> second (Mul ds :)
         _ -> error ""
 normDim (Mul ds) =
   case (d, vars) of
@@ -163,7 +169,10 @@ normDim (Mul ds) =
       case d' of
         DimN n -> first (* n)
         DimVar v -> second (DimVar v :)
-        _ -> error ""
+        Add ds -> second (Add ds :)
+        Sub ds -> second (Sub ds :)
+        _dErr -> error "error: "
+normDim (Sub ds) = Sub $ map normDim ds
 
 -- | Basic shape normalization; normalizes dimensions and flattens
 -- concatenations and returns the result in sorted order.
@@ -182,5 +191,5 @@ normShape (Concat ss) =
           s' -> pure s'
 
 -- | Turns an explicit list of dimensions into a 'Shape'.
-intsToShape :: [Int] -> Shape v
+intsToShape :: [Integer] -> Shape v
 intsToShape ds = Concat $ map (ShapeDim . DimN) ds

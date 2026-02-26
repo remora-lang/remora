@@ -25,6 +25,7 @@ import Data.SBV qualified as SBV
 import Data.SBV.Internals (SolverContext (..))
 import Data.SBV.List qualified as SL
 import Data.SBV.Trans qualified as SBV.Trans
+import Data.SBV.Dynamic (generateSMTBenchmarkProof)
 import GHC.IsList
 import Prettyprinter
 import Shape
@@ -32,10 +33,11 @@ import System.IO.Unsafe
 import Util
 
 type SShape = SList Integer
+type SDim = SInteger
 
 data SEnv v
   = SEnv
-  { senvMap :: Map v SShape
+  { senvMap :: Map v (Either SDim SShape)
   }
 
 initSEnv :: (Ord v) => SEnv v
@@ -53,38 +55,49 @@ type MonadSymbolic v m =
 symbolic :: (MonadSymbolic v m, SymVal a) => String -> m (SBV a)
 symbolic = SBV.Trans.symbolic
 
-lookupSym :: (MonadSymbolic v m) => v -> m SShape
-lookupSym v = do
+lookupSymShp :: (MonadSymbolic v m) => v -> m SShape
+lookupSymShp v = do
   msym <- gets $ (M.!? v) . senvMap
   case msym of
     Nothing -> do
       s <- symbolic $ prettyString v
-      modify $ \senv -> senv {senvMap = M.insert v s $ senvMap senv}
+      constrain $ SL.all (.>= literal 0) s
+      modify $ \senv -> senv {senvMap = M.insert v (Right s) $ senvMap senv}
       pure s
-    Just s -> pure s
+    Just (Right s) -> pure s
+    Just (Left _) -> error "got dim when looking up sym shp"
+
+lookupSymDim :: (MonadSymbolic v m) => v -> m SDim
+lookupSymDim v = do
+  msym <- gets $ (M.!? v) . senvMap
+  case msym of
+    Nothing -> do
+      s <- symbolic $ prettyString v
+      constrain $ s .>= literal 0
+      modify $ \senv -> senv { senvMap = M.insert v (Left s) $ senvMap senv }
+      pure s
+    Just (Left s) -> pure s
+    Just (Right _) -> error "got shp when looking up sym dim"
 
 toSShape :: (MonadSymbolic v m) => Shape v -> m SShape
-toSShape (ShapeVar v) = lookupSym v
+toSShape (ShapeVar v) = lookupSymShp v
 toSShape (ShapeDim d) = do
-  sym_d <- symDim d
-  constrain $ SL.length sym_d .== 1
-  pure sym_d
+  symD <- symDim d
+  pure $ SL.singleton symD
   where
-    symDim (DimVar v) = lookupSym v
-    symDim (DimN n) =
-      symInt n
+    symDim (DimVar v) = lookupSymDim v
+    symDim (DimN n) = pure $ literal n
     symDim (Add ds) = do
-      sym_ds <- mapM symDim ds
-      sym_sum <- symbolic "sum"
-      constrain $ SL.head sym_sum .== sum (map SL.head sym_ds)
-      pure sym_sum
+      symDs <- mapM symDim ds
+      pure $ sum symDs
     symDim (Mul ds) = do
-      sym_ds <- mapM symDim ds
-      sym_prod <- symbolic "prod"
-      constrain $ SL.head sym_prod .== product (map SL.head sym_ds)
-      pure sym_prod
-    symInt =
-      pure . SL.singleton . fromInteger . toInteger
+      symDs <- mapM symDim ds
+      pure $ product symDs
+    symDim (Sub []) = pure $ literal 0
+    symDim (Sub (d:ds)) = do
+      symD <- symDim d
+      symDs <- mapM symDim ds
+      pure $ symD - sum symDs
 toSShape (Concat ss) =
   (SL.concat . fromList) <$> mapM toSShape ss
 
@@ -117,13 +130,13 @@ askShapes ::
   Shape v ->
   Shape v ->
   Bool
+
 askShapes op s t =
-  show
-    ( unsafePerformIO $
-        prove $
-          op <$> toSShape s <*> toSShape t
-    )
-    == "Q.E.D."
+  let (ThmResult res) = unsafePerformIO $ do
+        prove $ op <$> toSShape s <*> toSShape t in
+  case res of
+    Unsatisfiable _ _ -> True
+    _else -> False
 
 (@=) :: (Ord v, Pretty v) => Shape v -> Shape v -> Bool
 (@=) = askShapes (.==)

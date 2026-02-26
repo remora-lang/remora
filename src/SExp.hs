@@ -35,6 +35,9 @@ instance (SExpable a c) => SExpable [a] c where
 instance {-# OVERLAPS #-} (IsString s) => SExpable FilePath s where
   toSExp = SAtom . fromString
 
+instance (IsString s) => SExpable Integer s where
+  toSExp = SAtom . fromString . show
+
 instance (IsString s) => SExpable Int s where
   toSExp = SAtom . fromString . show
 
@@ -484,6 +487,8 @@ instance (IsString s, SExpable v s) => SExpable (Dim v) s where
       ]
   toSExp (Add ds) =
     SList $ "dim-+" : map toSExp ds
+  toSExp (Sub ds) =
+    SList $ "dim--" : map toSExp ds
   toSExp (Mul ds) =
     SList $ "dim-*" : map toSExp ds
 

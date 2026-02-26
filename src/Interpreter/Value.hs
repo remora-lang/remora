@@ -36,15 +36,15 @@ data Val m
   | -- | Base values.
     ValBase Base
   | -- | Array value.
-    ValArray [Int] [Val m]
+    ValArray [Integer] [Val m]
   | -- | Box.
-    ValBox [Either Int [Int]] (Val m)
+    ValBox [Either Integer [Integer]] (Val m)
   | -- | Function.
     ValFun ([Val m] -> m (Val m))
   | -- | Type function.
     ValTFun ([Type] -> m (Val m))
   | -- | Index function.
-    ValIFun ([Either Int [Int]] -> m (Val m))
+    ValIFun ([Either Integer [Integer]] -> m (Val m))
 
 instance Show (Val m) where
   show (ValVar v) = "ValVar " <> show v
@@ -86,7 +86,7 @@ baseValViews vs m = m $ map unpack vs
     unpack (ValArray [] [v]) = unpack v
     unpack _ = error "not base"
 
-valShapeOf :: Val m -> [Int]
+valShapeOf :: Val m -> [Integer]
 valShapeOf (ValArray s _) = s
 valShapeOf _ = mempty
 
@@ -96,28 +96,28 @@ arrayifyVal v@ValArray {} = v
 arrayifyVal v = ValArray mempty [v]
 
 -- | An array view on a value.
-arrayValView :: Val m -> (([Int], [Val m]) -> a) -> a
+arrayValView :: Val m -> (([Integer], [Val m]) -> a) -> a
 arrayValView v m = arrayValViews [v] (m . head)
 
 -- | An array view on a values.
-arrayValViews :: [Val m] -> ([([Int], [Val m])] -> a) -> a
+arrayValViews :: [Val m] -> ([([Integer], [Val m])] -> a) -> a
 arrayValViews vs m = m $ map unpack vs
   where
     unpack (ValArray shape vs') = (shape, vs')
     unpack v = (mempty, [v])
 
 -- | @split n xs@ splits @xs@ into @n@-sized chunks.
-split :: Int -> [a] -> [[a]]
+split :: Integer -> [a] -> [[a]]
 split _ [] = []
-split n as = take n as : split n (drop n as)
+split n as = take (fromIntegral n) as : split n (drop (fromIntegral n) as)
 
 -- | A flattened 'replicate'.
-rep :: Int -> [a] -> [a]
-rep n = concatMap $ replicate n
+rep :: Integer -> [a] -> [a]
+rep n = concatMap $ replicate (fromIntegral n)
 
 -- | Shape suffix subtraction (see function of the same name in the "Shape"
 -- module).
-(\\) :: [Int] -> [Int] -> [Int]
+(\\) :: [Integer] -> [Integer] -> [Integer]
 (\\) as bs = reverse $ prefix' (reverse as) (reverse bs)
   where
     prefix' as' [] = as'
