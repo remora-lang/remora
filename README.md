@@ -3,17 +3,17 @@
 ## Requirements
 ### Build dependencies
 #### Required:
-- `ghc` (tested with 9.10.3)
-- `cabal`
-- `z3`
+- [`ghc`](https://www.haskell.org/ghc/) (tested with 9.10.3)
+- [`cabal`](https://www.haskell.org/cabal/download.html)
+- [`z3`](https://github.com/Z3Prover/z3)
 
 ### Run dependencies
 #### Required:
-- `z3`
+- [`z3`](https://github.com/Z3Prover/z3)
 
 #### Optional:
-- `futhark` (to compile to C/CUDA)
-- CUDA Toolkit (to compile to CUDA)
+- [`futhark`](https://futhark-lang.org) (to compile to C/CUDA)
+- [CUDA Toolkit](https://developer.nvidia.com/cuda/toolkit) (to compile to CUDA)
 - An Nvidia GPU (to execute binaries produced via the CUDA backend)
 
 ### Obtaining dependencies
