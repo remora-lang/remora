@@ -13,6 +13,7 @@
 - `sphinx` (to build documentation)
 - `futhark` (to compile to C/CUDA)
 - CUDA Toolkit (to compile to CUDA)
+- An Nvidia GPU (to execute binaries produced via the CUDA backend)
 
 ## Building
 ### With Nix (recommended)
@@ -90,7 +91,7 @@ Send EOF (CTRL-d) after typing all input values.
 [3i32, 6i32]
 ```
 
-##### Compiling to CUDA requirements
+##### Compiling with the CUDA backend
 Compiling to CUDA (and running the resulting binary) requires an Nvidia GPU as
 well as the [CUDA Toolkit](https://developer.nvidia.com/cuda/toolkit). The
 compiler also needs to be able to find the CUDA libraries; see
@@ -102,8 +103,3 @@ If you're running on NixOS
 $ nix develop '.#cuda'
 ```
 should populate the environment variables appropriately and also pulls in the CUDA toolkit dependency.
-
-
-
-#### Environment
-`remora futhark --backend=cuda` depends on various CUDA libraries;
