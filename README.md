@@ -10,9 +10,9 @@
 - `z3`
 
 #### Optional:
-- `sphinx` (build documentation)
-- `futhark` (compile to C/CUDA)
-- CUDA Toolkit (compile to CUDA)
+- `sphinx` (to build documentation)
+- `futhark` (to compile to C/CUDA)
+- CUDA Toolkit (to compile to CUDA)
 
 ## Building
 ### With Nix (recommended)
@@ -21,14 +21,6 @@ the `remora` binary:
 ```bash
 nix develop
 ```
-
-or
-
-```bash
-nix develop '.#cuda'
-```
-
-if you wish to compile to CUDA code.
 
 If flakes aren’t enabled on your system, either enable them globally or run:
 ```bash
@@ -99,3 +91,14 @@ Reading input from TTY.
 Send EOF (CTRL-d) after typing all input values.
 [3i32, 6i32]
 ```
+
+#### Environment
+`remora futhark --backend=cuda` depends on various CUDA libraries; see
+[here](https://futhark.readthedocs.io/en/latest/man/futhark-cuda.html#environment)
+for specific environment variable instructions.
+
+If you're running on NixOS
+```bash
+$ nix develop '.#cuda'
+```
+should populate the environment variables appropriately and also pulls in the CUDA toolkit dependency.
