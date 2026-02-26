@@ -20,7 +20,7 @@
       imports = [ inputs.haskell-flake.flakeModule ];
 
       perSystem =
-        { self', pkgs, ... }:
+        { self', pkgs, config,... }:
         let
           remora-wrapped = pkgs.stdenv.mkDerivation {
             name = "remora-wrapped";
@@ -38,12 +38,23 @@
             packages.sbv.source = inputs.sbv;
             settings.sbv.check = false; # sbv tests fail
             devShell = {
-              tools = hp: {
-                z3 = pkgs.z3;
-                nixfmt = pkgs.nixfmt;
-              };
               hlsCheck.enable = true;
+
+              mkShellArgs = {
+                    packages = with pkgs; [
+                      z3
+                      nixfmt
+                      futhark
+                      git gitRepo gnupg autoconf curl
+                      procps gnumake util-linux m4 gperf unzip
+                      zlib
+                      ncurses5
+                      stdenv.cc
+                      binutils
+                    ];
+                  };
             };
+
           };
 
           packages.default = self'.packages.remora;
@@ -77,6 +88,20 @@
                 cp -r docs/_build/html "$out/docs/html"
               '';
             };
+          };
+
+          devShells.cuda = pkgs.mkShell {
+            name = "cuda";
+            inputsFrom = [ config.devShells.default ];
+
+            packages = with pkgs; [
+              cudaPackages.cudatoolkit
+            ];
+
+            shellHook = ''
+              export CUDA_PATH=${pkgs.cudaPackages.cudatoolkit}
+              export LD_LIBRARY_PATH=/run/opengl-driver/lib''${LD_LIBRARY_PATH:+:}$LD_LIBRARY_PATH
+                            '';
           };
         };
     };

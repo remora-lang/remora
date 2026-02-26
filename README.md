@@ -18,14 +18,21 @@
 ### With Nix (recommended)
 If you use Nix, the easiest option is to enter a development shell that provides
 the `remora` binary:
+```bash
+nix develop
+```
+
+or
 
 ```bash
-nix shell
+nix develop '.#cuda'
 ```
+
+if you wish to compile to CUDA code.
 
 If flakes aren’t enabled on your system, either enable them globally or run:
 ```bash
-nix shell --extra-experimental-features flakes
+nix develop --extra-experimental-features flakes
 ```
 
 ### With Cabal
@@ -54,4 +61,41 @@ remora --help
 You can also ask for help for a specific mode. For example:
 ```bash
 remora interpret --help
+```
+
+## Examples
+### Remora Interpreter
+`remora` can interpret either in a REPL
+```bash
+$ remora repl
+>> (+ 1 2)
+3
+>>
+```
+or on the CLI (e.g., if you want to pass a program as a file or via STDIN)
+```bash
+$ remora interpret -f tests/basic0.remora
+[3 6]
+```
+
+### Remora Compiler
+The compiler is in early stages. At the moment, it can compile a limited
+monomorphic, first-order subset of the language to C or CUDA (via Futhark). The
+compiler generates Futhark IR code that is then parsed and compiled by Futhark
+to C or CUDA.
+
+This option is accessed via the `futhark` mode:
+```bash
+$ remora futhark -f tests/basic0.remora
+```
+
+If no backend is specified via `-b`/`--backend=`, `remora futhark` simply
+outputs Futhark IR. Specifying a backend will yield a target `.c` file as well
+an excutable binary in current directory:
+```bash
+$ remora futhark -f tests/basic0.remora --backend=cuda
+$ ./basic0
+Reading input from TTY.
+Send EOF (CTRL-d) after typing all input values.
+[3i32, 6i32]
 ```
