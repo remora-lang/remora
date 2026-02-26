@@ -19,12 +19,12 @@
 ### Obtaining dependencies
 If you use Nix, the easiest option is to enter a development shell that provides all dependencies via
 ```
-$ nix shell
+$ nix develop
 ```
 
 If flakes aren’t enabled on your system, either enable them globally or run:
 ```
-$ nix shell --extra-experimental-features flakes
+$ nix develop --extra-experimental-features flakes
 ```
 
 If you don't use Nix, you'll have to install the required dependencies
