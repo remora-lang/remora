@@ -19,12 +19,12 @@
 If you use Nix, the easiest option is to enter a development shell that provides
 the `remora` binary:
 ```bash
-nix develop
+$ nix develop
 ```
 
 If flakes aren’t enabled on your system, either enable them globally or run:
 ```bash
-nix develop --extra-experimental-features flakes
+$ nix develop --extra-experimental-features flakes
 ```
 
 ### With Cabal
@@ -35,24 +35,24 @@ working Haskell installation on your machine;
 To install `remora` to your local binary directory (defaults to `~/.local/bin`):
 
 ```bash
-cabal install
+$ cabal install
 ```
 
 If you’d rather build without installing:
 ```bash
-cabal build
-cabal exec -- remora interpret -e "(+ 1 2)"
+$ cabal build
+$ cabal exec -- remora interpret -e "(+ 1 2)"
 ```
 
 ## Running
 List available modes and global options:
 ```bash
-remora --help
+$ remora --help
 ```
 
 You can also ask for help for a specific mode. For example:
 ```bash
-remora interpret --help
+$ remora interpret --help
 ```
 
 ## Examples
