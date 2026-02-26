@@ -18,6 +18,7 @@
         hpkgs.haskell-language-server
         hpkgs.stack
       ]))
+                       pkgs.futhark
                        pkgs.cudaPackages_13.cudatoolkit
                        pkgs.cudaPackages_13.cudnn
                        pkgs.linuxPackages.nvidiaPackages.production
