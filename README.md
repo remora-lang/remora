@@ -92,9 +92,8 @@ Send EOF (CTRL-d) after typing all input values.
 ```
 
 ##### Compiling with the CUDA backend
-Compiling to CUDA (and running the resulting binary) requires an Nvidia GPU as
-well as the [CUDA Toolkit](https://developer.nvidia.com/cuda/toolkit). The
-compiler also needs to be able to find the CUDA libraries; see
+Compiling to CUDA requires the [CUDA Toolkit](https://developer.nvidia.com/cuda/toolkit). The compiler also needs to
+be able to find the CUDA libraries; see
 [here](https://futhark.readthedocs.io/en/latest/man/futhark-cuda.html#environment)
 for specific environment variable instructions.
 
