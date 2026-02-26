@@ -2,16 +2,19 @@
 
 ## Requirements
 ### Build dependencies
+#### Required:
 - `ghc` (tested with 9.10.3)
 - `cabal`
 - `z3`
+
+#### Optional:
+- `sphinx` (to build documentation)
 
 ### Run dependencies
 #### Required:
 - `z3`
 
 #### Optional:
-- `sphinx` (to build documentation)
 - `futhark` (to compile to C/CUDA)
 - CUDA Toolkit (to compile to CUDA)
 - An Nvidia GPU (to execute binaries produced via the CUDA backend)
