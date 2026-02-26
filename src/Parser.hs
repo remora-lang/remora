@@ -151,7 +151,7 @@ lId = lexeme $ try $ do
       isSpace c
         || c `elem` ['(', ')', '[', ']', '{', '}', '"', ',', '\'', '`', ';', '#', '|', '\\', '@']
 
-pDecimal :: Parser Integer
+pDecimal :: Parser Int
 pDecimal = lexeme L.decimal
 
 pTypeParam :: Parser TypeParam

@@ -86,7 +86,7 @@ toSShape (ShapeDim d) = do
   pure $ SL.singleton symD
   where
     symDim (DimVar v) = lookupSymDim v
-    symDim (DimN n) = pure $ literal n
+    symDim (DimN n) = pure $ literal $ toInteger n
     symDim (Add ds) = do
       symDs <- mapM symDim ds
       pure $ sum symDs

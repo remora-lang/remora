@@ -49,7 +49,7 @@ prelude =
       ( ValTFun $ \[_t] ->
           pure $ ValIFun $ \[_d, _s] -> do
             pure $ ValFun $ \[ValArray (_ : ds) vs] -> do
-              pure $ ValArray ds $ take (fromIntegral $ product ds) vs
+              pure $ ValArray ds $ take (product ds) vs
       ),
     PreludeVal
       "tail"
@@ -102,7 +102,7 @@ prelude =
       ( ValTFun $ \[_t] ->
           pure $ ValIFun $ \[_d, _s] ->
             pure $ ValFun $ \[ValArray (d : _) _] ->
-              pure $ ValBase $ IntVal $ toInteger d
+              pure $ ValBase $ IntVal d
       ),
     PreludeVal
       "append"
@@ -271,7 +271,7 @@ prelude =
                 mempty
             )
       )
-      ( let valSum :: Val m -> Integer
+      ( let valSum :: Val m -> Int
             valSum (ValBase (IntVal x)) = x
             valSum (ValArray _ vs) = sum $ map valSum vs
             valSum _ = error "valSum"
@@ -329,9 +329,9 @@ prelude =
                 fromInt _ = error "fromInt"
                 shape = arrayValView shapeval $ flip baseValViews (map fromInt) . snd
              in pure $
-                  ValBox [Right $ map fromIntegral shape] $
+                  ValBox [Right shape] $
                     ValArray
-                      (map fromIntegral shape)
+                      shape
                       (map (ValBase . IntVal) [0 .. product shape - 1])
       ),
     PreludeVal
@@ -341,7 +341,7 @@ prelude =
             A Int (ShapeVar "s")
       )
       ( ValIFun $ \[Right s] ->
-          pure $ ValArray s (map (ValBase . IntVal) [0 .. product (map fromIntegral s) - 1])
+          pure $ ValArray s (map (ValBase . IntVal) [0 .. product s - 1])
       ),
     PreludeVal
       "transpose2d"
@@ -391,9 +391,9 @@ prelude =
       ( ValTFun $ \_ ->
           pure $ ValIFun $ \[_, _] ->
             pure $ ValFun $ \[ValArray [_, n] elts, ValArray [2] [ValBase (IntVal i), ValBase (IntVal j)]] ->
-                              pure $ elts L.!! (fromIntegral (n * i + j))),
+                              pure $ elts L.!! (n * i + j)),
     PreludeVal
       "i->f"
       (mkScalarArrayType ([A Int $ Concat []] :-> (A Float $ Concat [])))
-      (ValFun $ \[ValArray [] [ValBase (IntVal i)]] -> pure $ ValArray [] [ValBase (FloatVal $ fromInteger i)])
+      (ValFun $ \[ValArray [] [ValBase (IntVal i)]] -> pure $ ValArray [] [ValBase (FloatVal $ int2Float i)])
   ]

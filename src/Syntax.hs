@@ -201,7 +201,7 @@ elemType (ArrayType (A t _)) = t
 -- | Base values.
 data Base
   = BoolVal Bool
-  | IntVal Integer
+  | IntVal Int
   | FloatVal Float
   deriving (Show, Eq, Ord)
 

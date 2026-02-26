@@ -28,7 +28,7 @@ data Dim v
   = -- | A dimension variable.
     DimVar v
   | -- | A numeric dimension.
-    DimN Integer
+    DimN Int
   | -- | Addition of dimensions.
     Add [Dim v]
   | -- | Multiplication of dimensions.
@@ -191,5 +191,5 @@ normShape (Concat ss) =
           s' -> pure s'
 
 -- | Turns an explicit list of dimensions into a 'Shape'.
-intsToShape :: [Integer] -> Shape v
+intsToShape :: [Int] -> Shape v
 intsToShape ds = Concat $ map (ShapeDim . DimN) ds

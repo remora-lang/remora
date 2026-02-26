@@ -358,7 +358,7 @@ compileExp e@(App f@(Var v _ _) [x, y] (Info (t, pframe)) _)
           y' <- compileExp y
           x'' <- rep (asVar x') (arrayTypeOf x) $ fromMaybe mempty (pframe \\ shapeOf x)
           y'' <- rep (asVar y') (arrayTypeOf y) $ fromMaybe mempty (pframe \\ shapeOf y)
-          F.Var <$> (map1 op (fromIntegral n) (arrayTypeOf f) [x'', y''] =<< compileArrayType t)
+          F.Var <$> (map1 op n (arrayTypeOf f) [x'', y''] =<< compileArrayType t)
         Concat [] -> compileBinOp op t x y
         _ -> error $ "compileExp: unhandled\n" ++ show e
   where
@@ -381,7 +381,7 @@ compileExp e@(App f xs (Info (t, pframe)) _) = do
 
     intDim :: Dim -> Int
     intDim (DimVar d) = error "intDim: AAAAAAAAAAAAAAAAAAA"
-    intDim (DimN d) = fromIntegral d
+    intDim (DimN d) = d
     intDim (Add ds) = sum $ map intDim ds
 
     intShape :: Shape -> [Int]

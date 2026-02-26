@@ -51,9 +51,9 @@ data Env = Env
     -- | Type variables to types.
     envTMap :: Map VName Type,
     -- | Dim variables to dim literals.
-    envDMap :: Map VName Integer,
+    envDMap :: Map VName Int,
     -- | Shape variables to shape literals.
-    envSMap :: Map VName [Integer]
+    envSMap :: Map VName [Int]
   }
 
 -- | The initial environment. Takes a type checked prelude to populate the
@@ -96,7 +96,7 @@ lookupVal v = do
     Just val -> pure val
 
 -- | Lookup a shape variable.
-lookupShape :: VName -> InterpM [Integer]
+lookupShape :: VName -> InterpM [Int]
 lookupShape v = do
   ms <- asks ((M.!? v) . envSMap)
   case ms of
@@ -109,7 +109,7 @@ lookupShape v = do
     Just s -> pure s
 
 ---- | Lookup a dim variable.
-lookupDim :: VName -> InterpM Integer
+lookupDim :: VName -> InterpM Int
 lookupDim v = do
   md <- asks ((M.!? v) . envDMap)
   case md of
@@ -132,7 +132,7 @@ tbind v t =
   local (\env -> env {envTMap = M.insert v t $ envTMap env})
 
 -- | Locally bind an index variable to a shape literal.
-ibind :: VName -> Either Integer [Integer] -> InterpM a -> InterpM a
+ibind :: VName -> Either Int [Int] -> InterpM a -> InterpM a
 ibind v (Left d) =
   local (\env -> env {envDMap = M.insert v d $ envDMap env})
 ibind v (Right s) =
@@ -148,13 +148,13 @@ binds f ((v, val) : vvals) m =
 intExp :: Exp -> InterpM Val
 intExp (Var v _ _) = lookupVal v
 intExp (Array shape as _ _) =
-  ValArray (map toInteger shape) <$> mapM intAtom as
+  ValArray shape <$> mapM intAtom as
 intExp (EmptyArray shape _ _ _) =
-  pure $ ValArray (map toInteger shape) mempty
+  pure $ ValArray shape mempty
 intExp (Frame shape es _ _) =
-  ValArray (map toInteger shape) <$> mapM intExp es
+  ValArray shape <$> mapM intExp es
 intExp (EmptyFrame shape _ _ _) =
-  pure $ ValArray (map toInteger shape) mempty
+  pure $ ValArray shape mempty
 intExp expr@(App f es (Info (_, pframe)) _) = do
   pframe' <- intShape pframe
   f' <- arrayifyVal <$> intExp f
@@ -199,7 +199,7 @@ intExp expr@(IApp e is _ _) = do
   is' <- mapM intExtent is
   iapply e' is'
   where
-    iapply :: Val -> [Either Integer [Integer]] -> InterpM Val
+    iapply :: Val -> [Either Int [Int]] -> InterpM Val
     iapply (ValIFun f) extents = f extents
     iapply (ValArray shape fs) shapes = do
       ValArray shape <$> mapM (`iapply` shapes) fs
@@ -255,7 +255,7 @@ intExp expr@(Let bs e _ _) =
     intBind _ m = m
 
 -- | Interpret a 'Dim'.
-intDim :: Dim -> InterpM Integer
+intDim :: Dim -> InterpM Int
 intDim (DimVar d) = lookupDim d
 intDim (DimN d) = pure d
 intDim (Add ds) = sum <$> mapM intDim ds
@@ -267,13 +267,13 @@ intDim (Sub (d:ds)) = do
   pure $ d' - ds'
 
 -- | Interpret a 'Shape'.
-intShape :: Shape -> InterpM [Integer]
+intShape :: Shape -> InterpM [Int]
 intShape (ShapeVar s) = lookupShape s
 intShape (ShapeDim d) = pure <$> intDim d
 intShape (Concat ss) = concat <$> mapM intShape ss
 
 -- | Interpret an 'Extent'.
-intExtent :: Extent -> InterpM (Either Integer [Integer])
+intExtent :: Extent -> InterpM (Either Int [Int])
 intExtent = mapExtent (fmap Left . intDim) (fmap Right . intShape)
 
 -- | Interpret a type expression.
@@ -306,7 +306,7 @@ intAtom (Box extents e _ _ _) = do
   ValBox extents' <$> intExp e
 
 -- | Replicates cells to make shapes match for function application.
-lift :: [Integer] -> Val -> ([[Integer]], [Val]) -> (Val, [Val])
+lift :: [Int] -> Val -> ([[Int]], [Val]) -> (Val, [Val])
 lift pframe (ValArray fsshape fs) (sparams, argvs) =
   (ValArray pframe fs', lifted_argvs)
   where
@@ -317,7 +317,7 @@ lift pframe (ValArray fsshape fs) (sparams, argvs) =
     -- lift each argument to the new frame
     lifted_argvs = zipWith liftArg sparams argvs
 
-    liftArg :: [Integer] -> Val -> Val
+    liftArg :: [Int] -> Val -> Val
     liftArg shape_param arg =
       arrayValView arg $ \(shapeArg, as) ->
         -- Number of cells the argument expects.
@@ -331,7 +331,7 @@ lift _ v _ = error $ prettyString v
 
 -- | Performs a function application between an array
 -- of functions and arguments that have compatible shapes.
-apMap :: Val -> ([[Integer]], [Val]) -> InterpM Val
+apMap :: Val -> ([[Int]], [Val]) -> InterpM Val
 apMap v (sparams, argvs) =
   arrayValView v $ \(shape_f, fs) ->
     (collapse . ValArray shape_f) <$> zipWithM apply_fun fs arg_splits
