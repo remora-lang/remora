@@ -18,12 +18,12 @@
 ### With Nix (recommended)
 If you use Nix, the easiest option is to enter a development shell that provides
 the `remora` binary:
-```bash
+```
 $ nix develop
 ```
 
 If flakes aren’t enabled on your system, either enable them globally or run:
-```bash
+```
 $ nix develop --extra-experimental-features flakes
 ```
 
@@ -34,38 +34,37 @@ working Haskell installation on your machine;
 
 To install `remora` to your local binary directory (defaults to `~/.local/bin`):
 
-```bash
+```
 $ cabal install
 ```
 
 If you’d rather build without installing:
-```bash
+```
 $ cabal build
 $ cabal exec -- remora interpret -e "(+ 1 2)"
 ```
 
 ## Running
 List available modes and global options:
-```bash
+```
 $ remora --help
 ```
 
 You can also ask for help for a specific mode. For example:
-```bash
+```
 $ remora interpret --help
 ```
 
 ## Examples
 ### Remora Interpreter
 `remora` can interpret either in a REPL
-```bash
+```
 $ remora repl
 >> (+ 1 2)
 3
->>
 ```
 or on the CLI (e.g., if you want to pass a program as a file or via STDIN)
-```bash
+```
 $ remora interpret -f tests/basic0.remora
 [3 6]
 ```
@@ -77,14 +76,14 @@ compiler generates Futhark IR code that is then parsed and compiled by Futhark
 to C or CUDA.
 
 This option is accessed via the `futhark` mode:
-```bash
+```
 $ remora futhark -f tests/basic0.remora
 ```
 
 If no backend is specified via `-b`/`--backend=`, `remora futhark` simply
 outputs Futhark IR. Specifying a backend will yield a target `.c` file as well
 an excutable binary in current directory:
-```bash
+```
 $ remora futhark -f tests/basic0.remora --backend=cuda
 $ ./basic0
 Reading input from TTY.
@@ -98,7 +97,7 @@ Send EOF (CTRL-d) after typing all input values.
 for specific environment variable instructions.
 
 If you're running on NixOS
-```bash
+```
 $ nix develop '.#cuda'
 ```
 should populate the environment variables appropriately and also pulls in the CUDA toolkit dependency.
