@@ -20,45 +20,64 @@
       imports = [ inputs.haskell-flake.flakeModule ];
 
       perSystem =
-        {
-          self',
-          lib,
-          config,
-          system,
-          ...
-        }:
+        { self', pkgs, ... }:
         let
-
-          pkgs = import inputs.nixpkgs {
-            inherit system;
-            config.allowUnfree = true;
+          remora-wrapped = pkgs.stdenv.mkDerivation {
+            name = "remora-wrapped";
+            nativeBuildInputs = [ pkgs.makeWrapper ];
+            src = self'.packages.remora;
+            installPhase = ''
+              mkdir -p $out/bin
+              makeWrapper $src/bin/remora $out/bin/remora \
+                --prefix PATH : "${pkgs.z3}/bin"
+            '';
           };
         in
         {
           haskellProjects.default = {
             packages.sbv.source = inputs.sbv;
             settings.sbv.check = false; # sbv tests fail
+            devShell = {
+              tools = hp: {
+                z3 = pkgs.z3;
+                nixfmt = pkgs.nixfmt;
+              };
+              hlsCheck.enable = true;
+            };
           };
 
-          devShells.default = lib.mkForce (
-            pkgs.mkShell {
-              inputsFrom = [ config.haskellProjects.default.outputs.devShell ];
-              packages = with pkgs; [
-                z3
-                futhark
-                cudatoolkit
+          packages.default = self'.packages.remora-all;
+
+          packages = {
+            inherit remora-wrapped;
+
+            remora-all = pkgs.buildEnv {
+              name = "remora-all";
+              paths = [
+                remora-wrapped
+                self'.packages.remora-docs
               ];
-              shellHook = ''
-                export CUDA_PATH="''${CUDA_PATH:+$CUDA_PATH:}${pkgs.cudatoolkit}"
+            };
 
-                # Only works on NixOS:
-                export LD_LIBRARY_PATH="''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}/run/opengl-driver/lib"
-                export LIBRARY_PATH="''${LIBRARY_PATH:+:$LIBRARY_PATH}/run/opengl-driver/lib"
+            remora-docs = pkgs.stdenv.mkDerivation {
+              pname = "remora-docs";
+              version = "0.1";
+              src = ./.;
+              nativeBuildInputs = [ pkgs.sphinx ];
+              phases = [
+                "buildPhase"
+                "installPhase"
+              ];
+              buildPhase = ''
+                mkdir -p "docs/_build/html"
+                sphinx-build -b html "$src/docs" "docs/_build/html"
               '';
-            }
-          );
-
-          packages.default = self'.packages.remora;
+              installPhase = ''
+                mkdir -p "$out/docs"
+                cp -r docs/_build/html "$out/docs/html"
+              '';
+            };
+          };
         };
     };
 }
