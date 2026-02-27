@@ -47,13 +47,14 @@
                 z3
                 futhark
                 cudatoolkit
-                linuxPackages.nvidia_x11
               ];
               shellHook = ''
-                export CUDA_PATH="${pkgs.cudaPackages.cudatoolkit}''${CUDA_PATH:+:}$CUDA_PATH"
-                export LD_LIBRARY_PATH="/run/opengl-driver/lib''${LD_LIBRARY_PATH:+:}$LD_LIBRARY_PATH"
-              '';
+                export CUDA_PATH="''${CUDA_PATH:+$CUDA_PATH:}${pkgs.cudatoolkit}"
 
+                # Only works on NixOS:
+                export LD_LIBRARY_PATH="''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}/run/opengl-driver/lib"
+                export LIBRARY_PATH="''${LIBRARY_PATH:+:$LIBRARY_PATH}/run/opengl-driver/lib"
+              '';
             }
           );
 
