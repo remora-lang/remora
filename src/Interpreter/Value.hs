@@ -101,7 +101,7 @@ arrayValView v m = arrayValViews [v] (m . head)
 
 -- | An array view on a values.
 arrayValViews :: [Val m] -> ([([Int], [Val m])] -> a) -> a
-arrayValViews vs m = m $ map unpack vs
+arrayValViews vs m = m $ map (unpack . collapse) vs
   where
     unpack (ValArray shape vs') = (shape, vs')
     unpack v = (mempty, [v])
