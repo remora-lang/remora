@@ -33,7 +33,7 @@ contents = pkgs.buildEnv {
 
   extraCommands = ''
     mkdir remora
-    cp -r ${remoraRepo}/.* remora/.
+    cp -r ${remoraRepo}/* remora/.
   '';
 
   config = {
