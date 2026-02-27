@@ -9,10 +9,10 @@ import Data.Map (Map)
 import Data.Map qualified as M
 import Data.Maybe
 import Data.Text (Text)
+import Interpreter.Intrinsics
 import Interpreter.Value hiding (Val)
 import Interpreter.Value qualified as Value
 import Prop hiding ((\\))
-import RemoraPrelude (Prelude, PreludeVal (..))
 import Syntax hiding (ArrayType, Atom, Bind, Dim, Exp, Extent, Shape, Type, TypeExp)
 import Syntax qualified
 import Util
@@ -38,11 +38,10 @@ type TypeExp = Syntax.TypeExp VName
 
 type ArrayType = Syntax.ArrayType VName
 
--- | Interpret a program. Takes a type checked prelude to populate the initial
--- environment with.
-interpret :: Prelude VName InterpM -> Exp -> Either Error Val
-interpret prelude e =
-  runReader (runExceptT $ runInterpM $ intExp e) (initEnv prelude)
+-- | Interpret a program.
+interpret :: Exp -> Either Error Val
+interpret e =
+  runReader (runExceptT $ runInterpM $ intExp e) initEnv
 
 -- | The interpreter environment.
 data Env = Env
@@ -56,17 +55,23 @@ data Env = Env
     envSMap :: Map VName [Int]
   }
 
--- | The initial environment. Takes a type checked prelude to populate the
--- initial variable and type mappings.
-initEnv :: Prelude VName InterpM -> Env
-initEnv prelude = Env m tm mempty mempty
+instance Semigroup Env where
+  Env vs1 ts1 ds1 ss1 <> Env vs2 ts2 ds2 ss2 =
+    Env (vs1 <> vs2) (ts1 <> ts2) (ds1 <> ds2) (ss1 <> ss2)
+
+instance Monoid Env where
+  mempty = Env mempty mempty mempty mempty
+
+-- | The initial environment.
+initEnv :: Env
+initEnv = Env m tm mempty mempty
   where
     m =
       M.fromList $
-        map (\(PreludeVal v _ val) -> (v, val)) prelude
+        map (\(IntrinsicVal v _ val) -> (v, val)) (intrinsics :: Intrinsics InterpM)
     tm =
       M.fromList $
-        map (\(PreludeVal v t _) -> (v, Syntax.ArrayType t)) prelude
+        map (\(IntrinsicVal v t _) -> (v, Syntax.ArrayType t)) (intrinsics :: Intrinsics InterpM)
 
 type Error = Text
 
@@ -261,7 +266,7 @@ intDim (DimN d) = pure d
 intDim (Add ds) = sum <$> mapM intDim ds
 intDim (Mul ds) = product <$> mapM intDim ds
 intDim (Sub []) = pure 0
-intDim (Sub (d:ds)) = do
+intDim (Sub (d : ds)) = do
   d' <- intDim d
   ds' <- sum <$> mapM intDim ds
   pure $ d' - ds'

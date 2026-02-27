@@ -11,6 +11,7 @@ module Util
     asumM,
     unlessM,
     noSrcPos,
+    (.>),
   )
 where
 
@@ -68,3 +69,6 @@ unlessM test m = do
 
 noSrcPos :: SourcePos
 noSrcPos = SourcePos "<no location>" (mkPos 1) (mkPos 1)
+
+(.>) :: (a -> b) -> (b -> c) -> a -> c
+(.>) = flip (.)

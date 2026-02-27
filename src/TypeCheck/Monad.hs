@@ -1,15 +1,13 @@
 module TypeCheck.Monad
-  ( ArrayTypeVarBundle (..),
-    MonadCheck (..),
+  ( MonadCheck (..),
     CheckM (..),
     Error,
     initEnv,
     throwErrorPos,
-    fetchVar,
-    fetchAtomTypeVar,
-    fetchArrayTypeVar,
-    fetchDimVar,
-    fetchShapeVar,
+    inscopeVar,
+    inscopeAtomTypeVar,
+    inscopeDimVar,
+    inscopeShapeVar,
     lookupVar,
     lookupAtomType,
     lookupArrayType,
@@ -26,49 +24,43 @@ module TypeCheck.Monad
   )
 where
 
+import Control.Monad
 import Control.Monad.Error.Class
-import Control.Monad.RWS
+import Control.Monad.Reader
 import Control.Monad.Trans.Except
 import Data.Map (Map)
 import Data.Map qualified as M
+import Data.Set (Set)
+import Data.Set qualified as S
 import Data.Text (Text)
 import Data.Text qualified as T
+import Intrinsics
 import Prettyprinter
 import Prop
 import Syntax
 import Util
 import VName
 
-data ArrayTypeVarBundle v
-  = ArrayTypeVarBundle
-  { arrayTypeParam :: v,
-    atomTypeParam :: v,
-    shapeVar :: v
-  }
-  deriving (Eq, Show)
-
--- | Environment that maps the various categories of source names to 'VName's.
+-- | Environment that tracks in-scope names.
 data VNameEnv
   = VNameEnv
-  { -- | 'Text' vars to 'VName's.
-    vnameEnvVars :: Map Text VName,
-    -- | 'Text' atom type vars to 'VName's.
-    vnameEnvAtomTypeVars :: Map Text VName,
-    -- | 'Text' array type vars to 'VName's.
-    vnameEnvArrayTypeVarBundles :: Map Text (ArrayTypeVarBundle VName),
-    -- | 'Text' dim vars to 'VName's.
-    vnameEnvDimVars :: Map Text VName,
-    -- | 'Text' shape vars to 'VNames.
-    vnameEnvShapeVars :: Map Text VName
+  { -- | vars .
+    vnameEnvVars :: Set VName,
+    -- | atom type vars.
+    vnameEnvAtomTypeVars :: Set VName,
+    -- | dim vars.
+    vnameEnvDimVars :: Set VName,
+    -- | shape vars.
+    vnameEnvShapeVars :: Set VName
   }
   deriving (Eq, Show)
 
 instance Semigroup VNameEnv where
-  VNameEnv vs1 ats1 ts1 ds1 ss1 <> VNameEnv vs2 ats2 ts2 ds2 ss2 =
-    VNameEnv (vs1 <> vs2) (ats1 <> ats2) (ts1 <> ts2) (ds1 <> ds2) (ss1 <> ss2)
+  VNameEnv vs1 ats1 ds1 ss1 <> VNameEnv vs2 ats2 ds2 ss2 =
+    VNameEnv (vs1 <> vs2) (ats1 <> ats2) (ds1 <> ds2) (ss1 <> ss2)
 
 instance Monoid VNameEnv where
-  mempty = VNameEnv mempty mempty mempty mempty mempty
+  mempty = VNameEnv mempty mempty mempty mempty
 
 -- | Environment that maps the various categories of things you can bind to
 -- their bindings.
@@ -96,7 +88,7 @@ instance Monoid BindEnv where
 
 -- | The typechecker environment.
 data Env = Env
-  { -- | Enviroment that maps 'Text' vars (of various kinds) to 'VName's.
+  { -- | Enviroment that tracks in-scope 'VName's.
     envVNames :: VNameEnv,
     -- | Environment that maps 'VName's (of various kinds) to their bindings.
     envBinds :: BindEnv
@@ -109,9 +101,13 @@ instance Semigroup Env where
 instance Monoid Env where
   mempty = Env mempty mempty
 
--- | The initial environment. (It's just empty.)
+-- | The initial environment. Includes intrinsics.
 initEnv :: Env
-initEnv = mempty
+initEnv =
+  Env
+    { envVNames = mempty {vnameEnvVars = S.fromList $ M.keys intrinsics},
+      envBinds = mempty {bindEnvVars = intrinsics}
+    }
 
 -- | Throw an error with source position information.
 throwErrorPos :: (MonadError Text m) => SourcePos -> Text -> m a
@@ -127,18 +123,16 @@ type Error = Text
 type MonadCheck m =
   ( Monad m,
     MonadReader Env m,
-    MonadState Tag m,
     MonadError Error m
   )
 
 -- | The typechecker monad.
-newtype CheckM a = CheckM {runCheckM :: ExceptT Error (RWS Env () Tag) a}
+newtype CheckM a = CheckM {runCheckM :: ExceptT Error (Reader Env) a}
   deriving
     ( Functor,
       Applicative,
       Monad,
       MonadReader Env,
-      MonadState Tag,
       MonadError Error
     )
 
@@ -158,43 +152,40 @@ lookupEnv ::
   ) =>
   Text ->
   a ->
-  (env -> Maybe b) ->
-  m b
-lookupEnv t a look = do
-  mb <- asks look
-  case mb of
-    Nothing -> throwError $ "Unknown " <> t <> " var: " <> prettyText a
-    Just b -> pure b
+  (env -> Bool) ->
+  m ()
+lookupEnv t a look =
+  unlessM (asks look) $
+    throwError $
+      "Unknown " <> t <> " var: " <> prettyText a
 
--- | Fetch the unique name for a variable.
-fetchVar :: (MonadCheck m) => Text -> m VName
-fetchVar v =
-  lookupEnv "text" v $ (M.!? v) . vnameEnvVars . envVNames
+-- | Is this variable in scope?
+inscopeVar :: (MonadCheck m) => VName -> m ()
+inscopeVar v =
+  lookupEnv "text" v $ (S.member v) . vnameEnvVars . envVNames
 
--- | Fetch the unique name for an atom type variable.
-fetchAtomTypeVar :: (MonadCheck m) => Text -> m VName
-fetchAtomTypeVar v =
-  lookupEnv "text atom type" v $ (M.!? v) . vnameEnvAtomTypeVars . envVNames
+-- | Is this atom type variable in scope?
+inscopeAtomTypeVar :: (MonadCheck m) => VName -> m ()
+inscopeAtomTypeVar v =
+  lookupEnv "text atom type" v $ (S.member v) . vnameEnvAtomTypeVars . envVNames
 
--- | Fetch the unique name for an array type variable.
-fetchArrayTypeVar :: (MonadCheck m) => Text -> m (ArrayTypeVarBundle VName)
-fetchArrayTypeVar v =
-  lookupEnv "text array type" v $ (M.!? v) . vnameEnvArrayTypeVarBundles . envVNames
+-- | Is this dim variable in scope?
+inscopeDimVar :: (MonadCheck m) => VName -> m ()
+inscopeDimVar v =
+  lookupEnv "text dim" v $ (S.member v) . vnameEnvDimVars . envVNames
 
--- | Fetch the unique name for a dim variable.
-fetchDimVar :: (MonadCheck m) => Text -> m VName
-fetchDimVar v =
-  lookupEnv "text dim" v $ (M.!? v) . vnameEnvDimVars . envVNames
-
--- | Fetch the unique name for a shape variable.
-fetchShapeVar :: (MonadCheck m) => Text -> m VName
-fetchShapeVar v =
-  lookupEnv "text shape" v $ (M.!? v) . vnameEnvShapeVars . envVNames
+-- | Is this shape variable in scope?
+inscopeShapeVar :: (MonadCheck m) => VName -> m ()
+inscopeShapeVar v =
+  lookupEnv "text shape" v $ (S.member v) . vnameEnvShapeVars . envVNames
 
 -- | Look-up the type of a term variable.
 lookupVar :: (MonadCheck m) => VName -> m (ArrayType VName)
-lookupVar v =
-  lookupEnv "" v $ (M.!? v) . bindEnvVars . envBinds
+lookupVar vname = do
+  mt <- asks $ (M.!? vname) . bindEnvVars . envBinds
+  case mt of
+    Nothing -> error $ "Unknown var: " <> prettyString vname
+    Just t -> pure t
 
 -- | Look-up an atom type variable binding.
 lookupAtomType :: (MonadCheck m) => VName -> m (Maybe (TypeExp VName))
@@ -218,12 +209,11 @@ lookupShape v =
 
 withPatParam ::
   (MonadCheck m) =>
-  (TypeExp Text -> m (TypeExp VName)) ->
-  Pat NoInfo Text ->
+  (TypeExp VName -> m (TypeExp VName)) ->
+  Pat NoInfo VName ->
   (Pat Info VName -> m a) ->
   m a
-withPatParam checkType p@(PatId v t _ pos) m = do
-  vname <- newVName v
+withPatParam checkType p@(PatId vname t _ pos) m = do
   t' <- checkType t
   case convertArrayTypeExp t' of
     Nothing ->
@@ -234,7 +224,7 @@ withPatParam checkType p@(PatId v t _ pos) m = do
             T.pack $ show t
           ]
     Just at ->
-      localVNames (\vnames -> vnames {vnameEnvVars = M.insert v vname $ vnameEnvVars vnames}) $
+      localVNames (\vnames -> vnames {vnameEnvVars = S.insert vname $ vnameEnvVars vnames}) $
         localBinds (\bs -> bs {bindEnvVars = M.insert vname at $ bindEnvVars bs}) $
           m $
             PatId vname t' (Info at) pos
@@ -243,71 +233,59 @@ withPatParam checkType p@(PatId v t _ pos) m = do
 withParam ::
   (MonadCheck m) =>
   (t -> m (ArrayType VName)) ->
-  (Text, t) ->
+  (VName, t) ->
   ((VName, ArrayType VName) -> m a) ->
   m a
-withParam checkArrayType (v, t) m = do
-  vname <- newVName v
+withParam checkArrayType (vname, t) m = do
   t' <- checkArrayType t
-  localVNames (\vnames -> vnames {vnameEnvVars = M.insert v vname $ vnameEnvVars vnames}) $
+  localVNames (\vnames -> vnames {vnameEnvVars = S.insert vname $ vnameEnvVars vnames}) $
     localBinds (\bs -> bs {bindEnvVars = M.insert vname t' $ bindEnvVars bs}) $
       m (vname, t')
 
 -- | Bind a source parameter into a local environment.
-withParam' :: (MonadCheck m) => (Text, ArrayType VName) -> (VName -> m a) -> m a
-withParam' (v, t) f = withParam pure (v, t) (f . fst)
+withParam' :: (MonadCheck m) => (VName, ArrayType VName) -> (VName -> m a) -> m a
+withParam' (vname, t) f = withParam pure (vname, t) (f . fst)
 
 -- | Bind a source type parameter into a local environment.
-withTypeParam :: (MonadCheck m) => TypeParam Text -> (TypeParam VName -> m a) -> m a
-withTypeParam (AtomTypeParam v) m = do
-  vname <- newVName v
+withTypeParam :: (MonadCheck m) => TypeParam VName -> (TypeParam VName -> m a) -> m a
+withTypeParam (AtomTypeParam vname) m = do
   localVNames
     ( \vnames ->
         vnames
           { vnameEnvAtomTypeVars =
-              M.insert v vname $ vnameEnvAtomTypeVars vnames
+              S.insert vname $ vnameEnvAtomTypeVars vnames
           }
     )
     $ m (AtomTypeParam vname)
-withTypeParam (ArrayTypeParam v) m = do
-  vname <- newVName v
-  et_vname <- newVName $ "*" <> v
-  s_vname <- newVName $ "*" <> v
-  localVNames
-    ( \vnames ->
-        vnames
-          { vnameEnvArrayTypeVarBundles =
-              M.insert v (ArrayTypeVarBundle vname et_vname s_vname) $
-                vnameEnvArrayTypeVarBundles vnames
-          }
-    )
-    $ m (ArrayTypeParam vname)
+withTypeParam p@(ArrayTypeParam v) m =
+  error $ "withTypeParam: should never happen: " <> prettyString p
 
 -- | Bind a source type parameter into a local environment.
-withExtentParam :: (MonadCheck m) => ExtentParam Text -> (ExtentParam VName -> m a) -> m a
-withExtentParam p m = do
-  vname <- newVName $ unExtentParam p
+withExtentParam :: (MonadCheck m) => ExtentParam VName -> (ExtentParam VName -> m a) -> m a
+withExtentParam p m =
   localVNames
     ( \vnames ->
         case p of
           DimParam v ->
             vnames
               { vnameEnvDimVars =
-                  M.insert v vname $ vnameEnvDimVars vnames
+                  S.insert vname $ vnameEnvDimVars vnames
               }
           ShapeParam v ->
             vnames
               { vnameEnvShapeVars =
-                  M.insert v vname $ vnameEnvShapeVars vnames
+                  S.insert vname $ vnameEnvShapeVars vnames
               }
     )
     $ m (vname <$ p)
+  where
+    vname = unExtentParam p
 
 -- | Bind a type binding.
 withType ::
   (MonadCheck m) =>
-  (TypeExp Text -> m (TypeExp VName)) ->
-  (TypeParam Text, TypeExp Text) ->
+  (TypeExp VName -> m (TypeExp VName)) ->
+  (TypeParam VName, TypeExp VName) ->
   ((TypeParam VName, TypeExp VName) -> m a) ->
   m a
 withType checkTypeExp (p, t) m =
@@ -332,9 +310,9 @@ withType checkTypeExp (p, t) m =
 -- | Bind an index binding.
 withExtent ::
   (MonadCheck m) =>
-  (Extent Text -> m (Extent VName)) ->
+  (Extent VName -> m (Extent VName)) ->
   SourcePos ->
-  (ExtentParam Text, Extent Text) ->
+  (ExtentParam VName, Extent VName) ->
   ((ExtentParam VName, Extent VName) -> m a) ->
   m a
 withExtent checkExtent pos (p, ext) m =

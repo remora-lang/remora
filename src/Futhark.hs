@@ -14,7 +14,6 @@ import Futhark.IR.SOACS qualified as F
 import Prettyprinter
 import Prettyprinter.Render.Text
 import Prop
-import RemoraPrelude (Prelude)
 import Substitute
 import Syntax hiding (ArrayType, Atom, AtomType, Bind, Dim, Exp, Extent, Pat, Shape, Type)
 import Syntax qualified
@@ -457,8 +456,8 @@ wrapInMain ((e, ret), State stms counter funs _) =
       ]
 
 -- | Turn Remora into Futhark.
-compile :: Prelude VName FutharkM -> Exp -> Either Error T.Text
-compile _prelude e =
+compile :: Exp -> Either Error T.Text
+compile e =
   wrapInMain
     <$> runExcept
       ( runReaderT

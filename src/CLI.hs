@@ -4,20 +4,17 @@
 module CLI (main) where
 
 import CLI.REPL qualified
-import Control.Monad
 import Data.Maybe
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
-import Futhark qualified
-import Interpreter qualified
 import Parser qualified
+import Pipeline qualified
 import SExp
 import System.Console.CmdArgs
 import System.FilePath (dropExtension, takeFileName, (</>))
 import System.IO
 import System.Process
-import TypeCheck
 import Util
 import Prelude hiding (exp)
 
@@ -109,8 +106,7 @@ main = do
       input <- handleInput mfile mexpr
       let m = do
             expr <- doParse mfile input
-            (prelude, expr') <- check expr
-            Interpreter.interpret prelude expr'
+            Pipeline.interpret expr
       case m of
         Left err -> T.putStrLn err
         Right v -> T.putStrLn $ prettyText v
@@ -118,8 +114,7 @@ main = do
       input <- handleInput mfile mexpr
       let m = do
             expr <- doParse mfile input
-            (prelude, expr') <- check expr
-            Futhark.compile prelude expr'
+            Pipeline.compile expr
       case m of
         Left err -> T.putStrLn err
         Right v ->

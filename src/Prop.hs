@@ -20,6 +20,7 @@ where
 
 import Control.Applicative
 import Control.Monad
+import Control.Monad.State
 import Data.Maybe
 import Prettyprinter
 import Shape
@@ -107,7 +108,7 @@ instance HasShape (Exp Info VName) where
 -- | Things that are types.
 class IsType x where
   normType :: x -> x
-  (~=) :: (MonadVName m) => x -> x -> m Bool
+  (~=) :: x -> x -> Bool
 
 infix 4 ~=
 
@@ -120,34 +121,25 @@ instance IsType (AtomType VName) where
 
   (ps :-> r) ~= (qs :-> t)
     | length ps == length qs =
-        andM (zipWith (~=) ps qs) ^&& (r ~= t)
+        and (zipWith (~=) ps qs) && (r ~= t)
   Forall ps r ~= Forall qs t
-    | length ps == length qs = do
-        xs <- forM ps $ \p -> do
-          vname <- newVName $ prettyText p
-          pure $ vname <$ p
-        substitute' (zip ps xs) r ~= substitute' (zip qs xs) t
+    | length ps == length qs =
+        substitute' (zip ps qs) r ~= t
   Pi ps r ~= Pi qs t
-    | length ps == length qs = do
-        xs <- forM ps $ \p -> do
-          vname <- newVName $ prettyText p
-          pure $ vname <$ p
-        substitute' (zip ps xs) r ~= substitute' (zip qs xs) t
+    | length ps == length qs =
+        substitute' (zip ps qs) r ~= t
   Sigma ps r ~= Sigma qs t
-    | length ps == length qs = do
-        xs <- forM ps $ \p -> do
-          vname <- newVName $ prettyText p
-          pure $ vname <$ p
-        substitute' (zip ps xs) r ~= substitute' (zip qs xs) t
-  t ~= r = pure $ t == r
+    | length ps == length qs =
+        substitute' (zip ps qs) r ~= t
+  t ~= r = t == r
 
 instance IsType (ArrayType VName) where
   normType (A t s) = A (normType t) (normShape s)
   normType t = t
 
   A t s ~= A y x =
-    (t ~= y) ^&& pure (s Symbolic.@= x)
-  t ~= r = pure $ t == r
+    (t ~= y) && (s Symbolic.@= x)
+  t ~= r = t == r
 
 instance IsType (Type VName) where
   normType (AtomType t) = AtomType $ normType t
@@ -155,7 +147,7 @@ instance IsType (Type VName) where
 
   AtomType t ~= AtomType r = t ~= r
   ArrayType t ~= ArrayType r = t ~= r
-  _ ~= _ = pure False
+  _ ~= _ = False
 
 -- | Naive shape equality.
 (@=) :: (Ord v) => Shape v -> Shape v -> Bool

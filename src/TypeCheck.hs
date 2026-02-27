@@ -1,13 +1,12 @@
 module TypeCheck (check) where
 
 import Control.Monad
-import Control.Monad.RWS
+import Control.Monad.Reader
 import Control.Monad.Trans.Except
 import Data.Map qualified as M
 import Data.Text (Text)
 import Data.Text qualified as T
 import Prop
-import RemoraPrelude
 import Substitute
 import Symbolic qualified
 import Syntax
@@ -16,30 +15,24 @@ import Util
 import VName
 
 -- | Type check a program.
-check ::
-  (Monad m) =>
-  Exp NoInfo Text ->
-  Either Error (Prelude VName m, Exp Info VName)
+check :: Exp NoInfo VName -> Either Error (Exp Info VName)
 check e =
-  fst $
-    evalRWS
-      ( runExceptT $
-          runCheckM $
-            withPrelude $
-              checkExp e
-      )
-      initEnv
-      initTag
+  runReader
+    ( runExceptT $
+        runCheckM $
+          checkExp e
+    )
+    initEnv
 
 -- | Check a 'Dim'.
-checkDim :: (MonadCheck m) => Dim Text -> m (Dim VName)
+checkDim :: (MonadCheck m) => Dim VName -> m (Dim VName)
 checkDim = fmap normDim . checkDim'
   where
-    checkDim' (DimVar v) = do
-      v' <- fetchDimVar v
-      md <- lookupDim v'
+    checkDim' (DimVar vname) = do
+      inscopeDimVar vname
+      md <- lookupDim vname
       case md of
-        Nothing -> pure $ DimVar v'
+        Nothing -> pure $ DimVar vname
         Just d -> pure d
     checkDim' (DimN d) = pure $ DimN d
     checkDim' (Add ds) = Add <$> mapM checkDim' ds
@@ -47,60 +40,37 @@ checkDim = fmap normDim . checkDim'
     checkDim' (Mul ds) = Mul <$> mapM checkDim' ds
 
 -- | Check a 'Shape'.
-checkShape :: (MonadCheck m) => Shape Text -> m (Shape VName)
+checkShape :: (MonadCheck m) => Shape VName -> m (Shape VName)
 checkShape = fmap normShape . checkShape'
   where
-    checkShape' (ShapeVar v) = do
-      v' <- fetchShapeVar v
-      ms <- lookupShape v'
+    checkShape' (ShapeVar vname) = do
+      inscopeShapeVar vname
+      ms <- lookupShape vname
       case ms of
-        Nothing -> pure $ ShapeVar v'
+        Nothing -> pure $ ShapeVar vname
         Just s -> pure s
     checkShape' (ShapeDim d) = ShapeDim <$> checkDim d
     checkShape' (Concat ss) = Concat <$> mapM checkShape' ss
 
 -- | Check an `Extent`.
-checkExtent :: (MonadCheck m) => Extent Text -> m (Extent VName)
+checkExtent :: (MonadCheck m) => Extent VName -> m (Extent VName)
 checkExtent = mapExtent (fmap Dim . checkDim) (fmap Shape . checkShape)
 
 -- | Check a 'Type'.
-checkType :: (MonadCheck m) => Type Text -> m (Type VName)
+checkType :: (MonadCheck m) => Type VName -> m (Type VName)
 checkType = fmap normType . checkType'
   where
     checkType' (ArrayType t) = ArrayType <$> checkArrayType t
     checkType' (AtomType t) = AtomType <$> checkAtomType t
 
-checkArrayTypeExp :: (MonadCheck m) => TypeExp Text -> m (ArrayType VName)
-checkArrayTypeExp t = do
-  t' <- checkTypeExp t
-  case convertArrayTypeExp t' of
-    Nothing ->
-      throwErrorPos (posOf t) $
-        T.unlines
-          [ "Expected an array-kinded type:",
-            prettyText t
-          ]
-    Just at -> pure at
-
-checkAtomTypeExp :: (MonadCheck m) => TypeExp Text -> m (AtomType VName)
-checkAtomTypeExp t = do
-  t' <- checkTypeExp t
-  case convertAtomTypeExp t' of
-    Nothing ->
-      throwErrorPos (posOf t) $
-        T.unlines
-          [ "Expected an atom-kinded type:",
-            prettyText t
-          ]
-    Just at -> pure at
-
-checkArrayType :: (MonadCheck m) => ArrayType Text -> m (ArrayType VName)
+checkArrayType :: (MonadCheck m) => ArrayType VName -> m (ArrayType VName)
 checkArrayType (A t shape) =
   A <$> checkAtomType t <*> checkShape shape
 
-checkAtomType :: (MonadCheck m) => AtomType Text -> m (AtomType VName)
-checkAtomType (AtomTypeVar v) =
-  AtomTypeVar <$> fetchAtomTypeVar v
+checkAtomType :: (MonadCheck m) => AtomType VName -> m (AtomType VName)
+checkAtomType (AtomTypeVar vname) = do
+  inscopeAtomTypeVar vname
+  pure $ AtomTypeVar vname
 checkAtomType Bool = pure Bool
 checkAtomType Int = pure Int
 checkAtomType Float = pure Float
@@ -117,9 +87,9 @@ checkAtomType (Sigma pts t) = do
     Sigma pts' <$> checkArrayType t
 
 -- | Type check an unchecked 'Exp'.
-checkExp :: (MonadCheck m) => Exp NoInfo Text -> m (Exp Info VName)
-checkExp (Var v _ pos) = do
-  vname <- fetchVar v
+checkExp :: (MonadCheck m) => Exp NoInfo VName -> m (Exp Info VName)
+checkExp (Var vname _ pos) = do
+  inscopeVar vname
   t <- lookupVar vname
   pure $ Var vname (Info t) pos
 checkExp expr@(Array ns as _ pos) = do
@@ -129,7 +99,7 @@ checkExp expr@(Array ns as _ pos) = do
       throwErrorPos pos $
         "Empty array constructed without type: " <> prettyText expr
     (a' : _) -> do
-      unlessM (allM (\a'' -> typeOf a'' ~= typeOf a') as') $
+      unless (all (\a'' -> typeOf a'' ~= typeOf a') as') $
         throwErrorPos pos $
           "Atoms in array have different types: " <> prettyText expr
       unless (product ns == length as') $
@@ -154,7 +124,7 @@ checkExp expr@(Frame ns es _ pos) = do
       throwErrorPos pos $
         "Empty frame constructed without type: " <> prettyText expr
     (e' : _) -> do
-      unlessM (allM (\e'' -> typeOf e'' ~= typeOf e') es') $
+      unless (all (\e'' -> typeOf e'' ~= typeOf e') es') $
         throwErrorPos pos $
           "Expressions in frame have different types: " <> prettyText expr
       unless (product ns == length es') $
@@ -180,7 +150,7 @@ checkExp expr@(App f args _ pos) = do
       let check_args pt arg = do
             let pt_elem = arrayTypeAtom pt
                 arg_elem = elemType $ typeOf arg
-            unlessM (pt_elem ~= arg_elem) $
+            unless (pt_elem ~= arg_elem) $
               throwErrorPos pos $
                 T.unlines
                   [ "Ill-typed application:",
@@ -319,7 +289,7 @@ checkExp (Let bs e _ pos) = do
   where
     checkMaybeTypeExp ::
       (MonadCheck m) =>
-      Maybe (TypeExp Text) -> m (Maybe (TypeExp VName))
+      Maybe (TypeExp VName) -> m (Maybe (TypeExp VName))
     checkMaybeTypeExp Nothing = pure Nothing
     checkMaybeTypeExp (Just t) = Just <$> checkTypeExp t
 
@@ -332,7 +302,7 @@ checkExp (Let bs e _ pos) = do
         Just annot -> do
           case convertArrayTypeExp annot of
             Just at ->
-              unlessM (t ~= at) $
+              unless (t ~= at) $
                 throwErrorPos pos $
                   T.unlines
                     [ "Type:",
@@ -349,7 +319,7 @@ checkExp (Let bs e _ pos) = do
                     prettyText annot
                   ]
 
-    withBind :: (MonadCheck m) => Bind NoInfo Text -> (Bind Info VName -> m a) -> m a
+    withBind :: (MonadCheck m) => Bind NoInfo VName -> (Bind Info VName -> m a) -> m a
     withBind (BindVal v mt ve pos) m = do
       ve' <- checkExp ve
       let t = arrayTypeOf ve'
@@ -395,7 +365,7 @@ checkExp (Let bs e _ pos) = do
         m $ BindExtent ivar' extent' pos
 
 -- | Type check an unchecked 'Atom'.
-checkAtom :: (MonadCheck m) => Atom NoInfo Text -> m (Atom Info VName)
+checkAtom :: (MonadCheck m) => Atom NoInfo VName -> m (Atom Info VName)
 checkAtom (Base b _ pos) =
   pure $ Base b (Info $ baseTypeOf b) pos
 checkAtom (Lambda params e _ pos) = do
@@ -420,7 +390,7 @@ checkAtom atom@(Box extent e box_t _ pos) = do
   case convertAtomTypeExp box_t' of
     Just bt@(Sigma is t) -> do
       let t' = substitute' (zip is extent') t
-      unlessM (arrayTypeOf e' ~= t') $
+      unless (arrayTypeOf e' ~= t') $
         throwErrorPos pos $
           T.unlines
             [ "Wrong box type.",
@@ -437,19 +407,15 @@ checkAtom atom@(Box extent e box_t _ pos) = do
             prettyText atom
           ]
 
-checkTypeExp :: (MonadCheck m) => TypeExp Text -> m (TypeExp VName)
-checkTypeExp (TEAtomVar v pos) = do
-  vname <- fetchAtomTypeVar v
+checkTypeExp :: (MonadCheck m) => TypeExp VName -> m (TypeExp VName)
+checkTypeExp (TEAtomVar vname pos) = do
+  inscopeAtomTypeVar vname
   mt <- lookupAtomType vname
   case mt of
     Nothing -> pure $ TEAtomVar vname pos
     Just t -> pure t
-checkTypeExp (TEArrayVar v pos) = do
-  ArrayTypeVarBundle vname et_vname s_vname <- fetchArrayTypeVar v
-  mt <- lookupArrayType vname
-  case mt of
-    Nothing -> pure $ TEArrayVar vname pos
-    Just t -> pure t
+checkTypeExp te@(TEArrayVar v pos) =
+  error $ "checkTypeExp: should never happen: " <> prettyString te
 checkTypeExp (TEBool pos) = pure $ TEBool pos
 checkTypeExp (TEInt pos) = pure $ TEInt pos
 checkTypeExp (TEFloat pos) = pure $ TEFloat pos
@@ -468,11 +434,11 @@ checkTypeExp (TESigma params t pos) = do
     TESigma params' <$> checkTypeExp t <*> pure pos
 
 -- | Binds prelude bindings into the local environment.
-withPrelude :: (MonadCheck m, Monad n) => m a -> m (Prelude VName n, a)
-withPrelude m = checkPrelude prelude mempty
-  where
-    checkPrelude [] prelude' =
-      (reverse prelude',) <$> m
-    checkPrelude (PreludeVal f t v : ps) prelude' = do
-      withParam checkArrayType (f, t) $ \(f', t') ->
-        checkPrelude ps (PreludeVal f' t' v : prelude')
+-- withPrelude :: (MonadCheck m, Monad n) => m a -> m (Prelude VName n, a)
+-- withPrelude m = checkPrelude prelude mempty
+--  where
+--    checkPrelude [] prelude' =
+--      (reverse prelude',) <$> m
+--    checkPrelude (PreludeVal f t v : ps) prelude' = do
+--      withParam checkArrayType (f, t) $ \(f', t') ->
+--        checkPrelude ps (PreludeVal f' t' v : prelude')

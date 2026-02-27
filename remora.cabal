@@ -25,8 +25,11 @@ library
       Syntax
       Shape
       Parser
+      Primitive
       Interpreter
       Interpreter.Value
+      Interpreter.Intrinsics
+      Intrinsics
       Futhark
       TypeCheck
       TypeCheck.Monad
@@ -34,11 +37,15 @@ library
       Util
       CLI
       CLI.REPL
-      RemoraPrelude
       Prop
       Substitute
       SExp
       Symbolic
+      Uniquify
+      Uniquify.Monad
+      Uniquify.Type
+      Pipeline
+
     -- other-modules:
     -- other-extensions:
     build-depends:
