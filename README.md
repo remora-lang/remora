@@ -119,15 +119,15 @@ $ docker pull ghcr.io/remora-lang/remora:latest
 ```
 
 Launch the image with
-
 ```
-$ docker run --rm --device nvidia.com/gpu=all -it ghcr.io/remora-lang/remora:latest bash
+$ docker run --rm -it ghcr.io/remora-lang/remora:latest bash
 ```
 
 or with if you want to execute CUDA binaries
 
+
 ```
-$ docker run --rm -it ghcr.io/remora-lang/remora:latest bash
+$ docker run --rm --device nvidia.com/gpu=all -it ghcr.io/remora-lang/remora:latest bash
 ```
 
 Once the container launches, you'll be plopped into a shell at the root of the
