@@ -96,22 +96,22 @@ Send EOF (CTRL-d) after typing all input values.
 [3i32, 6i32]
 ```
 
-### Docker image
+## Docker image
 `remora` can be obtained as a Docker image from the [remora-lang packages
 page](https://github.com/orgs/remora-lang/packages). This image is based off of
 Nvidia's [Ubuntu CUDA container](https://hub.docker.com/r/nvidia/cuda).
 
-#### Dependencies
-##### Required:
+### Dependencies
+#### Required:
 - [Docker](https://www.docker.com/)
 
-##### Optional :
+#### Optional :
 - [Nvidia Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/index.html)
 - An Nvidia GPU
 
 This Nvidia stuff is required to executed binaries produced via the CUDA backend.
 
-#### Instructions
+### Instructions
 Pull the image from ghcr
 
 ```
