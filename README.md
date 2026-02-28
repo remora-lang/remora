@@ -95,3 +95,40 @@ Reading input from TTY.
 Send EOF (CTRL-d) after typing all input values.
 [3i32, 6i32]
 ```
+
+### Docker image
+`remora` can be obtained as a Docker image from the [remora-lang packages
+page](https://github.com/orgs/remora-lang/packages). This image is based off of
+Nvidia's [Ubuntu CUDA container](https://hub.docker.com/r/nvidia/cuda).
+
+#### Dependencies
+##### Required:
+- [Docker](https://www.docker.com/)
+
+##### Optional :
+- [Nvidia Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/index.html)
+- An Nvidia GPU
+
+This Nvidia stuff is required to executed binaries produced via the CUDA backend.
+
+#### Instructions
+Pull the image from ghcr
+
+```
+$ docker pull ghcr.io/remora-lang/remora:latest
+```
+
+Launch the image with
+
+```
+$ docker run --rm --device nvidia.com/gpu=all -it ghcr.io/remora-lang/remora:latest bash
+```
+
+or with if you want to execute CUDA binaries
+
+```
+$ docker run --rm -it ghcr.io/remora-lang/remora:latest bash
+```
+
+Once the container launches, you'll be plopped into a shell at the root of the
+`remora` repo with `remora` already built and on your path.
