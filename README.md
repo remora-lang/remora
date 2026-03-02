@@ -64,7 +64,17 @@ You can also execute directly via `cabal`:
 $ cabal exec -- remora interpret -e "(+ 1 2)"
 ```
 
-## Usage
+## Running
+### Run dependencies
+#### Required:
+- [`z3`](https://github.com/Z3Prover/z3)
+
+#### Optional:
+- [`futhark`](https://futhark-lang.org) (to compile to C/CUDA)
+- [CUDA Toolkit](https://developer.nvidia.com/cuda/toolkit) (to compile to CUDA)
+- An Nvidia GPU (to execute binaries produced via the CUDA backend)
+
+### Usage
 ```
 $ remora --help
 $ remora <mode> --help
