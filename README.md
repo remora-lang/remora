@@ -117,10 +117,9 @@ Send EOF (CTRL-d) after typing all input values.
 There are various basic test files in the `tests` directory. Most of them are
 self-explanatory.
 
-- `tests/accel.remora`
-Computes the acceleration of a particle on another. This is the core computation
-from the `examples/nbody.remora` program, which computes accelerations (due to
-gravity) between particles in space.
+`tests/accel.remora` computes the acceleration of a particle on another. This is
+the core computation from the `examples/nbody.remora` program, which computes
+accelerations (due to gravity) between particles in space.
 
 Since the compiler doesn't have a monomorphization pass at the moment,
 `nbody.remora` can't currently be compiled. However, `accel.remora` is
