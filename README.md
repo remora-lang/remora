@@ -1,93 +1,99 @@
 # Remora
+`remora` is a compiler and interpreter for the Remora programming language. It
+can interpret programs directly or compile them to C or CUDA via
+[Futhark](https://futhark-lang.org).
 
-## Requirements
+## Getting Started
+### With [Nix](https://nixos.org)
+To get a shell with the `remora` binary, just run
+```
+$ nix shell
+```
+
+> **Note:** `nix shell` does not set the environment variables needed for CUDA
+> compilation. Use `nix develop` instead (you'll have to build the `remora`
+> binary via `cabal`, see below), or set them manually per Futhark's
+> [docs](https://futhark.readthedocs.io/en/latest/man/futhark-cuda.html#environment).
+
+### With [Docker](https://www.docker.com/)
+Pull and run the image:
+```
+$ docker pull ghcr.io/remora-lang/remora:latest
+$ docker run --rm -it ghcr.io/remora-lang/remora:latest bash
+```
+
+To run CUDA-compiled binaries inside the container, you'll need:
+- [Nvidia Container
+  Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/index.html)
+- An Nvidia GPU (to execute binaries produced via the CUDA backend)
+
+Once you have the Nvidia Container Toolkit, pass through your GPU to the container when you run it:
+```
+$ docker run --rm --device nvidia.com/gpu=all -it ghcr.io/remora-lang/remora:latest bash
+```
+
+## Building
 ### Build dependencies
 #### Required:
 - [`ghc`](https://www.haskell.org/ghc/) (tested with 9.10.3)
 - [`cabal`](https://www.haskell.org/cabal/download.html)
 - [`z3`](https://github.com/Z3Prover/z3)
 
-### Run dependencies
-#### Required:
-- [`z3`](https://github.com/Z3Prover/z3)
-
-#### Optional:
-- [`futhark`](https://futhark-lang.org) (to compile to C/CUDA)
-- [CUDA Toolkit](https://developer.nvidia.com/cuda/toolkit) (to compile to CUDA)
-- An Nvidia GPU (to execute binaries produced via the CUDA backend)
-
-### Obtaining dependencies
-If you use Nix, the easiest option is to enter a development shell that provides all dependencies via
+#### With Nix
+Enter a development shell with all dependencies:
 ```
 $ nix develop
 ```
 
-If flakes aren’t enabled on your system, either enable them globally or run:
+#### With the Docker image
+The Docker image has all dependencies.
+
+### How to Build
+Build `remora` via `cabal`:
 ```
-$ nix develop --extra-experimental-features flakes
+$ cabal build
 ```
 
-If you don't use Nix, you'll have to install the required dependencies
-yourself. In this case, [`GHCup`](https://www.haskell.org/ghcup/) is the
-recommended installer to obtain a Haskell installation.
-
-### CUDA requirements
-Compiling to CUDA requires the [CUDA
-Toolkit](https://developer.nvidia.com/cuda/toolkit). The compiler also needs to
-be able to find the CUDA libraries; see
-[here](https://futhark.readthedocs.io/en/latest/man/futhark-cuda.html#environment)
-for specific environment variable instructions.
-
-## Building
-To install `remora` to your local binary directory (defaults to `~/.local/bin`):
+To install the `remora` binary to a local directory (configured in `cabal`, but it'll tell you where it installs to):
 ```
 $ cabal install
 ```
 
-If you’d rather build without installing:
+You can also execute directly via `cabal`:
 ```
-$ cabal build
 $ cabal exec -- remora interpret -e "(+ 1 2)"
 ```
 
-## Running
-List available modes and global options:
+## Usage
 ```
 $ remora --help
-```
-
-You can also ask for help for a specific mode. For example:
-```
-$ remora interpret --help
+$ remora <mode> --help
 ```
 
 ### Interpreter
-`remora` can interpret either in a REPL
+Run a REPL:
 ```
 $ remora repl
 >> (+ 1 2)
 3
 ```
-or on the CLI (e.g., if you want to pass a program as a file or via STDIN)
+
+Interpret a file:
 ```
 $ remora interpret -f tests/basic0.remora
 [3 6]
 ```
 
 ### Compiler
-The compiler is in early stages. At the moment, it can compile a limited
-monomorphic, first-order subset of the language to C or CUDA (via Futhark). The
-compiler generates Futhark IR code that is then parsed and compiled by Futhark
-to C or CUDA.
+The compiler targets C and CUDA via Futhark. It's currently in early stages and
+supports a monomorphic, first-order subset of the language.
 
-This option is accessed via the `futhark` mode:
+Without a backend specified, `remora futhark` outputs Futhark IR:
 ```
 $ remora futhark -f tests/basic0.remora
 ```
 
-If no backend is specified via `-b`/`--backend=`, `remora futhark` simply
-outputs Futhark IR. Specifying a backend will yield a target `.c` file as well
-an excutable binary in the current directory:
+With a backend, it produces a `.c` file and an executable binary in the current directory:
 ```
 $ remora futhark -f tests/basic0.remora --backend=cuda
 $ ./basic0
@@ -96,39 +102,21 @@ Send EOF (CTRL-d) after typing all input values.
 [3i32, 6i32]
 ```
 
-## Docker image
-`remora` can be obtained as a Docker image from the [remora-lang packages
-page](https://github.com/orgs/remora-lang/packages). This image is based off of
-Nvidia's [Ubuntu CUDA container](https://hub.docker.com/r/nvidia/cuda).
+## Examples
 
-### Dependencies
-#### Required:
-- [Docker](https://www.docker.com/)
+There are various basic test files in the `tests` directory.
 
-#### Optional :
-- [Nvidia Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/index.html)
-- An Nvidia GPU
+### `tests/accel.remora`
+Computes the acceleration of a particle on another. This is the core computation
+from the `examples/nbody.remora` program, which computes accelerations (due to
+gravity) between particles in space.
 
-This Nvidia stuff is required to executed binaries produced via the CUDA backend.
-
-### Instructions
-Pull the image from ghcr
+Since the compiler doesn't have a monomorphization pass at the moment,
+`nbody.remora` can't currently be compiled. However, `accel.remora` is
+monomorphic and can be compiled and run on a GPU:
 
 ```
-$ docker pull ghcr.io/remora-lang/remora:latest
+$ remora futhark -f tests/accel.remora --backend=cuda
+$ echo "" | ./accel
+[0.074032f32, 0.001346f32, 0.033651f32]
 ```
-
-Launch the image with
-```
-$ docker run --rm -it ghcr.io/remora-lang/remora:latest bash
-```
-
-or with if you want to execute CUDA binaries
-
-
-```
-$ docker run --rm --device nvidia.com/gpu=all -it ghcr.io/remora-lang/remora:latest bash
-```
-
-Once the container launches, you'll be plopped into a shell at the root of the
-`remora` repo with `remora` already built and on your path.
