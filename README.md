@@ -10,11 +10,6 @@ To get a shell with the `remora` binary, just run
 $ nix shell
 ```
 
-> **Note:** `nix shell` does not set the environment variables needed for CUDA
-> compilation. Use `nix develop` instead (you'll have to build the `remora`
-> binary yourself, see [Building](#building)) or set them manually (see [Run
-> dependencies](#run-dependencies)).
-
 ### With [Docker](https://www.docker.com/)
 Pull and run the image:
 ```
@@ -81,7 +76,8 @@ $ cabal exec -- remora interpret -e "(+ 1 2)"
 > compilation. See Futhark's
 > [docs](https://futhark.readthedocs.io/en/latest/man/futhark-cuda.html#environment)
 > for instructions on how to set them. If you're using the Docker image, this
-> should be unnecessary.
+> should be unnecessary. If you're using `nix shell` or if you're using `nix
+> develop` on a non-NixOS system, it will likely be necessary.
 
 ### Usage
 ```
