@@ -78,7 +78,7 @@ $ cabal exec -- remora interpret -e "(+ 1 2)"
 - An Nvidia GPU (to execute binaries produced via the CUDA backend)
 
 > **Note:** You may need to set environment variables needed for CUDA
-> compilation so the compiler can find the CUDA libraries.  See Futhark's
+> compilation. See Futhark's
 > [docs](https://futhark.readthedocs.io/en/latest/man/futhark-cuda.html#environment)
 > for instructions on how to set them. If you're using the Docker image, this
 > should be unnecessary.
