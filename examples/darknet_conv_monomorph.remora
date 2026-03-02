@@ -1,0 +1,66 @@
+(let (
+  (val input undefined-input) ; real world input
+  (val weights undefined-weights) ; real world input
+
+  (fun (replicate/i/3-2 (in [Int 2]) : [Int 3 2])
+    [in in in])
+  (fun (replicate/i/3-3-2 (in [Int 2]) : [Int 3 3 2])
+    [[in in in] [in in in] [in in in]])
+  (fun (replicate/f/1-610 (in [Float]) : [Float 1 610])
+    [((fn ((_x [Int])) in) iota/610)])
+
+  (fun (pad/f/608-1 (in [Float 608 608]) (zero [Float]) : [Float 610 610])
+    (let ((val (vert-pad : [Float 1 610]) (replicate/f/1-610 zero))
+          (val (hor-pad : [Float 1]) [zero]))
+      (append/f/1-609-610
+        vert-pad
+        (append/f/608-1-610
+          (append/f/1-609-_ hor-pad (append/f/608-1-_ in hor-pad))
+          vert-pad))))
+
+
+  (fun (idxs-of/608-608 : [Int 608 608 2])
+    ((fn ((i [Int]))
+       ((fn ((j [Int])) [i j]) iota/608))
+     iota/608))
+
+  (fun (idxs-of/3-3 : [Int 3 3 2])
+    ((fn ((i [Int]))
+       ((fn ((j [Int])) [i j]) iota/3))
+     iota/3))
+
+  (fun (subarray/f/607-3 (in [Float 610 610]) (offset [Int 2]) : [Float 3 3])
+    (index2d/f/610 in (+ (replicate/i/3-3-2 offset) (idxs-of/3-3))))
+
+  (fun (vec-subarray/f/3-607-3 (in [Float 3 610 610]) (offest [Int 3 2]) : [Float 3 3 3])
+    (subarray/f/607-3 in offest))
+
+
+
+  (fun (im2col/605-3-1-3 (im [Float 3 608 608]) : [Float (* 608 608) 27])
+    (flatten/f/608-608-27
+      (flatten/f/3-9-_
+        (flatten/f/3-3-_
+          (vec-subarray/f/3-607-3
+            (pad/f/608-1 im 0.0)
+            (replicate/i/3-2 (idxs-of/608-608)))))))
+
+  (fun (dot/27 (v [Float 27]) (w [Float 27]) : [Float])
+    (reduce/f/26 f.+ (f.* v w)))
+
+  (fun (lifted_dot/27-32 (v [Float 27]) (M [Float 27 32]) : [Float 32])
+    (dot/27 v (transpose/f/27-32 M)))
+
+  (fun (matmul/608_608-27-32 (xss [Float (* 608 608) 27])
+                             (yss [Float 27 32]) : [Float (* 608 608) 32])
+    (lifted_dot/27-32 xss yss))
+  ; because k = 3, p = 1, n - k + 2p + 1 = n, so the size does not change
+  (fun (conv2d/608-3-3-32-1
+                (in [Float 3 608 608])
+                (w  [Float 3 3 3 32])
+                : [Float (* 608 608) 32])
+    (matmul/608_608-27-32 (im2col/605-3-1-3 in)
+                          (flatten/f/3-9-32 (flatten/f/3-3-32 w))))
+  )
+  (conv2d/608-3-3-32-1 input weights)
+)

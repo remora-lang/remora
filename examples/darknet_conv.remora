@@ -1,7 +1,3 @@
-;; NEED:
-;;  - indexing/subarray
-
-
 (let (
   (val input (i-app (t-app undefined Float) [3 608 608])) ; real world input
   (val weights (i-app (t-app undefined Float) [3 3 3 32])) ; real world input
@@ -23,16 +19,6 @@
      ((fn ((i [Int]))
         ((fn ((j [Int])) [i j]) (i-app iota/static [$n])))
       (i-app iota/static [$m])))
-   ; TODO
-   (i-fun (idxs-of/im2col ($m $n $k) : [Int (* $m $n $k) 3])
-     (@flatten (Int) ($m (* $n $k) [3])
-       (@flatten (Int) ($n $k [3])
-          ((fn ((i [Int]))
-            ((fn ((j [Int]))
-               ((fn ((l [Int])) [i j l])
-                (i-app iota/static [$k])))
-             (i-app iota/static [$n])))
-           (i-app iota/static [$m])))))
   ; DONE
   (fun (@subarray/2 (&t) ($in-out $out)
                     (in [&t (+ $in-out $out) (+ $in-out $out)])
@@ -74,7 +60,7 @@
     (@dot _ ($m-1) v (@transpose2d (Float) ((+ 1 $m-1) $o) M)))
   ; DONE
   (fun (@matmul _ ($n $m-1 $o) (xss [Float $n (+ 1 $m-1)])
-                                 (yss [Float (+ 1 $m-1) $o]) : [Float $n $o])
+                               (yss [Float (+ 1 $m-1) $o]) : [Float $n $o])
       (@lifted_dot _ ($m-1 $o) xss yss))
   ; stride is omitted as in example stride = dilation = 1
   (fun (@conv-2d _ ($n-k $k $in-c $out-c $p)
@@ -83,7 +69,6 @@
                 : [Float (* (+ $n-k $p $p 1) (+ $n-k $p $p 1)) $out-c])
     (@matmul _ ((* (+ $n-k $p $p 1) (+ $n-k $p $p 1)) (- (* $k $k $in-c) 1) $out-c)
              ; out*out x k*k*in-c
-             ;(i-app (t-app undefined Float) [(* (+ $n-k $p $p 1) (+ $n-k $p $p 1)) (* $k $k $in-c)])
              (@im2col _ ($n-k $k $p $in-c) in)
              ; matrix k*k*in-c x out-c
              (@flatten (Float) ($in-c (* $k $k) [$out-c])

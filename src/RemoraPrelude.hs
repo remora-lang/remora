@@ -423,5 +423,100 @@ prelude =
     PreludeVal
       "i->f"
       (mkScalarArrayType ([A Int $ Concat []] :-> (A Float $ Concat [])))
-      (ValFun $ \[ValArray [] [ValBase (IntVal i)]] -> pure $ ValArray [] [ValBase (FloatVal $ int2Float i)])
+      (ValFun $ \[ValArray [] [ValBase (IntVal i)]] -> pure $ ValArray [] [ValBase (FloatVal $ int2Float i)]),
+    PreludeVal
+      "flatten/f/3-9-32"
+      (mkScalarArrayType ([A Float (Concat [ShapeDim $ DimN 3, ShapeDim $ DimN 9, ShapeDim $ DimN 32])] :->
+                          A Float (Concat [ShapeDim $ DimN 27, ShapeDim $ DimN 32])))
+      (ValFun $ \[ValArray _ vs] -> pure $ ValArray [27, 32] vs),
+    PreludeVal
+      "flatten/f/3-3-32"
+      (mkScalarArrayType ([A Float (Concat [ShapeDim $ DimN 3, ShapeDim $ DimN 3, ShapeDim $ DimN 32])] :->
+                          A Float (Concat [ShapeDim $ DimN 9, ShapeDim $ DimN 32])))
+      (ValFun $ \[ValArray _ vs] -> pure $ ValArray [9, 32] vs),
+    PreludeVal
+      "flatten/f/3-9-_"
+      (mkScalarArrayType ([A Float (Concat [ShapeDim $ DimN 3, ShapeDim $ DimN 9])] :->
+                          A Float (Concat [ShapeDim $ DimN 27])))
+      (ValFun $ \[ValArray _ vs] -> pure $ ValArray [27] vs),
+    PreludeVal
+      "flatten/f/3-3-_"
+      (mkScalarArrayType ([A Float (Concat [ShapeDim $ DimN 3, ShapeDim $ DimN 3])] :->
+                          A Float (Concat [ShapeDim $ DimN 9])))
+      (ValFun $ \[ValArray _ vs] -> pure $ ValArray [9] vs),
+    PreludeVal
+      "flatten/f/608-608-27"
+      (mkScalarArrayType ([A Float (Concat [ShapeDim $ DimN 608, ShapeDim $ DimN 608, ShapeDim $ DimN 27])] :->
+                          A Float (Concat [ShapeDim $ DimN (608 * 608), ShapeDim $ DimN 27])))
+      (ValFun $ \[ValArray _ vs] -> pure $ ValArray [608 * 608, 27] vs),
+    PreludeVal
+      "iota/3"
+      (A Int $ ShapeDim $ DimN 3)
+      (ValArray [3] $ map (ValBase . IntVal) [0, 1, 2]),
+    PreludeVal
+      "iota/608"
+      (A Int $ ShapeDim $ DimN 608)
+      (ValArray [608] $ map (ValBase . IntVal) [0 .. 607]),
+    PreludeVal
+      "iota/610"
+      (A Int $ ShapeDim $ DimN 610)
+      (ValArray [610] $ map (ValBase . IntVal) [0 .. 609]),
+    PreludeVal
+      "append/f/608-1-_"
+      (mkScalarArrayType $ [A Float $ ShapeDim $ DimN 608, A Float $ ShapeDim $ DimN 1] :->
+                           (A Float $ ShapeDim $ DimN 609))
+      (ValFun $ \[ValArray _ vsl, ValArray _ vsr] -> pure $ ValArray [609] (vsl ++ vsr)),
+    PreludeVal
+      "append/f/1-609-_"
+      (mkScalarArrayType $ [A Float $ ShapeDim $ DimN 1, A Float $ ShapeDim $ DimN 609] :->
+                           (A Float $ ShapeDim $ DimN 610))
+      (ValFun $ \[ValArray _ vsl, ValArray _ vsr] -> pure $ ValArray [610] (vsl ++ vsr)),
+    PreludeVal
+      "append/f/608-1-610"
+      (mkScalarArrayType $ [A Float (Concat [ShapeDim $ DimN 608, ShapeDim $ DimN 610]),
+                            A Float (Concat [ShapeDim $ DimN 1, ShapeDim $ DimN 610])] :->
+                           (A Float (Concat [ShapeDim $ DimN 609, ShapeDim $ DimN 610])))
+      (ValFun $ \[ValArray _ vsl, ValArray _ vsr] -> pure $ ValArray [609, 610] (vsl ++ vsr)),
+    PreludeVal
+      "append/f/1-609-610"
+      (mkScalarArrayType $ [A Float (Concat [ShapeDim $ DimN 1, ShapeDim $ DimN 610]),
+                            A Float (Concat [ShapeDim $ DimN 609, ShapeDim $ DimN 610])] :->
+                           (A Float (Concat [ShapeDim $ DimN 610, ShapeDim $ DimN 610])))
+      (ValFun $ \[ValArray _ vsl, ValArray _ vsr] -> pure $ ValArray [610, 610] (vsl ++ vsr)),
+    PreludeVal
+      "transpose/f/27-32"
+      (mkScalarArrayType $ [A Float (Concat [ShapeDim $ DimN 27, ShapeDim $ DimN 32])] :->
+                           (A Float (Concat [ShapeDim $ DimN 32, ShapeDim $ DimN 27])))
+      (ValFun $ \[ValArray _ vs] -> pure $ ValArray [32, 27] (concat $ L.transpose $ split 32 vs)),
+    PreludeVal
+      "reduce/f/26"
+      ( mkScalarArrayType $
+          let elem_type = A Float mempty
+              op_type = A ([elem_type, elem_type] :-> elem_type) mempty
+              arg_type =
+                A
+                  Float
+                  (ShapeDim (DimN 27))
+              res_type = A Float mempty
+           in [op_type, arg_type] :-> res_type
+      )
+      ( ValFun $ \[ValArray _ [ValFun op], ValArray _ (v : vs)] ->
+          foldM (\l r -> op [l, r]) v vs
+      ),
+    PreludeVal
+      "index2d/f/610"
+      (mkScalarArrayType $ [A Float (Concat [ShapeDim $ DimN 610, ShapeDim $ DimN 610]),
+                            A Int $ ShapeDim $ DimN 2] :->
+                                     (A Float mempty))
+      (ValFun $ \[ValArray _ vs, ValArray _ [ValBase (IntVal i), ValBase (IntVal j)]] ->
+          pure ( vs !! (i * 610 + j))),
+    PreludeVal
+      "undefined-input"
+      (A Float $ Concat [ShapeDim $ DimN 3, ShapeDim $ DimN 608, ShapeDim $ DimN 608])
+      undefined,
+    PreludeVal
+      "undefined-weights"
+      (A Float $ Concat [ShapeDim $ DimN 3, ShapeDim $ DimN 3, ShapeDim $ DimN 3, ShapeDim $ DimN 32])
+      undefined
+
   ]
