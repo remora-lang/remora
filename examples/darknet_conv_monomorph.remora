@@ -6,11 +6,12 @@
     [in in in])
   (fun (replicate/i/3-3-2 (in [Int 2]) : [Int 3 3 2])
     [[in in in] [in in in] [in in in]])
-  (fun (replicate/f/1-610 (in [Float]) : [Float 1 610])
-    [((fn ((_x [Int])) in) iota/610)])
+  (fun (zero-lam (x [Int]) : [Float]) 0.0)
+  (fun (replicate/zero/f/1-610 : [Float 1 610])
+    [(zero-lam iota/610)])
 
   (fun (pad/f/608-1 (in [Float 608 608]) (zero [Float]) : [Float 610 610])
-    (let ((val (vert-pad : [Float 1 610]) (replicate/f/1-610 zero))
+    (let ((val (vert-pad : [Float 1 610]) (replicate/zero/f/1-610))
           (val (hor-pad : [Float 1]) [zero]))
       (append/f/1-609-610
         vert-pad
@@ -19,15 +20,22 @@
           vert-pad))))
 
 
+
+
   (fun (idxs-of/608-608 : [Int 608 608 2])
-    ((fn ((i [Int]))
-       ((fn ((j [Int])) [i j]) iota/608))
-     iota/608))
+    (let ((fun (idx-row (i [Int]) : [Int 608 2])
+            (let ((fun (make-idx (j [Int]) : [Int 2])
+                    [i j]))
+              (make-idx iota/608))))
+      (idx-row iota/608)))
+
 
   (fun (idxs-of/3-3 : [Int 3 3 2])
-    ((fn ((i [Int]))
-       ((fn ((j [Int])) [i j]) iota/3))
-     iota/3))
+    (let ((fun (idx-row (i [Int]) : [Int 3 2])
+            (let ((fun (make-idx (j [Int]) : [Int 2])
+                    [i j]))
+              (make-idx iota/3))))
+      (idx-row iota/3)))
 
   (fun (subarray/f/607-3 (in [Float 610 610]) (offset [Int 2]) : [Float 3 3])
     (index2d/f/610 in (+ (replicate/i/3-3-2 offset) (idxs-of/3-3))))
