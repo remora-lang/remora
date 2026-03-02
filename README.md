@@ -115,7 +115,9 @@ Send EOF (CTRL-d) after typing all input values.
 ## Examples
 
 There are various basic test files in the `tests` directory. Most of them are
-self-explanatory.
+self-explanatory. All tests should run with `remora interpret`, but some may not
+with `remora futhark` due to the current restrictions on lowering (namely a lack
+of monomorphization and defunctionalization).
 
 `tests/accel.remora` computes the acceleration of a particle on another. This is
 the core computation from the `examples/nbody.remora` program, which computes
