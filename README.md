@@ -17,8 +17,8 @@ $ docker pull ghcr.io/remora-lang/remora:latest
 $ docker run --rm -it ghcr.io/remora-lang/remora:latest bash
 ```
 
-This will place you into a shell with the `remora` binary available on your
-`PATH`.
+This will place you into a shell at the root of this repo with the `remora`
+binary available on your `PATH`.
 
 To run CUDA-compiled binaries inside the container, you'll need:
 - [Nvidia Container
