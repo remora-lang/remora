@@ -12,8 +12,8 @@ $ nix shell
 
 > **Note:** `nix shell` does not set the environment variables needed for CUDA
 > compilation. Use `nix develop` instead (you'll have to build the `remora`
-> binary via `cabal`, see below), or set them manually per Futhark's
-> [docs](https://futhark.readthedocs.io/en/latest/man/futhark-cuda.html#environment).
+> binary yourself, see [Building](#building)) or set them manually (see [Run
+> dependencies](#run-dependencies)).
 
 ### With [Docker](https://www.docker.com/)
 Pull and run the image:
@@ -76,6 +76,12 @@ $ cabal exec -- remora interpret -e "(+ 1 2)"
 - [`futhark`](https://futhark-lang.org) (to compile to C/CUDA)
 - [CUDA Toolkit](https://developer.nvidia.com/cuda/toolkit) (to compile to CUDA)
 - An Nvidia GPU (to execute binaries produced via the CUDA backend)
+
+> **Note:** You may need to set environment variables needed for CUDA
+> compilation so the compiler can find the CUDA libraries.  See Futhark's
+> [docs](https://futhark.readthedocs.io/en/latest/man/futhark-cuda.html#environment)
+> for instructions on how to set them. If you're using the Docker image, this
+> should be unnecessary.
 
 ### Usage
 ```
