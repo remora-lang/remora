@@ -114,9 +114,10 @@ Send EOF (CTRL-d) after typing all input values.
 
 ## Examples
 
-There are various basic test files in the `tests` directory.
+There are various basic test files in the `tests` directory. Most of them are
+self-explanatory.
 
-### `tests/accel.remora`
+- `tests/accel.remora`
 Computes the acceleration of a particle on another. This is the core computation
 from the `examples/nbody.remora` program, which computes accelerations (due to
 gravity) between particles in space.
