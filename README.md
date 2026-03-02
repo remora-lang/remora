@@ -5,7 +5,7 @@ can interpret programs directly or compile them to C or CUDA via
 
 ## Getting Started
 ### With [Nix](https://nixos.org)
-To get a shell with the `remora` binary, just run
+To get a shell with the `remora` binary, just run:
 ```
 $ nix shell
 ```
