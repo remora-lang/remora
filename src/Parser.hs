@@ -219,8 +219,8 @@ pBase =
           ]
     pNum =
       choice
-        [ try $ FloatVal <$> lexeme L.float,
-          IntVal . fromIntegral <$> pDecimal
+        [ try $ FloatVal <$> L.signed (lexeme spaceConsumer) (lexeme L.float),
+          IntVal . fromIntegral <$> L.signed (lexeme spaceConsumer) pDecimal
         ]
 
 pAtom :: Parser Atom

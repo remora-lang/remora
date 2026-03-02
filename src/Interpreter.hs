@@ -17,6 +17,7 @@ import Syntax hiding (ArrayType, Atom, Bind, Dim, Exp, Extent, Shape, Type, Type
 import Syntax qualified
 import Util
 import VName
+import Debug.Trace (traceM)
 
 type Dim = Syntax.Dim VName
 
@@ -147,11 +148,11 @@ binds f ((v, val) : vvals) m =
 -- | Intepret an expression.
 intExp :: Exp -> InterpM Val
 intExp (Var v _ _) = lookupVal v
-intExp (Array shape as _ _) =
+intExp (Array shape as _ _) = do
   ValArray shape <$> mapM intAtom as
 intExp (EmptyArray shape _ _ _) =
   pure $ ValArray shape mempty
-intExp (Frame shape es _ _) =
+intExp (Frame shape es _ _) = do
   ValArray shape <$> mapM intExp es
 intExp (EmptyFrame shape _ _ _) =
   pure $ ValArray shape mempty

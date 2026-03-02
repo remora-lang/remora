@@ -14,6 +14,7 @@ import Interpreter.Value
 import Syntax
 import Data.List qualified as L
 import GHC.Float (int2Float)
+import Debug.Trace (traceM)
 
 type Prelude v m = [PreludeVal v m]
 
@@ -68,7 +69,7 @@ prelude =
                                   ]
                               )
                           ]
-                            :-> A (AtomTypeVar "t") (ShapeVar "s")
+                            :-> A (AtomTypeVar "t") (Concat [ShapeDim $ DimVar "d", (ShapeVar "s")])
                         )
                         mempty
                     )
@@ -79,7 +80,7 @@ prelude =
       ( ValTFun $ \[_t] ->
           pure $ ValIFun $ \[_d, _s] ->
             pure $ ValFun $ \[ValArray (d : ds) vs] ->
-              pure $ ValArray (d - 1 : ds) $ drop 1 vs
+              pure $ ValArray (d - 1 : ds) $ drop (product ds) vs
       ),
     PreludeVal
       "length"
@@ -185,6 +186,33 @@ prelude =
           pure $ ValIFun $ \[Left _d, Right s] ->
             pure $ ValFun $ \[ValArray _ [ValFun op], ValArray _ (v : vs)] ->
               foldM (\l r -> op [l, r]) v vs
+      ),
+    PreludeVal
+      "fold"
+      ( mkScalarArrayType $
+          Forall
+            [AtomTypeParam "t", AtomTypeParam "t2"]
+            ( A
+                ( Pi
+                    [DimParam "d", ShapeParam "s" ,ShapeParam "s2"]
+                    ( let elem_type = A (AtomTypeVar "t") (ShapeVar "s")
+                          acc_type = A (AtomTypeVar "t2") (ShapeVar "s2")
+                          op_type = A ([acc_type, elem_type] :-> acc_type) mempty
+                          arg_type =
+                            A
+                              (AtomTypeVar "t")
+                              (ShapeDim (DimN 1 <> DimVar "d") <> ShapeVar "s")
+                          -- res_type = A (AtomTypeVar "t") (ShapeVar "s")
+                       in A ([op_type, acc_type, arg_type] :-> acc_type) mempty
+                    )
+                )
+                mempty
+            )
+      )
+      ( ValTFun $ \[_t, _t2] ->
+          pure $ ValIFun $ \[Left _d, Right s, Right s2] ->
+            pure $ ValFun $ \[ValArray _ [ValFun op], zero, ValArray _ vs] ->
+              foldM (\l r -> op [l, r]) zero vs
       ),
     PreludeVal
       "+"
