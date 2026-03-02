@@ -218,11 +218,11 @@ pBase =
             symbol "#f" >> pure False
           ]
     pNum =
-      choice
-        [ try $ FloatVal <$> lexeme L.float,
-          try $ (FloatVal . negate) <$> (parens $ symbol "-" >> lexeme L.float),
-          IntVal . fromIntegral <$> pDecimal
-        ]
+      try $
+        choice
+          [ try $ FloatVal <$> L.signed (pure ()) (lexeme L.float),
+            IntVal . fromIntegral <$> L.signed (pure ()) pDecimal
+          ]
 
 pAtom :: Parser Atom
 pAtom =
