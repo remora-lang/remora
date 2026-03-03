@@ -5,10 +5,10 @@ import Control.Monad.Error.Class
 import Control.Monad.Reader hiding (lift)
 import Control.Monad.State hiding (State)
 import Control.Monad.Trans.Except
+import Data.List.NonEmpty qualified as NE
 import Data.Map (Map)
 import Data.Map qualified as M
 import Data.Maybe
-import Data.List.NonEmpty qualified as NE
 import Data.Text qualified as T
 import Debug.Trace
 import Futhark.IR.SOACS qualified as F
@@ -339,35 +339,6 @@ compileBinOp v _ _ _ = error $ "compileBinOp: unhandled\n" ++ show v
 int2Const :: Int -> F.SubExp
 int2Const n = F.Constant $ F.IntValue $ F.intValue F.Int32 n
 
-flattenNewShape :: Int -> [Int] -> F.NewShape F.SubExp
-flattenNewShape n s =
-  F.NewShape { F.dimSplices = [F.DimSplice 0
-                                           2
-                                           (F.Shape { F.shapeDims = [int2Const n] })],
-               F.newShape = F.Shape { F.shapeDims = (int2Const n) : (map int2Const s) } }
-
--- maps a flatten version from prelude to output shape
-flattenVersions :: [(T.Text, F.NewShape F.SubExp)]
-flattenVersions =
-  [ ( "flatten/f/3-9-32"    , flattenNewShape 27          [32] )
-  , ( "flatten/f/3-3-32"    , flattenNewShape 9           [32] )
-  , ( "flatten/f/3-9-_"     , flattenNewShape 27          [] )
-  , ( "flatten/f/3-3-_"     , flattenNewShape 9           [] )
-  , ( "flatten/f/608-608-27", flattenNewShape (608 * 608) [27] )
-  ]
-
--- map append version from prelude to (dim along which to append, resuling size of that dim)
-appendVersions :: [(T.Text, (Int, F.SubExp))]
-appendVersions = [ ("append/f/608-1-_", (0, int2Const 609))
-                 , ("append/f/1-609-_", (0, int2Const 610))
-                 , ("append/f/608-1-610", (0, int2Const 609))
-                 , ("append/f/1-609-610", (0, int2Const 610))]
-
-compileIota :: Int -> FutharkM F.SubExp
-compileIota n = do
-      t <- compileArrayType $ A Int (ShapeDim $ DimN n)
-      F.Var <$> bind t (F.BasicOp $ F.Iota (int2Const n) (int2Const 0) (int2Const 1) F.Int32)
-
 compileExp :: Exp -> FutharkM F.SubExp
 compileExp (Array [] [x] _ _) = compileAtom x
 compileExp e@(Array [_] elems (Info (A elem_t _)) _) = do
@@ -384,6 +355,11 @@ compileExp e@(Frame _ es (Info (A elem_t _)) _) = do
 compileExp (Var v _ _)
   | varName v == "iota/3" = compileIota 3
   | varName v == "iota/608" = compileIota 608
+  where
+    compileIota :: Int -> FutharkM F.SubExp
+    compileIota n = do
+      t <- compileArrayType $ A Int (ShapeDim $ DimN n)
+      F.Var <$> bind t (F.BasicOp $ F.Iota (int2Const n) (int2Const 0) (int2Const 1) F.Int32)
 compileExp (Var v _ _) =
   let v' = F.VName (F.nameFromText (varName v)) (getTag (varTag v))
    in pure $ F.Var v'
@@ -407,43 +383,75 @@ compileExp (App (Var v _ _) [e] (Info (t, pframe)) _)
       s' <- compileArrayType t
       emit $ F.Let (F.Pat [F.PatElem v' t']) (F.defAux ()) (F.BasicOp $ F.SubExp e')
       F.Var <$> bind s' (F.BasicOp $ F.Reshape v' newShape)
+  where
+    -- maps a flatten version from prelude to output shape
+    flattenVersions :: [(T.Text, F.NewShape F.SubExp)]
+    flattenVersions =
+      [ ("flatten/f/3-9-32", flattenNewShape 27 [32]),
+        ("flatten/f/3-3-32", flattenNewShape 9 [32]),
+        ("flatten/f/3-9-_", flattenNewShape 27 []),
+        ("flatten/f/3-3-_", flattenNewShape 9 []),
+        ("flatten/f/608-608-27", flattenNewShape (608 * 608) [27])
+      ]
+
+    flattenNewShape :: Int -> [Int] -> F.NewShape F.SubExp
+    flattenNewShape n s =
+      F.NewShape
+        { F.dimSplices =
+            [ F.DimSplice
+                0
+                2
+                (F.Shape {F.shapeDims = [int2Const n]})
+            ],
+          F.newShape = F.Shape {F.shapeDims = (int2Const n) : (map int2Const s)}
+        }
+
 -- compile appends
 compileExp (App (Var v _ _) [e1, e2] (Info (t, pframe)) _)
   | Just (dimId, resLen) <- lookup (varName v) appendVersions = do
-    e1' <- compileExp e1
-    e2' <- compileExp e2
-    t1' <- compileType $ typeOf e1
-    t2' <- compileType $ typeOf e2
-    t' <- compileArrayType t
-    v1' <- newVar
-    v2' <- newVar
-    emit $ F.Let (F.Pat [F.PatElem v1' t1']) (F.defAux ()) (F.BasicOp $ F.SubExp e1')
-    emit $ F.Let (F.Pat [F.PatElem v2' t2']) (F.defAux ()) (F.BasicOp $ F.SubExp e2')
-    F.Var <$> bind t' (F.BasicOp $ F.Concat dimId (v1' NE.:| [v2']) resLen)
+      e1' <- compileExp e1
+      e2' <- compileExp e2
+      t1' <- compileType $ typeOf e1
+      t2' <- compileType $ typeOf e2
+      t' <- compileArrayType t
+      v1' <- newVar
+      v2' <- newVar
+      emit $ F.Let (F.Pat [F.PatElem v1' t1']) (F.defAux ()) (F.BasicOp $ F.SubExp e1')
+      emit $ F.Let (F.Pat [F.PatElem v2' t2']) (F.defAux ()) (F.BasicOp $ F.SubExp e2')
+      F.Var <$> bind t' (F.BasicOp $ F.Concat dimId (v1' NE.:| [v2']) resLen)
+  where
+    -- map append version from prelude to (dim along which to append, resuling size of that dim)
+    appendVersions :: [(T.Text, (Int, F.SubExp))]
+    appendVersions =
+      [ ("append/f/608-1-_", (0, int2Const 609)),
+        ("append/f/1-609-_", (0, int2Const 610)),
+        ("append/f/608-1-610", (0, int2Const 609)),
+        ("append/f/1-609-610", (0, int2Const 610))
+      ]
 compileExp (App (Var v _ _) [e] (Info (t, pframe)) _)
   | varName v == "transpose/f/27-32" = do
-    e' <- compileExp e
-    v' <- newVar
-    -- t' is type of e, s' is the type after flatten
-    t' <- compileType $ typeOf e
-    s' <- compileArrayType t
-    emit $ F.Let (F.Pat [F.PatElem v' t']) (F.defAux ()) (F.BasicOp $ F.SubExp e')
-    F.Var <$> bind s' (F.BasicOp $ F.Rearrange v' [1, 0])
+      e' <- compileExp e
+      v' <- newVar
+      -- t' is type of e, s' is the type after flatten
+      t' <- compileType $ typeOf e
+      s' <- compileArrayType t
+      emit $ F.Let (F.Pat [F.PatElem v' t']) (F.defAux ()) (F.BasicOp $ F.SubExp e')
+      F.Var <$> bind s' (F.BasicOp $ F.Rearrange v' [1, 0])
 compileExp (App (Var v _ _) [arr, idx] (Info (t, pframe)) _)
   | varName v == "index2d/f/610" = do
-    arr' <- compileExp arr
-    idx' <- compileExp idx
-    arrT' <- compileType $ typeOf arr
-    idxT' <- compileType $ typeOf idx
-    arrV' <- newVar
-    idxV' <- newVar
-    t' <- compileArrayType $ A Float (Concat [])
-    emit $ F.Let (F.Pat [F.PatElem arrV' arrT']) (F.defAux ()) (F.BasicOp $ F.SubExp arr')
-    emit $ F.Let (F.Pat [F.PatElem idxV' idxT']) (F.defAux ()) (F.BasicOp $ F.SubExp idx')
-    singleIdxType <- compileArrayType $ A Int (Concat [])
-    i <- F.Var <$> bind singleIdxType (F.BasicOp $ F.Index idxV' $ F.Slice [F.DimFix $ int2Const 0])
-    j <- F.Var <$> bind singleIdxType (F.BasicOp $ F.Index idxV' $ F.Slice [F.DimFix $ int2Const 1])
-    F.Var <$> bind t' (F.BasicOp $ F.Index arrV' $ F.Slice [F.DimFix i, F.DimFix j])
+      arr' <- compileExp arr
+      idx' <- compileExp idx
+      arrT' <- compileType $ typeOf arr
+      idxT' <- compileType $ typeOf idx
+      arrV' <- newVar
+      idxV' <- newVar
+      t' <- compileArrayType $ A Float (Concat [])
+      emit $ F.Let (F.Pat [F.PatElem arrV' arrT']) (F.defAux ()) (F.BasicOp $ F.SubExp arr')
+      emit $ F.Let (F.Pat [F.PatElem idxV' idxT']) (F.defAux ()) (F.BasicOp $ F.SubExp idx')
+      singleIdxType <- compileArrayType $ A Int (Concat [])
+      i <- F.Var <$> bind singleIdxType (F.BasicOp $ F.Index idxV' $ F.Slice [F.DimFix $ int2Const 0])
+      j <- F.Var <$> bind singleIdxType (F.BasicOp $ F.Index idxV' $ F.Slice [F.DimFix $ int2Const 1])
+      F.Var <$> bind t' (F.BasicOp $ F.Index arrV' $ F.Slice [F.DimFix i, F.DimFix j])
 -- compile binary ops
 compileExp e@(App f@(Var v _ _) [x, y] (Info (t, pframe)) _)
   | Just op <- lookup (varName v, arrayTypeAtom t) binops =
