@@ -328,7 +328,7 @@ compileExp e@(Frame ds es (Info (A elem_t elem_shp)) _) = do
   where
     nestArrayLits :: [Int] -> [F.SubExp] -> ArrayType -> FutharkM F.SubExp
     nestArrayLits [] [e'] _ = pure e'
-    nestArrayLits (d:ds) es t = do
+    nestArrayLits (d : ds) es t = do
       let ess = split es (product ds)
       ess' <- mapM (\l -> nestArrayLits ds l (peelArrayType t)) ess
       t' <- compileArrayType t
@@ -360,16 +360,21 @@ compileExp (Var v _ _) =
    in pure $ F.Var v'
 compileExp e@(App (Var v _ _) [op, arg] (Info (t, pframe)) _)
   | varName v == "reduce/f/26" && (null $ intShape $ normShape $ shapeOf op) = do
-    let ds = intShape $ normShape pframe
-    let (A ([_, argParam] :-> res) _) = arrayTypeOf op
-    arg' <- mkArg argParam arg
-    t' <- compileArrayType t
-    res <- withMapNest ds t [arg'] (\[innerArg] innerT -> do
-                                       red <- F.Op <$> (compileReduce op innerArg)
-                                       innerT' <- compileArrayType innerT
-                                       F.Var <$> bind innerT' red
-                                   )
-    F.Var <$> bind t' (F.BasicOp $ F.SubExp $ res)
+      let ds = intShape $ normShape pframe
+      let (A ([_, argParam] :-> res) _) = arrayTypeOf op
+      arg' <- mkArg argParam arg
+      t' <- compileArrayType t
+      res <-
+        withMapNest
+          ds
+          t
+          [arg']
+          ( \[innerArg] innerT -> do
+              red <- F.Op <$> (compileReduce op innerArg)
+              innerT' <- compileArrayType innerT
+              F.Var <$> bind innerT' red
+          )
+      F.Var <$> bind t' (F.BasicOp $ F.SubExp $ res)
   where
     mkArg t_param x = do
       x' <- compileExp x
@@ -533,21 +538,23 @@ withMapNest (d : ds) t args m = do
   body <- mkBody $ (singleton <$> recRes)
   -- body <- mkBody $ (pure . F.Var) <$> withMapNest ds t_body args' m
   t' <- compileArrayType t
-  F.Var <$> (bind t'
-    $ F.Op
-    $ F.Screma
-      (F.Constant (F.IntValue (F.Int64Value (fromIntegral d))))
-      (map (sexpToVName . argSExp) mapArgs)
-    $ F.mapSOAC
-      F.Lambda
-        { F.lambdaParams = params,
-          F.lambdaReturnType = [t_body'],
-          F.lambdaBody = body
-        })
+  F.Var
+    <$> ( bind t'
+            $ F.Op
+            $ F.Screma
+              (F.Constant (F.IntValue (F.Int64Value (fromIntegral d))))
+              (map (sexpToVName . argSExp) mapArgs)
+            $ F.mapSOAC
+              F.Lambda
+                { F.lambdaParams = params,
+                  F.lambdaReturnType = [t_body'],
+                  F.lambdaBody = body
+                }
+        )
   where
     mapArg :: Arg -> FutharkM (Maybe Arg, Arg)
-    mapArg arg@(Arg [] se@(F.Var _)  _) = pure (Nothing, arg)
-    mapArg (Arg [] se  t) = do
+    mapArg arg@(Arg [] se@(F.Var _) _) = pure (Nothing, arg)
+    mapArg (Arg [] se t) = do
       t' <- compileArrayType t
       se' <- F.Var <$> (bind t' $ F.BasicOp $ F.SubExp se)
       pure (Nothing, Arg [] se' t)
@@ -560,7 +567,6 @@ withMapNest (d : ds) t args m = do
     sexpToVName :: F.SubExp -> F.VName
     sexpToVName (F.Var vname) = vname
     sexpToVName se = error $ "shouldn't ever happen" ++ show se
-
 
 compileBind :: Bind -> FutharkM ()
 compileBind BindType {} = pure ()
@@ -644,4 +650,4 @@ compile _prelude e =
           Env
       )
   where
-    initialState = State mempty 0 mempty mempty
+    initialState = State mempty 1000 mempty mempty
