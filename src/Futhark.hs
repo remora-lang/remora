@@ -354,7 +354,7 @@ compileExp (Var v _ _)
     compileRealWorld :: [Int] -> FutharkM F.SubExp
     compileRealWorld ds = do
       t <- compileArrayType $ A Int $ Concat $ map (ShapeDim . DimN) ds
-      F.Var <$> bind t (F.BasicOp $ F.Iota (int2Const (product ds)) (int2Const 0) (int2Const 1) F.Int32)
+      F.Var <$> bind t (F.BasicOp $ F.Iota (int2Const64 (product ds)) (int2Const 0) (int2Const 1) F.Int32)
 compileExp (Var v _ _) =
   let v' = F.VName (F.nameFromText (varName v)) (getTag (varTag v))
    in pure $ F.Var v'
