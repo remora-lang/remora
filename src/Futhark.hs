@@ -177,6 +177,16 @@ lookupFun f = do
     Nothing -> error $ "lookupFun: unknown fun\n" ++ show f
     Just def -> pure def
 
+peelArrayType :: ArrayType -> ArrayType
+peelArrayType (A a s) = A a $ peelShape s
+peelArrayType t = t
+
+peelShape :: Shape -> Shape
+peelShape = peelShape' . normShape
+  where
+    peelShape' (Concat (s : ss)) = Concat ss
+    peelShape' _ = mempty
+
 compileVName :: VName -> F.VName
 compileVName v =
   F.VName (F.nameFromText (varName v)) (getTag (varTag v))
@@ -236,16 +246,15 @@ mkSizeSubExp (ShapeDim (DimN n)) =
   F.Constant $ F.IntValue $ F.Int64Value $ fromIntegral n
 mkSizeSubExp s = error $ "sizeOfShape: unhandled\n" ++ show s
 
-compileReduce :: Exp -> [Exp] -> FutharkM (F.SOAC F.SOACS)
-compileReduce op xss = do
-  xss' <- traverse compileExp xss
-  ts <- mapM (compileAtomType . arrayTypeAtom . arrayTypeOf) xss
-  idlam <- idLambda ts
+compileReduce :: Exp -> Arg -> FutharkM (F.SOAC F.SOACS)
+compileReduce op arg = do
+  tArg <- (compileAtomType . arrayTypeAtom . argType) arg
+  idlam <- idLambda [tArg]
   red <- mkReduce
   pure
     $ F.Screma
-      (mkSizeSubExp $ shapeOf $ head xss)
-      (map asVar xss')
+      (mkSizeSubExp $ arrayTypeShape $ argType arg)
+      [asVar $ argSExp arg]
     $ F.redomapSOAC [red] idlam
   where
     asVar (F.Var v) = v
@@ -303,6 +312,9 @@ binops =
 int2Const :: Int -> F.SubExp
 int2Const n = F.Constant $ F.IntValue $ F.intValue F.Int32 n
 
+int2Const64 :: Int -> F.SubExp
+int2Const64 n = F.Constant $ F.IntValue $ F.intValue F.Int64 n
+
 compileExp :: Exp -> FutharkM F.SubExp
 compileExp (Array [] [x] _ _) = compileAtom x
 compileExp e@(Array [_] elems (Info (A elem_t _)) _) = do
@@ -310,23 +322,72 @@ compileExp e@(Array [_] elems (Info (A elem_t _)) _) = do
   t <- compileType $ typeOf e
   elem_t' <- compileAtomType elem_t
   F.Var <$> bind t (F.BasicOp $ F.ArrayLit elems' elem_t')
-compileExp e@(Frame _ es (Info (A elem_t _)) _) = do
+compileExp e@(Frame ds es (Info (A elem_t elem_shp)) _) = do
   es' <- mapM compileExp es
-  t <- compileType $ typeOf e
-  elem_t' <- compileAtomType elem_t
-  F.Var <$> bind t (F.BasicOp $ F.ArrayLit es' elem_t')
+  nestArrayLits ds es' (arrayTypeOf e)
+  where
+    nestArrayLits :: [Int] -> [F.SubExp] -> ArrayType -> FutharkM F.SubExp
+    nestArrayLits [] [e'] _ = pure e'
+    nestArrayLits (d:ds) es t = do
+      let ess = split es (product ds)
+      ess' <- mapM (\l -> nestArrayLits ds l (peelArrayType t)) ess
+      t' <- compileArrayType t
+      innerT' <- compileArrayType $ peelArrayType t
+      F.Var <$> bind t' (F.BasicOp $ F.ArrayLit ess' innerT')
+    nestArrayLits ds es t = error $ "unhandled: nestArrayLits: " ++ prettyString ds ++ prettyString es ++ prettyString t
+
+    split :: [a] -> Int -> [[a]]
+    split [] _ = []
+    split as n = (take n as) : (split (drop n as) n)
 -- compile iotas
 compileExp (Var v _ _)
   | varName v == "iota/3" = compileIota 3
   | varName v == "iota/608" = compileIota 608
+  | varName v == "iota/610" = compileIota 610
+  | varName v == "undefined-input" = compileRealWorld [3, 608, 608]
+  | varName v == "undefined-weights" = compileRealWorld [3, 3, 3, 32]
   where
     compileIota :: Int -> FutharkM F.SubExp
     compileIota n = do
       t <- compileArrayType $ A Int (ShapeDim $ DimN n)
-      F.Var <$> bind t (F.BasicOp $ F.Iota (int2Const n) (int2Const 0) (int2Const 1) F.Int32)
+      F.Var <$> bind t (F.BasicOp $ F.Iota (int2Const64 n) (int2Const 0) (int2Const 1) F.Int32)
+    compileRealWorld :: [Int] -> FutharkM F.SubExp
+    compileRealWorld ds = do
+      t <- compileArrayType $ A Int $ Concat $ map (ShapeDim . DimN) ds
+      F.Var <$> bind t (F.BasicOp $ F.Iota (int2Const (product ds)) (int2Const 0) (int2Const 1) F.Int32)
 compileExp (Var v _ _) =
   let v' = F.VName (F.nameFromText (varName v)) (getTag (varTag v))
    in pure $ F.Var v'
+compileExp e@(App (Var v _ _) [op, arg] (Info (t, pframe)) _)
+  | varName v == "reduce/f/26" && (null $ intShape $ normShape $ shapeOf op) = do
+    let ds = intShape $ normShape pframe
+    let (A ([_, argParam] :-> res) _) = arrayTypeOf op
+    arg' <- mkArg argParam arg
+    F.Var <$> withMapNest ds t [arg'] (\[innerArg] innerT -> do
+                                       red <- F.Op <$> (compileReduce op innerArg)
+                                       innerT' <- compileArrayType innerT
+                                       bind innerT' red
+                                   )
+  where
+    mkArg t_param x = do
+      x' <- compileExp x
+      pure $
+        Arg
+          { argFrame =
+              let argShape = intShape $ normShape $ shapeOf x
+                  paramShape = intShape $ normShape $ arrayTypeShape $ t_param
+               in take (length argShape - length paramShape) argShape,
+            argSExp = x',
+            argType = arrayTypeOf x
+          }
+    intDim (DimVar d) = error "intDim: AAAAAAAAAAAAAAAAAAA"
+    intDim (DimN d) = d
+    intDim (Add ds) = sum $ map intDim ds
+
+    intShape :: Shape -> [Int]
+    intShape (ShapeVar s) = error "intShape: AAAAAAAAAAAAAAAAAAA"
+    intShape (ShapeDim d) = singleton $ intDim d
+    intShape (Concat ss) = concatMap intShape ss
 compileExp e@(App f xs (Info (t, pframe)) _) = do
   case intShape $ normShape pframe of
     ds | null $ intShape $ normShape $ shapeOf $ typeOf f -> do
@@ -364,15 +425,6 @@ compileExp e = error $ "compileExp: unhandled:\n" ++ show e
 ---- Does no lifting
 compileApp :: F.Name -> [Arg] -> ArrayType -> FutharkM F.VName
 ---- compile all the prelude stuff
--- compileExp (App (Var v _ _) (op : xss) (Info (t, pframe)) _)
---  | "f.reduce3" == varName v = do
---      red <- compileReduce op xss
---      t' <- compileArrayType t
---      F.Var <$> bind t' (F.Op red)
---  | "reduce/f/26" == varName v = do
---      red <- compileReduce op xss
---      t' <- compileArrayType t
---      F.Var <$> bind t' (F.Op red)
 -- compile flattens
 compileApp flatten [arg] t
   | Just newShape <- lookup (F.nameToText flatten) flattenVersions = do
@@ -416,10 +468,10 @@ compileApp append [arg1, arg2] t
     -- map append version from prelude to (dim along which to append, resuling size of that dim)
     appendVersions :: [(T.Text, (Int, F.SubExp))]
     appendVersions =
-      [ ("append/f/608-1-_", (0, int2Const 609)),
-        ("append/f/1-609-_", (0, int2Const 610)),
-        ("append/f/608-1-610", (0, int2Const 609)),
-        ("append/f/1-609-610", (0, int2Const 610))
+      [ ("append/f/608-1-_", (0, int2Const64 609)),
+        ("append/f/1-609-_", (0, int2Const64 610)),
+        ("append/f/608-1-610", (0, int2Const64 609)),
+        ("append/f/1-609-610", (0, int2Const64 610))
       ]
 compileApp "transpose/f/27-32" [arg] t = do
   t' <- compileArrayType t
@@ -441,6 +493,9 @@ compileApp bop [arg_x, arg_y] t
   | Just op <- lookup (F.nameToText bop, arrayTypeAtom t) binops = do
       t' <- compileArrayType t
       bind t' $ F.BasicOp $ F.BinOp op (argSExp arg_x) (argSExp arg_y)
+compileApp f args t = do
+  t' <- compileArrayType t
+  bind t' $ F.Apply f (map ((,F.Observe) . argSExp) args) [(F.staticShapes1 $ F.toDecl t' F.Nonunique, mempty)] F.Safe
 
 data Arg
   = Arg
@@ -458,9 +513,11 @@ withMapNest ::
   FutharkM F.VName
 withMapNest [] t args m = m args t
 withMapNest (d : ds) t args m = do
-  (mapArgs, args') <- (first catMaybes . unzip) <$> mapM mapArg args
+  argPairs' <- mapM mapArg args
+  let (mapArgs, args') = (first catMaybes) $ unzip argPairs'
+  let paramArgs = concatMap (\(l, r) -> if isJust l then [r] else []) argPairs'
   params <-
-    forM mapArgs $ \a -> do
+    forM paramArgs $ \a -> do
       param_t <- compileArrayType $ argType a
       pure $ F.Param mempty (sexpToVName $ argSExp a) param_t
   let t_body = peelArrayType t
@@ -480,7 +537,11 @@ withMapNest (d : ds) t args m = do
         }
   where
     mapArg :: Arg -> FutharkM (Maybe Arg, Arg)
-    mapArg arg@(Arg [] _ _) = pure (Nothing, arg)
+    mapArg arg@(Arg [] se@(F.Var _)  _) = pure (Nothing, arg)
+    mapArg (Arg [] se  t) = do
+      t' <- compileArrayType t
+      se' <- F.Var <$> (bind t' $ F.BasicOp $ F.SubExp se)
+      pure (Nothing, Arg [] se' t)
     mapArg arg@(Arg (f : fs) se t) = do
       se <- F.Var <$> newVar
       pure $ (Just arg, Arg fs se $ peelArrayType t)
@@ -489,17 +550,8 @@ withMapNest (d : ds) t args m = do
 
     sexpToVName :: F.SubExp -> F.VName
     sexpToVName (F.Var vname) = vname
-    sexpToVName se = error "shouldn't ever happen"
+    sexpToVName se = error $ "shouldn't ever happen" ++ show se
 
-    peelArrayType :: ArrayType -> ArrayType
-    peelArrayType (A a s) = A a $ peelShape s
-    peelArrayType t = t
-
-    peelShape :: Shape -> Shape
-    peelShape = peelShape' . normShape
-      where
-        peelShape' (Concat (s : ss)) = Concat ss
-        peelShape' _ = mempty
 
 compileBind :: Bind -> FutharkM ()
 compileBind BindType {} = pure ()

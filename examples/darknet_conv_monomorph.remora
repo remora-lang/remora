@@ -23,19 +23,19 @@
 
 
   (fun (idxs-of/608-608 : [Int 608 608 2])
-    (let ((fun (idx-row (i [Int]) : [Int 608 2])
-            (let ((fun (make-idx (j [Int]) : [Int 2])
+    (let ((fun (idx-row/608 (i [Int]) : [Int 608 2])
+            (let ((fun (make-idx/608 (j [Int]) : [Int 2])
                     [i j]))
-              (make-idx iota/608))))
-      (idx-row iota/608)))
+              (make-idx/608 iota/608))))
+      (idx-row/608 iota/608)))
 
 
   (fun (idxs-of/3-3 : [Int 3 3 2])
-    (let ((fun (idx-row (i [Int]) : [Int 3 2])
-            (let ((fun (make-idx (j [Int]) : [Int 2])
+    (let ((fun (idx-row/3 (i [Int]) : [Int 3 2])
+            (let ((fun (make-idx/3 (j [Int]) : [Int 2])
                     [i j]))
-              (make-idx iota/3))))
-      (idx-row iota/3)))
+              (make-idx/3 iota/3))))
+      (idx-row/3 iota/3)))
 
   (fun (subarray/f/607-3 (in [Float 610 610]) (offset [Int 2]) : [Float 3 3])
     (index2d/f/610 in (+ (replicate/i/3-3-2 offset) (idxs-of/3-3))))
