@@ -363,11 +363,13 @@ compileExp e@(App (Var v _ _) [op, arg] (Info (t, pframe)) _)
     let ds = intShape $ normShape pframe
     let (A ([_, argParam] :-> res) _) = arrayTypeOf op
     arg' <- mkArg argParam arg
-    F.Var <$> withMapNest ds t [arg'] (\[innerArg] innerT -> do
+    t' <- compileArrayType t
+    res <- withMapNest ds t [arg'] (\[innerArg] innerT -> do
                                        red <- F.Op <$> (compileReduce op innerArg)
                                        innerT' <- compileArrayType innerT
-                                       bind innerT' red
+                                       F.Var <$> bind innerT' red
                                    )
+    F.Var <$> bind t' (F.BasicOp $ F.SubExp $ res)
   where
     mkArg t_param x = do
       x' <- compileExp x
@@ -394,7 +396,9 @@ compileExp e@(App f xs (Info (t, pframe)) _) = do
       let (A (params :-> res) _) = arrayTypeOf f
       args <- zipWithM mkArg params xs
       fname <- compileFunExp f
-      F.Var <$> withMapNest ds t args (compileApp fname)
+      t' <- compileArrayType t
+      res <- withMapNest ds t args (compileApp fname)
+      F.Var <$> bind t' (F.BasicOp $ F.SubExp res)
     _ -> error $ "compileExp: unhandled lifted apply with func array:\n" ++ show e
   where
     mkArg t_param x = do
@@ -423,7 +427,7 @@ compileExp (Let bs e _ _) =
 compileExp e = error $ "compileExp: unhandled:\n" ++ show e
 
 ---- Does no lifting
-compileApp :: F.Name -> [Arg] -> ArrayType -> FutharkM F.VName
+compileApp :: F.Name -> [Arg] -> ArrayType -> FutharkM F.SubExp
 ---- compile all the prelude stuff
 -- compile flattens
 compileApp flatten [arg] t
@@ -431,7 +435,7 @@ compileApp flatten [arg] t
       t_arg <- compileArrayType $ argType arg
       arg' <- bind t_arg $ F.BasicOp $ F.SubExp $ argSExp arg
       t' <- compileArrayType t
-      bind t' $ F.BasicOp $ F.Reshape arg' newShape
+      F.Var <$> (bind t' $ F.BasicOp $ F.Reshape arg' newShape)
   where
     -- maps a flatten version from prelude to output shape
     flattenVersions :: [(T.Text, F.NewShape F.SubExp)]
@@ -450,9 +454,9 @@ compileApp flatten [arg] t
             [ F.DimSplice
                 0
                 2
-                (F.Shape {F.shapeDims = [int2Const n]})
+                (F.Shape {F.shapeDims = [int2Const64 n]})
             ],
-          F.newShape = F.Shape {F.shapeDims = (int2Const n) : (map int2Const s)}
+          F.newShape = F.Shape {F.shapeDims = (int2Const64 n) : (map int2Const64 s)}
         }
 
 -- compile appends
@@ -463,7 +467,7 @@ compileApp append [arg1, arg2] t
       t' <- compileArrayType t
       arg1' <- bind t_arg1 $ F.BasicOp $ F.SubExp $ argSExp arg1
       arg2' <- bind t_arg2 $ F.BasicOp $ F.SubExp $ argSExp arg2
-      bind t' (F.BasicOp $ F.Concat dimId (arg1' NE.:| [arg2']) resLen)
+      F.Var <$> (bind t' (F.BasicOp $ F.Concat dimId (arg1' NE.:| [arg2']) resLen))
   where
     -- map append version from prelude to (dim along which to append, resuling size of that dim)
     appendVersions :: [(T.Text, (Int, F.SubExp))]
@@ -477,7 +481,7 @@ compileApp "transpose/f/27-32" [arg] t = do
   t' <- compileArrayType t
   t_arg <- compileArrayType $ argType arg
   arg' <- bind t_arg $ F.BasicOp $ F.SubExp $ argSExp arg
-  bind t' (F.BasicOp $ F.Rearrange arg' [1, 0])
+  F.Var <$> (bind t' (F.BasicOp $ F.Rearrange arg' [1, 0]))
 compileApp "index2d/f/610" [arr, idx] t = do
   t' <- compileArrayType t
   t_arr <- compileArrayType $ argType arr
@@ -485,17 +489,20 @@ compileApp "index2d/f/610" [arr, idx] t = do
   arr' <- bind t_arr $ F.BasicOp $ F.SubExp $ argSExp arr
   idx' <- bind t_idx $ F.BasicOp $ F.SubExp $ argSExp idx
   singleIdxType <- compileArrayType $ A Int (Concat [])
-  i <- F.Var <$> bind singleIdxType (F.BasicOp $ F.Index idx' $ F.Slice [F.DimFix $ int2Const 0])
-  j <- F.Var <$> bind singleIdxType (F.BasicOp $ F.Index idx' $ F.Slice [F.DimFix $ int2Const 1])
-  bind t' (F.BasicOp $ F.Index arr' $ F.Slice [F.DimFix i, F.DimFix j])
+  let singleIdxType64 = F.arrayOfShape (F.Prim $ F.IntType F.Int64) (F.Shape [])
+  i <- F.Var <$> bind singleIdxType (F.BasicOp $ F.Index idx' $ F.Slice [F.DimFix $ int2Const64 0])
+  j <- F.Var <$> bind singleIdxType (F.BasicOp $ F.Index idx' $ F.Slice [F.DimFix $ int2Const64 1])
+  i64 <- F.Var <$> bind singleIdxType64 (F.BasicOp $ F.ConvOp (F.SExt F.Int32 F.Int64) i)
+  j64 <- F.Var <$> bind singleIdxType64 (F.BasicOp $ F.ConvOp (F.SExt F.Int32 F.Int64) j)
+  F.Var <$> (bind t' (F.BasicOp $ F.Index arr' $ F.Slice [F.DimFix i64, F.DimFix j64]))
 -- compile binary ops
 compileApp bop [arg_x, arg_y] t
   | Just op <- lookup (F.nameToText bop, arrayTypeAtom t) binops = do
       t' <- compileArrayType t
-      bind t' $ F.BasicOp $ F.BinOp op (argSExp arg_x) (argSExp arg_y)
+      F.Var <$> (bind t' $ F.BasicOp $ F.BinOp op (argSExp arg_x) (argSExp arg_y))
 compileApp f args t = do
   t' <- compileArrayType t
-  bind t' $ F.Apply f (map ((,F.Observe) . argSExp) args) [(F.staticShapes1 $ F.toDecl t' F.Nonunique, mempty)] F.Safe
+  F.Var <$> (bind t' $ F.Apply f (map ((,F.Observe) . argSExp) args) [(F.staticShapes1 $ F.toDecl t' F.Nonunique, mempty)] F.Safe)
 
 data Arg
   = Arg
@@ -509,8 +516,8 @@ withMapNest ::
   [Int] ->
   ArrayType ->
   [Arg] ->
-  ([Arg] -> ArrayType -> FutharkM F.VName) ->
-  FutharkM F.VName
+  ([Arg] -> ArrayType -> FutharkM F.SubExp) ->
+  FutharkM F.SubExp
 withMapNest [] t args m = m args t
 withMapNest (d : ds) t args m = do
   argPairs' <- mapM mapArg args
@@ -521,10 +528,12 @@ withMapNest (d : ds) t args m = do
       param_t <- compileArrayType $ argType a
       pure $ F.Param mempty (sexpToVName $ argSExp a) param_t
   let t_body = peelArrayType t
-  body <- mkBody $ (pure . F.Var) <$> withMapNest ds t_body args' m
-  t' <- compileArrayType t
   t_body' <- compileArrayType t_body
-  bind t'
+  let recRes = withMapNest ds t_body args' m
+  body <- mkBody $ (singleton <$> recRes)
+  -- body <- mkBody $ (pure . F.Var) <$> withMapNest ds t_body args' m
+  t' <- compileArrayType t
+  F.Var <$> (bind t'
     $ F.Op
     $ F.Screma
       (F.Constant (F.IntValue (F.Int64Value (fromIntegral d))))
@@ -534,7 +543,7 @@ withMapNest (d : ds) t args m = do
         { F.lambdaParams = params,
           F.lambdaReturnType = [t_body'],
           F.lambdaBody = body
-        }
+        })
   where
     mapArg :: Arg -> FutharkM (Maybe Arg, Arg)
     mapArg arg@(Arg [] se@(F.Var _)  _) = pure (Nothing, arg)
