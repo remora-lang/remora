@@ -170,37 +170,6 @@ compileAtom (Base (FloatVal x) _ _) =
   pure $ F.Constant $ F.FloatValue $ F.Float32Value x
 compileAtom e = error $ "compileAtom: unhandled:\n" ++ show e
 
-map1 :: F.BinOp -> Int -> ArrayType -> [F.VName] -> F.Type -> FutharkM F.VName
-map1 op dim (A (pts :-> r) shape) xss@[_, _] t
-  | shape @= mempty = do
-      x' <- newVar
-      y' <- newVar
-      pts' <- mapM compileArrayType pts
-      r' <- compileArrayType r
-      body <-
-        mkBody $
-          pure . F.Var
-            <$> bind r' (F.BasicOp (F.BinOp op (F.Var x') (F.Var y')))
-      bind t
-        $ F.Op
-        $ F.Screma
-          (F.Constant (F.IntValue (F.Int64Value (fromIntegral dim))))
-          xss
-        $ F.mapSOAC
-        $ F.Lambda
-          [F.Param mempty x' (pts' !! 0), F.Param mempty y' (pts' !! 1)]
-          [r']
-          body
-map1 _ t _ xss _ = error $ "map1: unhandled\n" ++ show t ++ "\n" ++ show xss
-
-rep :: F.VName -> ArrayType -> Shape -> FutharkM F.VName
-rep x t s
-  | s @= mempty = pure x
-  | otherwise = do
-      s' <- compileShape s
-      t' <- compileArrayType $ A (arrayTypeAtom t) (s <> arrayTypeShape t)
-      bind t' $ F.BasicOp $ F.Replicate s' (F.Var x)
-
 lookupFun :: VName -> FutharkM (F.FunDef F.SOACS)
 lookupFun f = do
   mdef <- gets $ (M.!? f) . stateFunBinds
