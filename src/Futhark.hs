@@ -353,8 +353,8 @@ compileExp (Var v _ _)
       F.Var <$> bind t (F.BasicOp $ F.Iota (int2Const64 n) (int2Const 0) (int2Const 1) F.Int32)
     compileRealWorld :: [Int] -> FutharkM F.SubExp
     compileRealWorld ds = do
-      t <- compileArrayType $ A Int $ Concat $ map (ShapeDim . DimN) ds
-      F.Var <$> bind t (F.BasicOp $ F.Iota (int2Const64 (product ds)) (int2Const 0) (int2Const 1) F.Int32)
+      t <- compileArrayType $ A Float $ Concat $ map (ShapeDim . DimN) ds
+      F.Var <$> bind t (F.BasicOp $ F.Replicate (F.Shape $ map int2Const64 ds) (F.Constant $ F.FloatValue $ F.floatValue F.Float32 0))
 compileExp (Var v _ _) =
   let v' = F.VName (F.nameFromText (varName v)) (getTag (varTag v))
    in pure $ F.Var v'
