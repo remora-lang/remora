@@ -22,8 +22,11 @@ binary available on your `PATH`.
 
 To run CUDA-compiled binaries inside the container, you'll need:
 - [Nvidia Container
-  Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/index.html)
+  Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/index.html).
+  Works with version 1.18.2 (do `nvidia-ctk --version`)
 - An Nvidia GPU (to execute binaries produced via the CUDA backend)
+
+Also check, using `nvidia-smi --version`, that CUDA Version is 13.0
 
 Once you have the Nvidia Container Toolkit, pass through your GPU to the container when you run it:
 ```
