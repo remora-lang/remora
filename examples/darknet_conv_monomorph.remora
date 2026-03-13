@@ -71,4 +71,5 @@
                           (flatten/f/3-9-32 (flatten/f/3-3-32 w))))
   )
   (conv2d/608-3-3-32-1 input weights)
+  ;input
 )

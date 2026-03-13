@@ -6,7 +6,7 @@ import Control.Monad.Reader hiding (lift)
 import Control.Monad.State hiding (State)
 import Control.Monad.Trans.Except
 import Data.Bifunctor
-import Data.List (singleton)
+import Data.List (singleton, isPrefixOf, stripPrefix)
 import Data.List.NonEmpty qualified as NE
 import Data.Map (Map)
 import Data.Map qualified as M
@@ -22,6 +22,7 @@ import RemoraPrelude (Prelude)
 import Substitute
 import Syntax hiding (ArrayType, Atom, AtomType, Bind, Dim, Exp, Extent, Pat, Shape, Type)
 import Syntax qualified
+import Text.Read
 import Util
 import VName
 
@@ -354,7 +355,7 @@ compileExp (Var v _ _)
     compileRealWorld :: [Int] -> FutharkM F.SubExp
     compileRealWorld ds = do
       t <- compileArrayType $ A Float $ Concat $ map (ShapeDim . DimN) ds
-      F.Var <$> bind t (F.BasicOp $ F.Replicate (F.Shape $ map int2Const64 ds) (F.Constant $ F.FloatValue $ F.floatValue F.Float32 0))
+      F.Var <$> bind t (F.BasicOp $ F.Replicate (F.Shape $ map int2Const64 ds) (F.Constant $ F.FloatValue $ F.floatValue F.Float32 37))
 compileExp (Var v _ _) =
   let v' = F.VName (F.nameFromText (varName v)) (getTag (varTag v))
    in pure $ F.Var v'
@@ -436,22 +437,30 @@ compileApp :: F.Name -> [Arg] -> ArrayType -> FutharkM F.SubExp
 ---- compile all the prelude stuff
 -- compile flattens
 compileApp flatten [arg] t
-  | Just newShape <- lookup (F.nameToText flatten) flattenVersions = do
+  | "flatten/f/" `isPrefixOf` (F.nameToString flatten) = do
+      let shpInfoMaybe = stripPrefix "flatten/f/" (F.nameToString flatten)
+      shpInfo <- case shpInfoMaybe of
+            Just s -> pure s
+            Nothing -> throwError "unreachable"
+      (m, n, c) <- case splitOn shpInfo '-' of
+        [m, n, c] -> do
+          let maybeList = mapM Text.Read.readMaybe [m, n]
+          let maybeCList = mapM Text.Read.readMaybe (splitOn c 'x')
+          (m', n') <- case maybeList of
+            Just [m', n'] -> pure (m', n')
+            _else -> throwError "unreachable"
+          cs <- case maybeCList of
+            Just cs' -> pure cs'
+            Nothing -> case c of
+              "_" -> pure []
+              _else -> throwError "bad shape in flatten"
+          pure (m', n', cs)
+        _ -> throwError "bad name of flatten"
       t_arg <- compileArrayType $ argType arg
       arg' <- bind t_arg $ F.BasicOp $ F.SubExp $ argSExp arg
       t' <- compileArrayType t
-      F.Var <$> (bind t' $ F.BasicOp $ F.Reshape arg' newShape)
-  where
-    -- maps a flatten version from prelude to output shape
-    flattenVersions :: [(T.Text, F.NewShape F.SubExp)]
-    flattenVersions =
-      [ ("flatten/f/3-9-32", flattenNewShape 27 [32]),
-        ("flatten/f/3-3-32", flattenNewShape 9 [32]),
-        ("flatten/f/3-9-_", flattenNewShape 27 []),
-        ("flatten/f/3-3-_", flattenNewShape 9 []),
-        ("flatten/f/608-608-27", flattenNewShape (608 * 608) [27])
-      ]
-
+      F.Var <$> (bind t' $ F.BasicOp $ F.Reshape arg' $ flattenNewShape (m * n) c)
+    where
     flattenNewShape :: Int -> [Int] -> F.NewShape F.SubExp
     flattenNewShape n s =
       F.NewShape
@@ -466,28 +475,32 @@ compileApp flatten [arg] t
 
 -- compile appends
 compileApp append [arg1, arg2] t
-  | Just (dimId, resLen) <- lookup (F.nameToText append) appendVersions = do
+  | "append/f/" `isPrefixOf` (F.nameToString append) = do
+      let shpInfoMaybe = stripPrefix "append/f/" (F.nameToString append)
+      shpInfo <- case shpInfoMaybe of
+            Just s -> pure s
+            Nothing -> throwError "unreachable"
+      (m, n) <- case splitOn shpInfo '-' of
+        [m, n, _] -> do
+          let maybeList = mapM Text.Read.readMaybe [m, n]
+          case maybeList of
+            Just [m', n'] -> pure (m', n')
+            _else -> throwError "unreachable"
+        _ -> throwError "bad name of append"
       t_arg1 <- compileArrayType $ argType arg1
       t_arg2 <- compileArrayType $ argType arg2
       t' <- compileArrayType t
       arg1' <- bind t_arg1 $ F.BasicOp $ F.SubExp $ argSExp arg1
       arg2' <- bind t_arg2 $ F.BasicOp $ F.SubExp $ argSExp arg2
-      F.Var <$> (bind t' (F.BasicOp $ F.Concat dimId (arg1' NE.:| [arg2']) resLen))
-  where
-    -- map append version from prelude to (dim along which to append, resuling size of that dim)
-    appendVersions :: [(T.Text, (Int, F.SubExp))]
-    appendVersions =
-      [ ("append/f/608-1-_", (0, int2Const64 609)),
-        ("append/f/1-609-_", (0, int2Const64 610)),
-        ("append/f/608-1-610", (0, int2Const64 609)),
-        ("append/f/1-609-610", (0, int2Const64 610))
-      ]
-compileApp "transpose/f/27-32" [arg] t = do
-  t' <- compileArrayType t
-  t_arg <- compileArrayType $ argType arg
-  arg' <- bind t_arg $ F.BasicOp $ F.SubExp $ argSExp arg
-  F.Var <$> (bind t' (F.BasicOp $ F.Rearrange arg' [1, 0]))
-compileApp "index2d/f/610" [arr, idx] t = do
+      F.Var <$> (bind t' (F.BasicOp $ F.Concat 0 (arg1' NE.:| [arg2']) (int2Const64 (m + n))))
+compileApp fName [arg] t
+  | isPrefixOf "transpose/f/" (F.nameToString fName) = do
+    t' <- compileArrayType t
+    t_arg <- compileArrayType $ argType arg
+    arg' <- bind t_arg $ F.BasicOp $ F.SubExp $ argSExp arg
+    F.Var <$> (bind t' (F.BasicOp $ F.Rearrange arg' [1, 0]))
+compileApp fName [arr, idx] t
+  | isPrefixOf "index2d/f/" (F.nameToString fName) = do
   t' <- compileArrayType t
   t_arr <- compileArrayType $ argType arr
   t_idx <- compileArrayType $ argType idx
@@ -508,6 +521,12 @@ compileApp bop [arg_x, arg_y] t
 compileApp f args t = do
   t' <- compileArrayType t
   F.Var <$> (bind t' $ F.Apply f (map ((,F.Observe) . argSExp) args) [(F.staticShapes1 $ F.toDecl t' F.Nonunique, mempty)] F.Safe)
+
+splitOn :: Eq a => [a] -> a -> [[a]]
+splitOn [] _ = []
+splitOn xs delim = case span (/= delim) xs of
+  (m, []) -> [m]
+  (m, _:rest) -> m : splitOn rest delim
 
 data Arg
   = Arg

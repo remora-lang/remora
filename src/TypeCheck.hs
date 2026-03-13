@@ -4,8 +4,10 @@ import Control.Monad
 import Control.Monad.RWS
 import Control.Monad.Trans.Except
 import Data.Map qualified as M
+import Data.List qualified as L
 import Data.Text (Text)
 import Data.Text qualified as T
+import Text.Read qualified as TR
 import Prop
 import RemoraPrelude
 import Substitute
@@ -116,8 +118,56 @@ checkAtomType (Sigma pts t) = do
   binds withExtentParam pts $ \pts' -> do
     Sigma pts' <$> checkArrayType t
 
+-- FIXME: delete once monomorphization done
+hackyPrelude :: Text -> Maybe (ArrayType VName)
+hackyPrelude flatten
+  | "flatten/f/" `L.isPrefixOf` (T.unpack flatten) = do
+      let shpInfoMaybe = L.stripPrefix "flatten/f/" (T.unpack flatten)
+      shpInfo <- case shpInfoMaybe of
+            Just s -> pure s
+            Nothing -> Nothing
+      (m, n, c) <- case splitOn shpInfo '-' of
+        [m, n, c] -> do
+          maybeList <- mapM TR.readMaybe [m, n]
+          let maybeCList = mapM TR.readMaybe (splitOn c 'x')
+          (m', n') <- case maybeList of
+            [m', n'] -> pure (m', n')
+            _else -> Nothing
+          cs <- case maybeCList of
+            Just cs' -> pure cs'
+            _else -> case c of
+              "_" -> pure []
+              _else -> Nothing
+          Just (m', n', cs)
+        _ -> Nothing
+      let cShp = Concat $ map (ShapeDim . DimN) c
+      Just (mkScalarArrayType ([A Float (Concat [ShapeDim $ DimN m, ShapeDim $ DimN n, cShp])] :->
+                          A Float (Concat [ShapeDim $ DimN (m * n), cShp])))
+hackyPrelude append
+  | "append/f/" `L.isPrefixOf` (T.unpack append) = undefined
+hackyPrelude transpose
+  | "transpose2d/f/" `L.isPrefixOf` (T.unpack transpose) = undefined
+hackyPrelude index
+  | "index2d/f/" `L.isPrefixOf` (T.unpack index) = undefined
+hackyPrelude iota
+  | "iota/" `L.isPrefixOf` (T.unpack iota) = undefined
+hackyPrelude reduce
+  | "reduce/f/" `L.isPrefixOf` (T.unpack reduce) = undefined
+hackyPrelude _ = Nothing
+
+splitOn :: Eq a => [a] -> a -> [[a]]
+splitOn [] _ = []
+splitOn xs delim = case span (/= delim) xs of
+  (m, []) -> [m]
+  (m, _:rest) -> m : splitOn rest delim
+
 -- | Type check an unchecked 'Exp'.
 checkExp :: (MonadCheck m) => Exp NoInfo Text -> m (Exp Info VName)
+-- FIXME: delete once monomorphization done
+-- checkExp (Var v _ pos)
+--   | Just t <- hackyPrelude v = do
+--       vname <- newVName v
+--       pure $ (Var vname (Info t) pos)
 checkExp (Var v _ pos) = do
   vname <- fetchVar v
   t <- lookupVar vname
