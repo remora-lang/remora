@@ -1,19 +1,17 @@
 (let (
       (val input undefined-input/256x38x38) ; real world input
       (val weights undefined-weights/512x256x3x3) ; real world input
-
       (fun (zero-lam (x [Int]) : [Float]) 0.0)
-      (fun (replicate/zero/f/1-40 : [Float 1 40])
-           [(zero-lam iota/40)])
-
-      (fun (pad/f/38-1 (in [Float 38 38]) (zero [Float]) : [Float 40 40])
-           (let ((val (vert-pad : [Float 1 40]) (replicate/zero/f/1-40))
-                 (val (hor-pad : [Float 1]) [zero]))
-             (append/f/1-39-40
-              vert-pad
-              (append/f/38-1-40
-               (append/f/1-39-_ hor-pad (append/f/38-1-_ in hor-pad))
-               vert-pad))))
+(fun (replicate/zero/f/1-40 : [Float 1 40])
+     [(zero-lam iota/40)])
+(fun (pad/f/38-1 (in [Float 38 38]) (zero [Float]) : [Float 40 40])
+     (let ((val (vert-pad : [Float 1 40]) (replicate/zero/f/1-40))
+           (val (hor-pad : [Float 1]) [zero]))
+       (append/f/1-39-40
+        vert-pad
+        (append/f/38-1-40
+         (append/f/1-39-_ hor-pad (append/f/38-1-_ in hor-pad))
+         vert-pad))))
 
       (fun (idxs-of/38-38 : [Int 38 38 2])
            (let ((fun (idx-row/38 (i [Int]) : [Int 38 2])
@@ -33,17 +31,17 @@
 
 
       (fun (subarray/f/2-38
-             (in [Float 40 40])
-             (offset [Int 2]) : [Float 38 38])
+            (in [Float 40 40])
+            (offset [Int 2]) : [Float 38 38])
            (index2d/f/40-40
-              in
-              (+ (replicate/i/38x38-2 offset)
-                 (idxs-of/38-38))))
+            in
+            (+ (replicate/i/38x38-2 offset)
+               (idxs-of/38-38))))
 
       (fun (lifted-subarray/f/3x3-2-38
-             (in [Float 40 40])
-             (offset [Int 3 3 2]) : [Float 3 3 38 38])
-         (subarray/f/2-38 in offset))
+            (in [Float 40 40])
+            (offset [Int 3 3 2]) : [Float 3 3 38 38])
+           (subarray/f/2-38 in offset))
 
       (fun (im2col/38-3-1-256 (im [Float 256 38 38]) : [Float 2304 1444])
            (flatten/f/256-9-1444
@@ -57,7 +55,7 @@
            (reduce/f/2303 f.+ (f.* v w)))
 
       (fun (lifted_dot/2304-1444 (v [Float 2304])
-                                              (M [Float 2304 1444]) : [Float 1444])
+                                                           (M [Float 2304 1444]) : [Float 1444])
            (dot/2304 v (transpose2d/f/2304-1444 M)))
 
       (fun (matmul/512-2304-38_38
@@ -69,9 +67,9 @@
             (w  [Float 512 256 3 3])
             : [Float 512 1444])
            (matmul/512-2304-38_38
-                    (flatten/f/256-9-_ (flatten/f/3-3-_ w))
-                    (im2col/38-3-1-256 in)
-                    ))
+            (flatten/f/256-9-_ (flatten/f/3-3-_ w))
+            (im2col/38-3-1-256 in)
+            ))
       )
   (conv2d/38-3-256-512-1 input weights)
   )

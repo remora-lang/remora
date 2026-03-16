@@ -1,19 +1,17 @@
 (let (
       (val input undefined-input/512x19x19) ; real world input
       (val weights undefined-weights/512x512x3x3) ; real world input
-
       (fun (zero-lam (x [Int]) : [Float]) 0.0)
-      (fun (replicate/zero/f/1-21 : [Float 1 21])
-           [(zero-lam iota/21)])
-
-      (fun (pad/f/19-1 (in [Float 19 19]) (zero [Float]) : [Float 21 21])
-           (let ((val (vert-pad : [Float 1 21]) (replicate/zero/f/1-21))
-                 (val (hor-pad : [Float 1]) [zero]))
-             (append/f/1-20-21
-              vert-pad
-              (append/f/19-1-21
-               (append/f/1-20-_ hor-pad (append/f/19-1-_ in hor-pad))
-               vert-pad))))
+(fun (replicate/zero/f/1-21 : [Float 1 21])
+     [(zero-lam iota/21)])
+(fun (pad/f/19-1 (in [Float 19 19]) (zero [Float]) : [Float 21 21])
+     (let ((val (vert-pad : [Float 1 21]) (replicate/zero/f/1-21))
+           (val (hor-pad : [Float 1]) [zero]))
+       (append/f/1-20-21
+        vert-pad
+        (append/f/19-1-21
+         (append/f/1-20-_ hor-pad (append/f/19-1-_ in hor-pad))
+         vert-pad))))
 
       (fun (idxs-of/19-19 : [Int 19 19 2])
            (let ((fun (idx-row/19 (i [Int]) : [Int 19 2])
@@ -33,17 +31,17 @@
 
 
       (fun (subarray/f/2-19
-             (in [Float 21 21])
-             (offset [Int 2]) : [Float 19 19])
+            (in [Float 21 21])
+            (offset [Int 2]) : [Float 19 19])
            (index2d/f/21-21
-              in
-              (+ (replicate/i/19x19-2 offset)
-                 (idxs-of/19-19))))
+            in
+            (+ (replicate/i/19x19-2 offset)
+               (idxs-of/19-19))))
 
       (fun (lifted-subarray/f/3x3-2-19
-             (in [Float 21 21])
-             (offset [Int 3 3 2]) : [Float 3 3 19 19])
-         (subarray/f/2-19 in offset))
+            (in [Float 21 21])
+            (offset [Int 3 3 2]) : [Float 3 3 19 19])
+           (subarray/f/2-19 in offset))
 
       (fun (im2col/19-3-1-512 (im [Float 512 19 19]) : [Float 4608 361])
            (flatten/f/512-9-361
@@ -57,7 +55,7 @@
            (reduce/f/4607 f.+ (f.* v w)))
 
       (fun (lifted_dot/4608-361 (v [Float 4608])
-                                              (M [Float 4608 361]) : [Float 361])
+                                                           (M [Float 4608 361]) : [Float 361])
            (dot/4608 v (transpose2d/f/4608-361 M)))
 
       (fun (matmul/512-4608-19_19
@@ -69,9 +67,9 @@
             (w  [Float 512 512 3 3])
             : [Float 512 361])
            (matmul/512-4608-19_19
-                    (flatten/f/512-9-_ (flatten/f/3-3-_ w))
-                    (im2col/19-3-1-512 in)
-                    ))
+            (flatten/f/512-9-_ (flatten/f/3-3-_ w))
+            (im2col/19-3-1-512 in)
+            ))
       )
   (conv2d/19-3-512-512-1 input weights)
   )

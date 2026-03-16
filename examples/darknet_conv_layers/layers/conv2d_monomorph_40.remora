@@ -1,19 +1,7 @@
 (let (
       (val input undefined-input/128x76x76) ; real world input
       (val weights undefined-weights/128x128x1x1) ; real world input
-
-      (fun (zero-lam (x [Int]) : [Float]) 0.0)
-      (fun (replicate/zero/f/0-76 : [Float 0 76])
-           [(zero-lam iota/76)])
-
-      (fun (pad/f/76-0 (in [Float 76 76]) (zero [Float]) : [Float 76 76])
-           (let ((val (vert-pad : [Float 0 76]) (replicate/zero/f/0-76))
-                 (val (hor-pad : [Float 0]) [zero]))
-             (append/f/0-76-76
-              vert-pad
-              (append/f/76-0-76
-               (append/f/0-76-_ hor-pad (append/f/76-0-_ in hor-pad))
-               vert-pad))))
+      
 
       (fun (idxs-of/76-76 : [Int 76 76 2])
            (let ((fun (idx-row/76 (i [Int]) : [Int 76 2])
@@ -33,31 +21,31 @@
 
 
       (fun (subarray/f/0-76
-             (in [Float 76 76])
-             (offset [Int 2]) : [Float 76 76])
+            (in [Float 76 76])
+            (offset [Int 2]) : [Float 76 76])
            (index2d/f/76-76
-              in
-              (+ (replicate/i/76x76-2 offset)
-                 (idxs-of/76-76))))
+            in
+            (+ (replicate/i/76x76-2 offset)
+               (idxs-of/76-76))))
 
       (fun (lifted-subarray/f/1x1-0-76
-             (in [Float 76 76])
-             (offset [Int 1 1 2]) : [Float 1 1 76 76])
-         (subarray/f/0-76 in offset))
+            (in [Float 76 76])
+            (offset [Int 1 1 2]) : [Float 1 1 76 76])
+           (subarray/f/0-76 in offset))
 
       (fun (im2col/76-1-0-128 (im [Float 128 76 76]) : [Float 128 5776])
            (flatten/f/128-1-5776
             (flatten/f/1-1-5776
              (flatten/f/76-76-_
               (lifted-subarray/f/1x1-0-76
-               (pad/f/76-0 im 0.0)
+               im
                (replicate/i/128-1x1x2 (idxs-of/1-1)))))))
 
       (fun (dot/128 (v [Float 128]) (w [Float 128]) : [Float])
            (reduce/f/127 f.+ (f.* v w)))
 
       (fun (lifted_dot/128-5776 (v [Float 128])
-                                              (M [Float 128 5776]) : [Float 5776])
+                                                           (M [Float 128 5776]) : [Float 5776])
            (dot/128 v (transpose2d/f/128-5776 M)))
 
       (fun (matmul/128-128-76_76
@@ -69,9 +57,9 @@
             (w  [Float 128 128 1 1])
             : [Float 128 5776])
            (matmul/128-128-76_76
-                    (flatten/f/128-1-_ (flatten/f/1-1-_ w))
-                    (im2col/76-1-0-128 in)
-                    ))
+            (flatten/f/128-1-_ (flatten/f/1-1-_ w))
+            (im2col/76-1-0-128 in)
+            ))
       )
   (conv2d/76-1-128-128-0 input weights)
   )
