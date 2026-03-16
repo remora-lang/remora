@@ -364,7 +364,9 @@ compileExp (Var v _ _) =
   let v' = F.VName (F.nameFromText (varName v)) (getTag (varTag v))
    in pure $ F.Var v'
 compileExp e@(App (Var v _ _) [op, arg] (Info (t, pframe)) _)
-  | varName v == "reduce/f/26" && (null $ intShape $ normShape $ shapeOf op) = do
+  | Just rest <- stripPrefix "reduce/f/" (T.unpack (varName v))
+  , Just (_ :: Int) <- readMaybe rest
+  , null $ intShape $ normShape $ shapeOf op = do
       let ds = intShape $ normShape pframe
       let (A ([_, argParam] :-> res) _) = arrayTypeOf op
       arg' <- mkArg argParam arg
