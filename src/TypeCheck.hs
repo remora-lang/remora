@@ -17,6 +17,8 @@ import TypeCheck.Monad
 import Util
 import VName
 
+import Debug.Trace (traceM)
+
 -- | Type check a program.
 check ::
   (Monad m) =>
@@ -122,10 +124,7 @@ checkAtomType (Sigma pts t) = do
 hackyPrelude :: Text -> Maybe (ArrayType VName)
 hackyPrelude flatten
   | "flatten/f/" `L.isPrefixOf` (T.unpack flatten) = do
-      let shpInfoMaybe = L.stripPrefix "flatten/f/" (T.unpack flatten)
-      shpInfo <- case shpInfoMaybe of
-            Just s -> pure s
-            Nothing -> Nothing
+      shpInfo <- L.stripPrefix "flatten/f/" (T.unpack flatten)
       (m, n, c) <- case splitOn shpInfo '-' of
         [m, n, c] -> do
           maybeList <- mapM TR.readMaybe [m, n]
@@ -144,15 +143,92 @@ hackyPrelude flatten
       Just (mkScalarArrayType ([A Float (Concat [ShapeDim $ DimN m, ShapeDim $ DimN n, cShp])] :->
                           A Float (Concat [ShapeDim $ DimN (m * n), cShp])))
 hackyPrelude append
-  | "append/f/" `L.isPrefixOf` (T.unpack append) = undefined
+  | "append/f/" `L.isPrefixOf` (T.unpack append) = do
+      shpInfo <- L.stripPrefix "append/f/" (T.unpack append)
+      (m, n, cs) <- case splitOn shpInfo '-' of
+        [m, n, c] -> do
+          let maybeList = mapM TR.readMaybe [m, n]
+          let maybeCList = mapM TR.readMaybe (splitOn c 'x')
+          (m', n') <- case maybeList of
+            Just [m', n'] -> pure (m', n')
+            _else -> Nothing
+          cs <- case maybeCList of
+            Just cs' -> pure cs'
+            _else -> case c of
+              "_" -> pure []
+              _else -> Nothing
+          Just (m', n', cs)
+        _ -> Nothing
+      let cShp = Concat $ map (ShapeDim . DimN) cs
+      Just (mkScalarArrayType ([A Float (Concat [ShapeDim $ DimN m, cShp]), A Float (Concat [ShapeDim $ DimN n, cShp])] :->
+                          A Float (Concat [ShapeDim $ DimN (m + n), cShp])))
 hackyPrelude transpose
-  | "transpose2d/f/" `L.isPrefixOf` (T.unpack transpose) = undefined
+  | "transpose2d/f/" `L.isPrefixOf` (T.unpack transpose) = do
+      shpInfo <- L.stripPrefix "transpose2d/f/" (T.unpack transpose)
+      (m, n) <- case splitOn shpInfo '-' of
+        [m, n] -> do
+          let maybeList = mapM TR.readMaybe [m, n]
+          case maybeList of
+            Just [m', n'] -> pure (m', n')
+            _else -> Nothing
+        _ -> Nothing
+      Just (mkScalarArrayType ([A Float (Concat [ShapeDim $ DimN m, ShapeDim $ DimN n])] :->
+                          A Float (Concat [ShapeDim $ DimN n, ShapeDim $ DimN m])))
 hackyPrelude index
-  | "index2d/f/" `L.isPrefixOf` (T.unpack index) = undefined
+  | "index2d/f/" `L.isPrefixOf` (T.unpack index) = do
+      shpInfo <- L.stripPrefix "index2d/f/" (T.unpack index)
+      (m, n) <- case splitOn shpInfo '-' of
+        [m, n] -> do
+          let maybeList = mapM TR.readMaybe [m, n]
+          case maybeList of
+            Just [m', n'] -> pure (m', n')
+            _else -> Nothing
+        _ -> Nothing
+      Just (mkScalarArrayType ([A Float (Concat [ShapeDim $ DimN m, ShapeDim $ DimN n]),
+                                A Int (ShapeDim $ DimN 2)] :->
+                               A Float mempty))
 hackyPrelude iota
-  | "iota/" `L.isPrefixOf` (T.unpack iota) = undefined
+  | "iota/" `L.isPrefixOf` (T.unpack iota) = do
+      shpInfo <- L.stripPrefix "iota/" (T.unpack iota)
+      m <- TR.readMaybe shpInfo
+      Just (A Int (ShapeDim $ DimN m))
 hackyPrelude reduce
-  | "reduce/f/" `L.isPrefixOf` (T.unpack reduce) = undefined
+  | "reduce/f/" `L.isPrefixOf` (T.unpack reduce) = do
+      shpInfo <- L.stripPrefix "reduce/f/" (T.unpack reduce)
+      m <- TR.readMaybe shpInfo
+      let elem_type = A Float mempty
+          op_type = A ([elem_type, elem_type] :-> elem_type) mempty
+          arg_type = A Float (ShapeDim $ DimN (m + 1))
+          res_type = A Float mempty
+      Just (mkScalarArrayType ([op_type, arg_type] :-> res_type))
+hackyPrelude repl
+  | "replicate/" `L.isPrefixOf` (T.unpack repl) = do
+      shpInfo <- L.stripPrefix "replicate/" (T.unpack repl)
+      (t, rest) <- case shpInfo of
+        ('i':'/':r) -> Just (Int, r)
+        ('f':'/':r) -> Just (Float, r)
+        _           -> Nothing
+      (fDims, sDims) <- case splitOn rest '-' of
+        [f, s] -> do
+          let parseShape "_" = Just []
+              parseShape sh  = mapM TR.readMaybe (splitOn sh 'x')
+          fs <- parseShape f
+          ss <- parseShape s
+          Just (fs, ss)
+        _ -> Nothing
+      let sShp  = Concat $ map (ShapeDim . DimN) sDims
+          fsShp = Concat $ map (ShapeDim . DimN) (fDims ++ sDims)
+      Just (mkScalarArrayType ([A t sShp] :-> A t fsShp))
+hackyPrelude undef
+  | "undefined-input/" `L.isPrefixOf` (T.unpack undef) = do
+      shpInfo <- L.stripPrefix "undefined-input/" (T.unpack undef)
+      dims <- mapM TR.readMaybe (splitOn shpInfo 'x')
+      Just (A Float (Concat $ map (ShapeDim . DimN) dims))
+hackyPrelude undef
+  | "undefined-weights/" `L.isPrefixOf` (T.unpack undef) = do
+      shpInfo <- L.stripPrefix "undefined-weights/" (T.unpack undef)
+      dims <- mapM TR.readMaybe (splitOn shpInfo 'x')
+      Just (A Float (Concat $ map (ShapeDim . DimN) dims))
 hackyPrelude _ = Nothing
 
 splitOn :: Eq a => [a] -> a -> [[a]]
@@ -164,10 +240,10 @@ splitOn xs delim = case span (/= delim) xs of
 -- | Type check an unchecked 'Exp'.
 checkExp :: (MonadCheck m) => Exp NoInfo Text -> m (Exp Info VName)
 -- FIXME: delete once monomorphization done
--- checkExp (Var v _ pos)
---   | Just t <- hackyPrelude v = do
---       vname <- newVName v
---       pure $ (Var vname (Info t) pos)
+checkExp (Var v _ pos)
+  | Just t <- hackyPrelude v = do
+      vname <- newVName v
+      pure $ (Var vname (Info t) pos)
 checkExp (Var v _ pos) = do
   vname <- fetchVar v
   t <- lookupVar vname

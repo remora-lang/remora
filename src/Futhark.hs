@@ -342,11 +342,15 @@ compileExp e@(Frame ds es (Info (A elem_t elem_shp)) _) = do
     split as n = (take n as) : (split (drop n as) n)
 -- compile iotas
 compileExp (Var v _ _)
-  | varName v == "iota/3" = compileIota 3
-  | varName v == "iota/608" = compileIota 608
-  | varName v == "iota/610" = compileIota 610
-  | varName v == "undefined-input" = compileRealWorld [3, 608, 608]
-  | varName v == "undefined-weights" = compileRealWorld [3, 3, 3, 32]
+  | Just rest <- stripPrefix "iota/" (T.unpack (varName v))
+  , Just n <- readMaybe rest
+  = compileIota n
+  | Just rest <- stripPrefix "undefined-input/" (T.unpack (varName v))
+  , Just dims <- mapM readMaybe (splitOn rest 'x')
+  = compileRealWorld dims
+  | Just rest <- stripPrefix "undefined-weights/" (T.unpack (varName v))
+  , Just dims <- mapM readMaybe (splitOn rest 'x')
+  = compileRealWorld dims
   where
     compileIota :: Int -> FutharkM F.SubExp
     compileIota n = do
@@ -494,11 +498,30 @@ compileApp append [arg1, arg2] t
       arg2' <- bind t_arg2 $ F.BasicOp $ F.SubExp $ argSExp arg2
       F.Var <$> (bind t' (F.BasicOp $ F.Concat 0 (arg1' NE.:| [arg2']) (int2Const64 (m + n))))
 compileApp fName [arg] t
-  | isPrefixOf "transpose/f/" (F.nameToString fName) = do
+  | isPrefixOf "transpose2d/f/" (F.nameToString fName) = do
     t' <- compileArrayType t
     t_arg <- compileArrayType $ argType arg
     arg' <- bind t_arg $ F.BasicOp $ F.SubExp $ argSExp arg
     F.Var <$> (bind t' (F.BasicOp $ F.Rearrange arg' [1, 0]))
+compileApp fName [arg] t
+  | "replicate/" `isPrefixOf` (F.nameToString fName) = do
+    t' <- compileArrayType t
+    let nameStr = F.nameToString fName
+        fDims = do
+          shpInfo <- stripPrefix "replicate/" nameStr
+          (_, rest) <- case shpInfo of
+            ('i':'/':r) -> Just ((), r)
+            ('f':'/':r) -> Just ((), r)
+            _           -> Nothing
+          fStr <- case splitOn rest '-' of
+            [f, _] -> Just f
+            _      -> Nothing
+          let parseShape "_" = Just []
+              parseShape sh  = mapM readMaybe (splitOn sh 'x')
+          parseShape fStr
+    case fDims of
+      Just dims -> F.Var <$> (bind t' (F.BasicOp $ F.Replicate (F.Shape $ map int2Const64 dims) $ argSExp arg))
+      Nothing   -> error $ "replicate: failed to parse shape from " ++ nameStr
 compileApp fName [arr, idx] t
   | isPrefixOf "index2d/f/" (F.nameToString fName) = do
   t' <- compileArrayType t

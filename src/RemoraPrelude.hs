@@ -516,7 +516,7 @@ prelude =
       undefined,
     PreludeVal
       "undefined-weights"
-      (A Float $ Concat [ShapeDim $ DimN 3, ShapeDim $ DimN 3, ShapeDim $ DimN 3, ShapeDim $ DimN 32])
+      (A Float $ Concat [ShapeDim $ DimN 32, ShapeDim $ DimN 3, ShapeDim $ DimN 3, ShapeDim $ DimN 3])
       undefined
 
   ]

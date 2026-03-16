@@ -1,0 +1,77 @@
+(let (
+      (val input undefined-input/3x608x608) ; real world input
+      (val weights undefined-weights/32x3x3x3) ; real world input
+
+      (fun (zero-lam (x [Int]) : [Float]) 0.0)
+      (fun (replicate/zero/f/1-610 : [Float 1 610])
+           [(zero-lam iota/610)])
+
+      (fun (pad/f/608-1 (in [Float 608 608]) (zero [Float]) : [Float 610 610])
+           (let ((val (vert-pad : [Float 1 610]) (replicate/zero/f/1-610))
+                 (val (hor-pad : [Float 1]) [zero]))
+             (append/f/1-609-610
+              vert-pad
+              (append/f/608-1-610
+               (append/f/1-609-_ hor-pad (append/f/608-1-_ in hor-pad))
+               vert-pad))))
+
+      (fun (idxs-of/608-608 : [Int 608 608 2])
+           (let ((fun (idx-row/608 (i [Int]) : [Int 608 2])
+                      (let ((fun (make-idx/608 (i [Int]) (j [Int]) : [Int 2])
+                                 [i j]))
+                        (make-idx/608 i iota/608))))
+             (idx-row/608 iota/608)))
+
+
+      (fun (idxs-of/3-3
+            : [Int 3 3 2])
+           (let ((fun (idx-row/3 (i [Int]) : [Int 3 2])
+                      (let ((fun (make-idx/3 (i [Int]) (j [Int]) : [Int 2])
+                                 [i j]))
+                        (make-idx/3 i iota/3))))
+             (idx-row/3 iota/3)))
+
+
+      (fun (subarray/f/2-608
+             (in [Float 610 610])
+             (offset [Int 2]) : [Float 608 608])
+           (index2d/f/610-610
+              in
+              (+ (replicate/i/608x608-2 offset)
+                 (idxs-of/608-608))))
+
+      (fun (lifted-subarray/f/3x3-2-608
+             (in [Float 610 610])
+             (offset [Int 3 3 2]) : [Float 3 3 608 608])
+         (subarray/f/2-608 in offset))
+
+      (fun (im2col/608-3-1-3 (im [Float 3 608 608]) : [Float 27 369664])
+           (flatten/f/3-9-369664
+            (flatten/f/3-3-369664
+             (flatten/f/608-608-_
+              (lifted-subarray/f/3x3-2-608
+               (pad/f/608-1 im 0.0)
+               (replicate/i/3-3x3x2 (idxs-of/3-3)))))))
+
+      (fun (dot/27 (v [Float 27]) (w [Float 27]) : [Float])
+           (reduce/f/26 f.+ (f.* v w)))
+
+      (fun (lifted_dot/27-369664 (v [Float 27])
+                                              (M [Float 27 369664]) : [Float 369664])
+           (dot/27 v (transpose2d/f/27-369664 M)))
+
+      (fun (matmul/32-27-608_608
+            (xss [Float 32 27])
+            (yss [Float 27 369664]) : [Float 32 369664])
+           (lifted_dot/27-369664 xss yss))
+      (fun (conv2d/608-3-3-32-1
+            (in [Float 3 608 608])
+            (w  [Float 32 3 3 3])
+            : [Float 32 369664])
+           (matmul/32-27-608_608
+                    (flatten/f/3-9-_ (flatten/f/3-3-_ w))
+                    (im2col/608-3-1-3 in)
+                    ))
+      )
+  (conv2d/608-3-3-32-1 input weights)
+  )
