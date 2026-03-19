@@ -4,3 +4,9 @@ packages:
 allow-newer: base
 
 jobs: $ncpus
+
+constraints:
+  lsp-types < 2.4.0.0,
+  futhark-server == 1.2.3.0,
+  futhark-manifest == 1.5.0.0,
+  futhark-data == 1.1.4.0
