@@ -619,9 +619,21 @@ compileBind (BindFun f params _ body (Info ret) _) = do
   params' <- mapM compileParam params
   body' <- mkBody $ pure <$> compileExp body
   ret' <- compileArrayType $ findRet ret
+  let mkEntryParam p =
+        F.EntryParam
+          { F.entryParamName = F.baseName (F.paramName p),
+            F.entryParamUniqueness = F.Nonunique,
+            F.entryParamType = F.TypeTransparent $ valueType (F.paramType p)
+          }
+  let entryResults =
+        [ F.EntryResult
+            { F.entryResultUniqueness = F.Nonunique,
+              F.entryResultType = F.TypeTransparent $ valueType ret'
+            }
+        ]
   let fun =
         F.FunDef
-          { F.funDefEntryPoint = Nothing,
+          { F.funDefEntryPoint = Just (F.nameFromText $ varName f, map mkEntryParam params', entryResults),
             F.funDefAttrs = mempty,
             F.funDefName = F.nameFromText $ varName f,
             F.funDefRetType = [(F.toDecl (F.staticShapes1 ret') F.Nonunique, mempty)],
