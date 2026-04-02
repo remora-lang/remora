@@ -14,6 +14,7 @@ import Debug.Trace (trace, traceM)
 import GHC.Float (int2Float)
 import Interpreter.Value
 import Syntax
+import System.IO.Unsafe (unsafePerformIO)
 import Util
 
 type Prelude v m = [PreludeVal v m]
@@ -565,5 +566,29 @@ prelude =
           pure $ ValIFun $ \_ ->
             pure $ ValFun $ \[log, v] ->
               pure $ trace (prettyString log) v
-      )
+      ),
+    let valToString :: Val m -> String
+        valToString (ValArray _ vs) = map (\(ValBase (IntVal c)) -> toEnum c) vs
+        valToString _ = error "valToString: not a string"
+     in PreludeVal
+          "trace-file"
+          ( mkScalarArrayType $
+              Forall [AtomTypeParam "t", AtomTypeParam "r"] $
+                mkScalarArrayType
+                  ( Pi [DimParam "d", ShapeParam "s", ShapeParam "q"] $
+                      mkScalarArrayType $
+                        [ A Int (ShapeDim (DimVar "d")),
+                          A (AtomTypeVar "t") (ShapeVar "s"),
+                          A (AtomTypeVar "r") (ShapeVar "q")
+                        ]
+                          :-> A (AtomTypeVar "r") (ShapeVar "q")
+                  )
+          )
+          ( ValTFun $ \_ ->
+              pure $ ValIFun $ \_ ->
+                pure $ ValFun $ \[filename, log, v] ->
+                  pure $ unsafePerformIO $ do
+                    appendFile (valToString filename) (prettyString log ++ "\n")
+                    pure v
+          )
   ]

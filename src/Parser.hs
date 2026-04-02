@@ -29,6 +29,7 @@ import Text.Megaparsec
     errorBundlePretty,
     getSourcePos,
     many,
+    manyTill,
     notFollowedBy,
     option,
     satisfy,
@@ -38,7 +39,8 @@ import Text.Megaparsec
   )
 import Text.Megaparsec qualified
 import Text.Megaparsec.Char
-  ( space1,
+  ( char,
+    space1,
     string,
   )
 import Text.Megaparsec.Char.Lexer qualified as L
@@ -280,6 +282,7 @@ pExp =
         ( withNoInfo
             ( choice
                 [ Var <$> lId,
+                  pString,
                   parens $
                     choice
                       [ Array <$> (lKeyword "array" >> pShapeLit) <*> some pAtom,
@@ -296,6 +299,13 @@ pExp =
         )
     ]
   where
+    pString =
+      do
+        s <- lexeme $ char '"' >> manyTill L.charLiteral (char '"')
+        pos <- getSourcePos
+        pure $
+          Array [length s] $
+            map (\c -> Base (IntVal $ fromEnum c) NoInfo pos) s
     pShapeLit = brackets $ many (fromIntegral <$> pDecimal)
     pUnbox =
       Unbox
