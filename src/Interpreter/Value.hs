@@ -12,6 +12,7 @@ module Interpreter.Value
     valConcat,
     collapse,
     valShapeOf,
+    valToString,
   )
 where
 
@@ -154,3 +155,7 @@ collapse (ValArray s vs) =
           | otherwise -> error $ "collapse: " <> show vs'
         _ -> ValArray s vs'
 collapse v = v
+
+valToString :: Val m -> String
+valToString (ValArray _ vs) = map (\(ValBase (IntVal c)) -> toEnum c) vs
+valToString _ = error "valToString: not a string"

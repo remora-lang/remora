@@ -3,21 +3,20 @@ module TypeCheck (check) where
 import Control.Monad
 import Control.Monad.RWS
 import Control.Monad.Trans.Except
-import Data.Map qualified as M
 import Data.List qualified as L
+import Data.Map qualified as M
 import Data.Text (Text)
 import Data.Text qualified as T
-import Text.Read qualified as TR
+import Debug.Trace (traceM)
 import Prop
-import RemoraPrelude
+import {-# SOURCE #-} RemoraPrelude
 import Substitute
 import Symbolic qualified
 import Syntax
+import Text.Read qualified as TR
 import TypeCheck.Monad
 import Util
 import VName
-
-import Debug.Trace (traceM)
 
 -- | Type check a program.
 check ::
@@ -140,8 +139,12 @@ hackyPrelude flatten
           Just (m', n', cs)
         _ -> Nothing
       let cShp = Concat $ map (ShapeDim . DimN) c
-      Just (mkScalarArrayType ([A Float (Concat [ShapeDim $ DimN m, ShapeDim $ DimN n, cShp])] :->
-                          A Float (Concat [ShapeDim $ DimN (m * n), cShp])))
+      Just
+        ( mkScalarArrayType
+            ( [A Float (Concat [ShapeDim $ DimN m, ShapeDim $ DimN n, cShp])]
+                :-> A Float (Concat [ShapeDim $ DimN (m * n), cShp])
+            )
+        )
 hackyPrelude append
   | "append/f/" `L.isPrefixOf` (T.unpack append) = do
       shpInfo <- L.stripPrefix "append/f/" (T.unpack append)
@@ -160,8 +163,12 @@ hackyPrelude append
           Just (m', n', cs)
         _ -> Nothing
       let cShp = Concat $ map (ShapeDim . DimN) cs
-      Just (mkScalarArrayType ([A Float (Concat [ShapeDim $ DimN m, cShp]), A Float (Concat [ShapeDim $ DimN n, cShp])] :->
-                          A Float (Concat [ShapeDim $ DimN (m + n), cShp])))
+      Just
+        ( mkScalarArrayType
+            ( [A Float (Concat [ShapeDim $ DimN m, cShp]), A Float (Concat [ShapeDim $ DimN n, cShp])]
+                :-> A Float (Concat [ShapeDim $ DimN (m + n), cShp])
+            )
+        )
 hackyPrelude transpose
   | "transpose2d/f/" `L.isPrefixOf` (T.unpack transpose) = do
       shpInfo <- L.stripPrefix "transpose2d/f/" (T.unpack transpose)
@@ -172,8 +179,12 @@ hackyPrelude transpose
             Just [m', n'] -> pure (m', n')
             _else -> Nothing
         _ -> Nothing
-      Just (mkScalarArrayType ([A Float (Concat [ShapeDim $ DimN m, ShapeDim $ DimN n])] :->
-                          A Float (Concat [ShapeDim $ DimN n, ShapeDim $ DimN m])))
+      Just
+        ( mkScalarArrayType
+            ( [A Float (Concat [ShapeDim $ DimN m, ShapeDim $ DimN n])]
+                :-> A Float (Concat [ShapeDim $ DimN n, ShapeDim $ DimN m])
+            )
+        )
 hackyPrelude index
   | "index2d/f/" `L.isPrefixOf` (T.unpack index) = do
       shpInfo <- L.stripPrefix "index2d/f/" (T.unpack index)
@@ -184,9 +195,14 @@ hackyPrelude index
             Just [m', n'] -> pure (m', n')
             _else -> Nothing
         _ -> Nothing
-      Just (mkScalarArrayType ([A Float (Concat [ShapeDim $ DimN m, ShapeDim $ DimN n]),
-                                A Int (ShapeDim $ DimN 2)] :->
-                               A Float mempty))
+      Just
+        ( mkScalarArrayType
+            ( [ A Float (Concat [ShapeDim $ DimN m, ShapeDim $ DimN n]),
+                A Int (ShapeDim $ DimN 2)
+              ]
+                :-> A Float mempty
+            )
+        )
 hackyPrelude iota
   | "iota/" `L.isPrefixOf` (T.unpack iota) = do
       shpInfo <- L.stripPrefix "iota/" (T.unpack iota)
@@ -205,18 +221,18 @@ hackyPrelude repl
   | "replicate/" `L.isPrefixOf` (T.unpack repl) = do
       shpInfo <- L.stripPrefix "replicate/" (T.unpack repl)
       (t, rest) <- case shpInfo of
-        ('i':'/':r) -> Just (Int, r)
-        ('f':'/':r) -> Just (Float, r)
-        _           -> Nothing
+        ('i' : '/' : r) -> Just (Int, r)
+        ('f' : '/' : r) -> Just (Float, r)
+        _ -> Nothing
       (fDims, sDims) <- case splitOn rest '-' of
         [f, s] -> do
           let parseShape "_" = Just []
-              parseShape sh  = mapM TR.readMaybe (splitOn sh 'x')
+              parseShape sh = mapM TR.readMaybe (splitOn sh 'x')
           fs <- parseShape f
           ss <- parseShape s
           Just (fs, ss)
         _ -> Nothing
-      let sShp  = Concat $ map (ShapeDim . DimN) sDims
+      let sShp = Concat $ map (ShapeDim . DimN) sDims
           fsShp = Concat $ map (ShapeDim . DimN) (fDims ++ sDims)
       Just (mkScalarArrayType ([A t sShp] :-> A t fsShp))
 hackyPrelude undef
@@ -231,11 +247,11 @@ hackyPrelude undef
       Just (A Float (Concat $ map (ShapeDim . DimN) dims))
 hackyPrelude _ = Nothing
 
-splitOn :: Eq a => [a] -> a -> [[a]]
+splitOn :: (Eq a) => [a] -> a -> [[a]]
 splitOn [] _ = []
 splitOn xs delim = case span (/= delim) xs of
   (m, []) -> [m]
-  (m, _:rest) -> m : splitOn rest delim
+  (m, _ : rest) -> m : splitOn rest delim
 
 -- | Type check an unchecked 'Exp'.
 checkExp :: (MonadCheck m) => Exp NoInfo Text -> m (Exp Info VName)

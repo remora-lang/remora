@@ -10,11 +10,17 @@ where
 import Control.Monad
 import Data.List qualified as L
 import Data.Text (Text)
+import Data.Text qualified as T
+import Data.Text.IO qualified as T
 import Debug.Trace (trace, traceM)
 import GHC.Float (int2Float)
+import Interpreter qualified as I
 import Interpreter.Value
+import Parser
 import Syntax
 import System.IO.Unsafe (unsafePerformIO)
+import TypeCheck qualified as TC
+import Unsafe.Coerce (unsafeCoerce)
 import Util
 
 type Prelude v m = [PreludeVal v m]
@@ -567,28 +573,50 @@ prelude =
             pure $ ValFun $ \[log, v] ->
               pure $ trace (prettyString log) v
       ),
-    let valToString :: Val m -> String
-        valToString (ValArray _ vs) = map (\(ValBase (IntVal c)) -> toEnum c) vs
-        valToString _ = error "valToString: not a string"
-     in PreludeVal
-          "trace-file"
-          ( mkScalarArrayType $
-              Forall [AtomTypeParam "t", AtomTypeParam "r"] $
-                mkScalarArrayType
-                  ( Pi [DimParam "d", ShapeParam "s", ShapeParam "q"] $
-                      mkScalarArrayType $
-                        [ A Int (ShapeDim (DimVar "d")),
-                          A (AtomTypeVar "t") (ShapeVar "s"),
-                          A (AtomTypeVar "r") (ShapeVar "q")
-                        ]
-                          :-> A (AtomTypeVar "r") (ShapeVar "q")
-                  )
-          )
-          ( ValTFun $ \_ ->
-              pure $ ValIFun $ \_ ->
-                pure $ ValFun $ \[filename, log, v] ->
-                  pure $ unsafePerformIO $ do
-                    appendFile (valToString filename) (prettyString log ++ "\n")
-                    pure v
-          )
+    PreludeVal
+      "trace-file"
+      ( mkScalarArrayType $
+          Forall [AtomTypeParam "t", AtomTypeParam "r"] $
+            mkScalarArrayType
+              ( Pi [DimParam "d", ShapeParam "s", ShapeParam "q"] $
+                  mkScalarArrayType $
+                    [ A Int (ShapeDim (DimVar "d")),
+                      A (AtomTypeVar "t") (ShapeVar "s"),
+                      A (AtomTypeVar "r") (ShapeVar "q")
+                    ]
+                      :-> A (AtomTypeVar "r") (ShapeVar "q")
+              )
+      )
+      ( ValTFun $ \_ ->
+          pure $ ValIFun $ \_ ->
+            pure $ ValFun $ \[filename, log, v] ->
+              pure $ unsafePerformIO $ do
+                appendFile (valToString filename) (prettyString log ++ "\n")
+                pure v
+      ),
+    PreludeVal
+      "read-file"
+      ( mkScalarArrayType $
+          Forall [AtomTypeParam "t"] $
+            mkScalarArrayType
+              ( Pi [DimParam "d", ShapeParam "s"] $
+                  mkScalarArrayType $
+                    [A Int (ShapeDim (DimVar "d"))]
+                      :-> A (AtomTypeVar "t") (ShapeVar "s")
+              )
+      )
+      ( ValTFun $ \_ ->
+          pure $ ValIFun $ \_ ->
+            pure $ ValFun $ \[filename] ->
+              pure $ unsafePerformIO $ do
+                let file = valToString filename
+                input <- T.readFile file
+                let mv = do
+                      expr <- parse "<read-file>" input
+                      (p, expr') <- TC.check expr
+                      I.interpret p expr'
+                case mv of
+                  Left err -> error $ "read-file:" <> T.unpack err
+                  Right v -> pure $ unsafeCoerce v
+      )
   ]

@@ -9,15 +9,15 @@ import Data.Map (Map)
 import Data.Map qualified as M
 import Data.Maybe
 import Data.Text (Text)
+import Debug.Trace (traceM)
 import Interpreter.Value hiding (Val)
 import Interpreter.Value qualified as Value
 import Prop hiding ((\\))
-import RemoraPrelude (Prelude, PreludeVal (..))
+import {-# SOURCE #-} RemoraPrelude (Prelude, PreludeVal (..))
 import Syntax hiding (ArrayType, Atom, Bind, Dim, Exp, Extent, Shape, Type, TypeExp)
 import Syntax qualified
 import Util
 import VName
-import Debug.Trace (traceM)
 
 type Dim = Syntax.Dim VName
 
@@ -262,7 +262,7 @@ intDim (DimN d) = pure d
 intDim (Add ds) = sum <$> mapM intDim ds
 intDim (Mul ds) = product <$> mapM intDim ds
 intDim (Sub []) = pure 0
-intDim (Sub (d:ds)) = do
+intDim (Sub (d : ds)) = do
   d' <- intDim d
   ds' <- sum <$> mapM intDim ds
   pure $ d' - ds'
