@@ -102,7 +102,7 @@ Types and Kinds
       : | "(" "A" `type` `shape` ")"
       : | "(" ("->" | "→") "(" `type` ... ")" `type` ")"
       : | "(" ("Forall" | "∀") "(" `type_var` ... ")" `type` ")"
-      : | "(" ("Pi" | "П")  "(" `idx_var` ... ")" `type` ")"
+      : | "(" ("Pi" | "Π")  "(" `idx_var` ... ")" `type` ")"
       : | "(" ("Sigma" | "Σ") "(" `idx_var` ... ")" `type` ")"
    base_type : "Int" | "Bool" | "Float"
 

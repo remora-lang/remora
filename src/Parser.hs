@@ -111,7 +111,7 @@ keywords =
     "Forall",
     "∀",
     "Pi",
-    "П",
+    "Π",
     "Sigma",
     "Σ",
     "let",
@@ -194,7 +194,7 @@ pType =
                     )
                 <*> pType,
               TEPi
-                <$> ( (lKeyword "Pi" <|> lKeyword "П")
+                <$> ( (lKeyword "Pi" <|> lKeyword "Π")
                         >> listOf pExtentParam
                     )
                 <*> pType,
