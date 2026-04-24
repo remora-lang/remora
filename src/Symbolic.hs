@@ -22,10 +22,10 @@ import Data.Map (Map)
 import Data.Map qualified as M
 import Data.SBV hiding (MonadSymbolic, Symbolic, free, prove, sat, symbolic)
 import Data.SBV qualified as SBV
+import Data.SBV.Dynamic (generateSMTBenchmarkProof)
 import Data.SBV.Internals (SolverContext (..))
 import Data.SBV.List qualified as SL
 import Data.SBV.Trans qualified as SBV.Trans
-import Data.SBV.Dynamic (generateSMTBenchmarkProof)
 import GHC.IsList
 import Prettyprinter
 import Shape
@@ -33,6 +33,7 @@ import System.IO.Unsafe
 import Util
 
 type SShape = SList Integer
+
 type SDim = SInteger
 
 data SEnv v
@@ -74,7 +75,7 @@ lookupSymDim v = do
     Nothing -> do
       s <- symbolic $ prettyString v
       constrain $ s .>= literal 0
-      modify $ \senv -> senv { senvMap = M.insert v (Left s) $ senvMap senv }
+      modify $ \senv -> senv {senvMap = M.insert v (Left s) $ senvMap senv}
       pure s
     Just (Left s) -> pure s
     Just (Right _) -> error "got shp when looking up sym dim"
@@ -87,14 +88,16 @@ toSShape (ShapeDim d) = do
   where
     symDim (DimVar v) = lookupSymDim v
     symDim (DimN n) = pure $ literal $ toInteger n
+    symDim (Add []) = error "toSShape: add without args"
     symDim (Add ds) = do
       symDs <- mapM symDim ds
       pure $ sum symDs
     symDim (Mul ds) = do
       symDs <- mapM symDim ds
       pure $ product symDs
-    symDim (Sub []) = pure $ literal 0
-    symDim (Sub (d:ds)) = do
+    symDim (Sub []) = error "toSShape: sub without args"
+    symDim (Sub [d]) = negate <$> symDim d
+    symDim (Sub (d : ds)) = do
       symD <- symDim d
       symDs <- mapM symDim ds
       pure $ symD - sum symDs
@@ -130,13 +133,12 @@ askShapes ::
   Shape v ->
   Shape v ->
   Bool
-
 askShapes op s t =
   let (ThmResult res) = unsafePerformIO $ do
-        prove $ op <$> toSShape s <*> toSShape t in
-  case res of
-    Unsatisfiable _ _ -> True
-    _else -> False
+        prove $ op <$> toSShape s <*> toSShape t
+   in case res of
+        Unsatisfiable _ _ -> True
+        _else -> False
 
 (@=) :: (Ord v, Pretty v) => Shape v -> Shape v -> Bool
 (@=) = askShapes (.==)
