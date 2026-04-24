@@ -343,6 +343,22 @@ checkExp expr@(App f args _ pos) = do
                       prettyText expr
                     ]
               Just frame_a -> pure frame_a
+      unless (length pts == length args') $
+        throwErrorPos pos $
+          T.unlines
+            [ "In application",
+              prettyText expr,
+              T.unwords
+                [ "Function",
+                  prettyText f,
+                  "expects",
+                  T.pack $ show $ length pts,
+                  "arguments, but",
+                  T.pack $ show $ length args',
+                  "were given."
+                ]
+            ]
+
       frames <- zipWithM check_args pts args'
       case Symbolic.maximumShape $ frame_f : frames of
         Nothing ->
