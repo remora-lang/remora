@@ -50,7 +50,7 @@
               installPhase = ''
                 mkdir -p $out/bin
                 makeWrapper $src/bin/remora $out/bin/remora \
-                  --prefix PATH : "${pkgs.z3}/bin"
+                  --prefix PATH : "${pkgs.z3}/bin:${pkgs.futhark}/bin"
               '';
             };
             remora-docs = pkgs.stdenv.mkDerivation {
