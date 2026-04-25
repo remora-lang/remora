@@ -618,5 +618,33 @@ prelude =
                 case mv of
                   Left err -> error $ "read-file:" <> T.unpack err
                   Right v -> pure $ unsafeCoerce v
+      ),
+    PreludeVal
+      "truncate"
+      (mkScalarArrayType $ [A Float mempty] :-> A Int mempty)
+      ( ValFun $ \[x] ->
+          arrayValView x $ \(_, [ValBase (FloatVal x)]) ->
+            pure $ ValArray mempty [ValBase $ IntVal $ truncate x]
+      ),
+    PreludeVal
+      "round"
+      (mkScalarArrayType $ [A Float mempty] :-> A Int mempty)
+      ( ValFun $ \[x] ->
+          arrayValView x $ \(_, [ValBase (FloatVal x)]) ->
+            pure $ ValArray mempty [ValBase $ IntVal $ round x]
+      ),
+    PreludeVal
+      "ceiling"
+      (mkScalarArrayType $ [A Float mempty] :-> A Int mempty)
+      ( ValFun $ \[x] ->
+          arrayValView x $ \(_, [ValBase (FloatVal x)]) ->
+            pure $ ValArray mempty [ValBase $ IntVal $ ceiling x]
+      ),
+    PreludeVal
+      "floor"
+      (mkScalarArrayType $ [A Float mempty] :-> A Int mempty)
+      ( ValFun $ \[x] ->
+          arrayValView x $ \(_, [ValBase (FloatVal x)]) ->
+            pure $ ValArray mempty [ValBase $ IntVal $ floor x]
       )
   ]
