@@ -191,8 +191,9 @@ prelude =
       )
       ( ValTFun $ \[_t] ->
           pure $ ValIFun $ \[Left _d, Right s] ->
-            pure $ ValFun $ \[ValArray _ [ValFun op], ValArray _ (v : vs)] ->
-              foldM (\l r -> op [l, r]) v vs
+            pure $ ValFun $ \[ValArray _ [ValFun op], ValArray _ vs] ->
+              let (v' : vs') = map (ValArray s) (split (product s) vs)
+               in foldM (\l r -> op [l, r]) v' vs'
       ),
     PreludeVal
       "fold"
