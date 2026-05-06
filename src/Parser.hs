@@ -277,7 +277,7 @@ pExp =
     [ (withSrcPos $ withNoInfo $ (Array mempty . pure) <$> pAtom),
       between (symbol "[") (symbol "]") $ do
         es <- some pExp
-        flattenExp <$> withSrcPos (withNoInfo $ pure $ Frame [length es] es),
+        withSrcPos (withNoInfo $ pure $ Frame [length es] es),
       withSrcPos
         ( withNoInfo
             ( choice

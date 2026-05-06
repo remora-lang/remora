@@ -303,7 +303,7 @@ checkExp expr@(Frame ns es _ pos) = do
         throwErrorPos pos $
           "Frame shape doesn't match number of elements: " <> prettyText expr
       let A et s = arrayTypeOf e'
-      pure $ Frame ns es' (Info $ A et ((intsToShape ns) <> s)) pos
+      pure $ flattenExp $ Frame ns es' (Info $ A et ((intsToShape ns) <> s)) pos
 checkExp expr@(EmptyFrame ns t _ pos) = do
   t' <- checkTypeExp t
   unless (product ns == 0) $

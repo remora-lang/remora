@@ -390,12 +390,12 @@ frameElems _ = Nothing
 flattenExp :: Exp f v -> Exp f v
 flattenExp (Frame shape es t pos) =
   case es' of
-    (Frame shape' _ t' _ : _)
+    (Frame shape' _ _ _ : _)
       | Just ess' <- mapM frameElems es' ->
-          Frame (shape <> shape') (concat ess') t' pos
-    (Array shape' _ t' _ : _)
+          Frame (shape <> shape') (concat ess') t pos
+    (Array shape' _ _ _ : _)
       | Just ass' <- mapM arrayElems es' ->
-          Array (shape <> shape') (concat ass') t' pos
+          Array (shape <> shape') (concat ass') t pos
     _ -> Frame shape es' t pos
   where
     es' = map flattenExp es
