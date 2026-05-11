@@ -276,8 +276,10 @@ pExp =
   choice
     [ (withSrcPos $ withNoInfo $ (Array mempty . pure) <$> pAtom),
       between (symbol "[") (symbol "]") $ do
-        es <- some pExp
-        withSrcPos (withNoInfo $ pure $ Frame [length es] es),
+        es <- many pExp
+        if null es
+          then fail "Empty array literals [] are not supported."
+          else withSrcPos (withNoInfo $ pure $ Frame [length es] es),
       withSrcPos
         ( withNoInfo
             ( choice
@@ -285,8 +287,12 @@ pExp =
                   pString,
                   parens $
                     choice
-                      [ Array <$> (lKeyword "array" >> pShapeLit) <*> some pAtom,
-                        Frame <$> (lKeyword "frame" >> pShapeLit) <*> some pExp,
+                      [ do
+                          shape <- lKeyword "array" >> pShapeLit
+                          choice [try $ EmptyArray shape <$> pType, Array shape <$> some pAtom],
+                        do
+                          shape <- lKeyword "frame" >> pShapeLit
+                          choice [try $ EmptyFrame shape <$> pType, Frame shape <$> some pExp],
                         (. const NoInfo) <$> (App <$> pExp <*> many pExp),
                         lKeyword "i-app" >> IApp <$> pExp <*> many pExtent,
                         lKeyword "t-app" >> TApp <$> pExp <*> (many pType),
@@ -303,9 +309,11 @@ pExp =
       do
         s <- lexeme $ char '"' >> manyTill L.charLiteral (char '"')
         pos <- getSourcePos
-        pure $
-          Array [length s] $
-            map (\c -> Base (IntVal $ fromEnum c) NoInfo pos) s
+        pure $ case s of
+          [] -> EmptyArray [0] (TEInt pos)
+          _ ->
+            Array [length s] $
+              map (\c -> Base (IntVal $ fromEnum c) NoInfo pos) s
     pShapeLit = brackets $ many (fromIntegral <$> pDecimal)
     pUnbox =
       Unbox
