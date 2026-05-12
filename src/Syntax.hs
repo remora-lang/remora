@@ -374,7 +374,7 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Exp f v) where
 
 -- | Make a scalar from an 'Atom'.
 mkScalar :: Atom NoInfo v -> Exp NoInfo v
-mkScalar a = Array [1] [a] NoInfo $ posOf a
+mkScalar a = Array [] [a] NoInfo $ posOf a
 
 -- | Gets the 'Atom's of an 'Array' literal.
 arrayElems :: Exp f v -> Maybe [Atom f v]
