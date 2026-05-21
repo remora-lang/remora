@@ -258,11 +258,7 @@ intExp expr@(Let bs e _ _) =
 -- | Interpret a 'Dim'.
 intDim :: Dim -> InterpM Int
 intDim (DimVar d) = lookupDim d
-intDim (DimN d) = do
-  when (d < 0) $
-    throwError $
-      "intDim: negative dimension: " <> prettyText d
-  pure d
+intDim (DimN d) = pure d
 intDim (Add ds) = sum <$> mapM intDim ds
 intDim (Mul ds) = product <$> mapM intDim ds
 intDim (Sub []) = pure 0
