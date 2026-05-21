@@ -84,6 +84,7 @@ toSShape :: (MonadSymbolic v m) => Shape v -> m SShape
 toSShape (ShapeVar v) = lookupSymShp v
 toSShape (ShapeDim d) = do
   symD <- symDim d
+  constrain $ symD .>= literal 0
   pure $ SL.singleton symD
   where
     symDim (DimVar v) = lookupSymDim v

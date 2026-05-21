@@ -258,14 +258,22 @@ intExp expr@(Let bs e _ _) =
 -- | Interpret a 'Dim'.
 intDim :: Dim -> InterpM Int
 intDim (DimVar d) = lookupDim d
-intDim (DimN d) = pure d
+intDim (DimN d) = do
+  when (d < 0) $
+    throwError $
+      "intDim: negative dimension: " <> prettyText d
+  pure d
 intDim (Add ds) = sum <$> mapM intDim ds
 intDim (Mul ds) = product <$> mapM intDim ds
 intDim (Sub []) = pure 0
-intDim (Sub (d : ds)) = do
+intDim e@(Sub (d : ds)) = do
   d' <- intDim d
   ds' <- sum <$> mapM intDim ds
-  pure $ d' - ds'
+  let res = d' - ds'
+  when (res < 0) $
+    throwError $
+      "intDim: negative dimension from sub: " <> prettyText e
+  pure $ res
 
 -- | Interpret a 'Shape'.
 intShape :: Shape -> InterpM [Int]
