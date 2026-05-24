@@ -271,6 +271,7 @@ intDim d = guardNonNeg =<< intDim' d
     intDim' (Add ds) = sum <$> mapM intDim' ds
     intDim' (Mul ds) = product <$> mapM intDim' ds
     intDim' (Sub []) = pure 0
+    intDim' (Sub [d]) = negate <$> intDim' d
     intDim' e@(Sub (d : ds)) = do
       d' <- intDim' d
       ds' <- sum <$> mapM intDim' ds
