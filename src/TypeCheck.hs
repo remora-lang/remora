@@ -279,16 +279,16 @@ checkExp expr@(Array ns as _ pos) = do
           "Array shape doesn't match number of elements: " <> prettyText expr
       let et = scalarTypeOf a'
       pure $ Array ns as' (Info $ A et (intsToShape ns)) pos
-checkExp expr@(EmptyArray ns t _ pos) = do
-  t' <- checkTypeExp t
+checkExp expr@(EmptyArray ns te _ pos) = do
+  te' <- checkTypeExp te
   unless (product ns == 0) $
     throwErrorPos pos $
       "Empty array has a non-empty shape: " <> prettyText expr
-  case convertAtomTypeExp t' of
+  case convertArrayTypeExp te' of
     Nothing ->
       throwErrorPos pos $
-        "Non-scalar kinded type annotation on empty arra."
-    Just et -> pure $ EmptyArray ns t' (Info $ A et (intsToShape ns)) pos
+        "Non-scalar kinded type annotation on empty array."
+    Just t -> pure $ EmptyArray ns te' (Info t) pos
 checkExp expr@(Frame ns es _ pos) = do
   es' <- mapM checkExp es
   case es' of
@@ -304,16 +304,16 @@ checkExp expr@(Frame ns es _ pos) = do
           "Frame shape doesn't match number of elements: " <> prettyText expr
       let A et s = arrayTypeOf e'
       pure $ flattenExp $ Frame ns es' (Info $ A et ((intsToShape ns) <> s)) pos
-checkExp expr@(EmptyFrame ns t _ pos) = do
-  t' <- checkTypeExp t
+checkExp expr@(EmptyFrame ns te _ pos) = do
+  te' <- checkTypeExp te
   unless (product ns == 0) $
     throwErrorPos pos $
       "Empty frame has a non-empty shape: " <> prettyText expr
-  case convertAtomTypeExp t' of
+  case convertArrayTypeExp te' of
     Nothing ->
       throwErrorPos pos $
-        "Non-scalar kinded type annotation on empty arra."
-    Just et -> pure $ EmptyFrame ns t' (Info $ A et (intsToShape ns)) pos
+        "Non-scalar kinded type annotation on empty frame."
+    Just t -> pure $ EmptyFrame ns te' (Info t) pos
 checkExp expr@(App f args _ pos) = do
   f' <- checkExp f
   args' <- mapM checkExp args
