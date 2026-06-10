@@ -341,25 +341,25 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Exp f v) where
     group $
       parens $
         "array"
-          <+> parens (hsep (map pretty shape))
-          <+> group (brackets (hsep (map pretty as)))
+          <+> brackets (hsep (map pretty shape))
+          <+> group (hsep (map pretty as))
   pretty (EmptyArray shape t _ _) =
     group $
       parens $
         "empty-array"
-          <+> parens (hsep (map pretty shape))
+          <+> brackets (hsep (map pretty shape))
           <+> pretty t
   pretty (Frame shape es _ _) =
     group $
       parens $
         "frame"
-          <+> parens (hsep (map pretty shape))
-          <+> group (brackets (hsep (map pretty es)))
+          <+> brackets (hsep (map pretty shape))
+          <+> group (hsep (map pretty es))
   pretty (EmptyFrame shape t _ _) =
     group $
       parens $
         "empty-frame"
-          <+> parens (hsep (map pretty shape))
+          <+> brackets (hsep (map pretty shape))
           <+> pretty t
   pretty (App f es _ _) =
     parens $ hsep $ map pretty (f : es)

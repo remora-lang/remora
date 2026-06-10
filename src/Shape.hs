@@ -69,7 +69,6 @@ instance Monoid (Shape v) where
 instance (Show v, Pretty v) => Pretty (Shape v) where
   pretty (ShapeVar v) = "@" <> pretty v
   pretty (ShapeDim d) = pretty d
-  pretty (Concat []) = "•"
   pretty (Concat is) = parens $ hsep ("++" : map pretty is)
 
 -- | An 'Extent', which is either a 'Dim' or a 'Shape'.
