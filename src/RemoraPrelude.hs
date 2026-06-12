@@ -376,9 +376,10 @@ prelude =
                  )
            )
            ( ValTFun $ \[_t, _t2] ->
-               pure $ ValIFun $ \[Left _d, Right s, Right s2] ->
+               pure $ ValIFun $ \[Left _d, Right s, Right _s2] ->
                  pure $ ValFun $ \[ValArray _ [ValFun op], zero, ValArray _ vs] ->
-                   foldM (\l r -> op [l, r]) zero vs
+                   let vs' = map (ValArray s) (split (product s) vs)
+                    in foldM (\l r -> op [l, r]) zero vs'
            ),
          PreludeVal
            "f.reduce3"
