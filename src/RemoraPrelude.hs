@@ -27,138 +27,90 @@ type Prelude v m = [PreludeVal v m]
 
 data PreludeVal v m = PreludeVal v (ArrayType v) (Val m)
 
-intBinOp :: (Monad m) => Text -> (Int -> Int -> Int) -> PreludeVal Text m
-intBinOp name f =
-  PreludeVal
-    name
-    (mkScalarArrayType $ [A Int mempty, A Int mempty] :-> A Int mempty)
-    ( ValFun $ \args -> baseValViews args $ \[IntVal x, IntVal y] ->
-        pure $ ValArray mempty [ValBase $ IntVal $ f x y]
-    )
-
-intUnOp :: (Monad m) => Text -> (Int -> Int) -> PreludeVal Text m
-intUnOp name f =
-  PreludeVal
-    name
-    (mkScalarArrayType $ [A Int mempty] :-> A Int mempty)
-    ( ValFun $ \args -> baseValViews args $ \[IntVal x] ->
-        pure $ ValArray mempty [ValBase $ IntVal $ f x]
-    )
-
-floatBinOp :: (Monad m) => Text -> (Float -> Float -> Float) -> PreludeVal Text m
-floatBinOp name f =
-  PreludeVal
-    name
-    (mkScalarArrayType $ [A Float mempty, A Float mempty] :-> A Float mempty)
-    ( ValFun $ \args -> baseValViews args $ \[FloatVal x, FloatVal y] ->
-        pure $ ValArray mempty [ValBase $ FloatVal $ f x y]
-    )
-
-intCmp :: (Monad m) => Text -> (Int -> Int -> Bool) -> PreludeVal Text m
-intCmp name f =
-  PreludeVal
-    name
-    (mkScalarArrayType $ [A Int mempty, A Int mempty] :-> A Bool mempty)
-    ( ValFun $ \args -> baseValViews args $ \[IntVal x, IntVal y] ->
-        pure $ ValArray mempty [ValBase $ BoolVal $ f x y]
-    )
-
-floatCmp :: (Monad m) => Text -> (Float -> Float -> Bool) -> PreludeVal Text m
-floatCmp name f =
-  PreludeVal
-    name
-    (mkScalarArrayType $ [A Float mempty, A Float mempty] :-> A Bool mempty)
-    ( ValFun $ \args -> baseValViews args $ \[FloatVal x, FloatVal y] ->
-        pure $ ValArray mempty [ValBase $ BoolVal $ f x y]
-    )
-
-floatUnOp :: (Monad m) => Text -> (Float -> Float) -> PreludeVal Text m
-floatUnOp name f =
-  PreludeVal
-    name
-    (mkScalarArrayType $ [A Float mempty] :-> A Float mempty)
-    ( ValFun $ \args -> baseValViews args $ \[FloatVal x] ->
-        pure $ ValArray mempty [ValBase $ FloatVal $ f x]
-    )
-
-intBinOps :: [(Text, Int -> Int -> Int)]
-intBinOps =
-  [ ("+", (+)),
-    ("-", (-)),
-    ("*", (*)),
-    ("div", div),
-    ("mod", mod),
-    ("max", max),
-    ("min", min),
-    ("bit-and", (.&.)),
-    ("bit-or", (.|.)),
-    ("bit-xor", xor),
-    ("shl", shiftL),
-    ("shr", shiftR)
-  ]
-
-intUnOps :: [(Text, Int -> Int)]
-intUnOps =
-  [ ("bit-not", complement),
-    ("popc", popCount)
-  ]
-
-floatBinOps :: [(Text, Float -> Float -> Float)]
-floatBinOps =
-  [ ("f.+", (+)),
-    ("f.^", (**)),
-    ("f.-", (-)),
-    ("f.*", (*)),
-    ("f./", (/)),
-    ("f.max", max),
-    ("f.min", min)
-  ]
-
-intCmps :: [(Text, Int -> Int -> Bool)]
-intCmps =
-  [ ("==", (==)),
-    ("<", (<)),
-    (">", (>)),
-    ("<=", (<=)),
-    (">=", (>=))
-  ]
-
-floatCmps :: [(Text, Float -> Float -> Bool)]
-floatCmps =
-  [ ("f.==", (==)),
-    ("f.<", (<)),
-    ("f.>", (>)),
-    ("f.<=", (<=)),
-    ("f.>=", (>=))
-  ]
-
-scalarPrims :: (Monad m) => Prelude Text m
-scalarPrims =
-  map (uncurry intBinOp) intBinOps
-    ++ map (uncurry intUnOp) intUnOps
-    ++ map (uncurry floatBinOp) floatBinOps
+intOps :: (Monad m) => [PreludeVal Text m]
+intOps =
+  map (uncurry intUnOp) intUnOps
+    ++ map (uncurry intBinOp) intBinOps
     ++ map (uncurry intCmp) intCmps
-    ++ map (uncurry floatCmp) floatCmps
-    ++ [ floatUnOp "sqrt" sqrt,
-         PreludeVal
-           "bool->i"
-           (mkScalarArrayType $ [A Bool mempty] :-> A Int mempty)
-           ( ValFun $ \args -> baseValViews args $ \[BoolVal b] ->
-               pure $ ValArray mempty [ValBase $ IntVal $ fromEnum b]
-           ),
-         PreludeVal
-           "bool->f"
-           (mkScalarArrayType $ [A Bool mempty] :-> A Float mempty)
-           ( ValFun $ \args -> baseValViews args $ \[BoolVal b] ->
-               pure $ ValArray mempty [ValBase $ FloatVal $ fromIntegral $ fromEnum b]
-           ),
-         PreludeVal
+    ++ [ PreludeVal
            "i->f"
            (mkScalarArrayType $ [A Int mempty] :-> A Float mempty)
            ( ValFun $ \args -> baseValViews args $ \[IntVal i] ->
                pure $ ValArray mempty [ValBase $ FloatVal $ fromIntegral i]
            ),
          PreludeVal
+           "i->bool"
+           (mkScalarArrayType $ [A Int mempty] :-> A Bool mempty)
+           ( ValFun $ \args -> baseValViews args $ \[IntVal i] ->
+               pure $ ValArray mempty [ValBase $ BoolVal $ i /= 0]
+           )
+       ]
+  where
+    intBinOps :: [(Text, Int -> Int -> Int)]
+    intBinOps =
+      [ ("+", (+)),
+        ("-", (-)),
+        ("*", (*)),
+        ("div", div),
+        ("mod", mod),
+        ("max", max),
+        ("min", min),
+        ("bit-and", (.&.)),
+        ("bit-or", (.|.)),
+        ("bit-xor", xor),
+        ("shl", shiftL),
+        ("shr", shiftR)
+      ]
+
+    intUnOps :: [(Text, Int -> Int)]
+    intUnOps =
+      [ ("bit-not", complement),
+        ("popc", popCount)
+      ]
+
+    intCmps :: [(Text, Int -> Int -> Bool)]
+    intCmps =
+      [ ("==", (==)),
+        ("!=", (/=)),
+        ("<", (<)),
+        (">", (>)),
+        ("<=", (<=)),
+        (">=", (>=))
+      ]
+
+    intBinOp :: (Monad m) => Text -> (Int -> Int -> Int) -> PreludeVal Text m
+    intBinOp name f =
+      PreludeVal
+        name
+        (mkScalarArrayType $ [A Int mempty, A Int mempty] :-> A Int mempty)
+        ( ValFun $ \args -> baseValViews args $ \[IntVal x, IntVal y] ->
+            pure $ ValArray mempty [ValBase $ IntVal $ f x y]
+        )
+
+    intUnOp :: (Monad m) => Text -> (Int -> Int) -> PreludeVal Text m
+    intUnOp name f =
+      PreludeVal
+        name
+        (mkScalarArrayType $ [A Int mempty] :-> A Int mempty)
+        ( ValFun $ \args -> baseValViews args $ \[IntVal x] ->
+            pure $ ValArray mempty [ValBase $ IntVal $ f x]
+        )
+
+    intCmp :: (Monad m) => Text -> (Int -> Int -> Bool) -> PreludeVal Text m
+    intCmp name f =
+      PreludeVal
+        name
+        (mkScalarArrayType $ [A Int mempty, A Int mempty] :-> A Bool mempty)
+        ( ValFun $ \args -> baseValViews args $ \[IntVal x, IntVal y] ->
+            pure $ ValArray mempty [ValBase $ BoolVal $ f x y]
+        )
+
+floatOps :: (Monad m) => [PreludeVal Text m]
+floatOps =
+  map (uncurry floatUnOp) floatUnOps
+    ++ map (uncurry floatBinOp) floatBinOps
+    ++ map (uncurry floatCmp) floatCmps
+    ++ [ PreludeVal
            "truncate"
            (mkScalarArrayType $ [A Float mempty] :-> A Int mempty)
            ( ValFun $ \args -> baseValViews args $ \[FloatVal x] ->
@@ -183,10 +135,112 @@ scalarPrims =
                pure $ ValArray mempty [ValBase $ IntVal $ floor x]
            )
        ]
+  where
+    floatUnOps :: [(Text, Float -> Float)]
+    floatUnOps =
+      [("sqrt", sqrt)]
+
+    floatBinOps :: [(Text, Float -> Float -> Float)]
+    floatBinOps =
+      [ ("f.+", (+)),
+        ("f.^", (**)),
+        ("f.-", (-)),
+        ("f.*", (*)),
+        ("f./", (/)),
+        ("f.max", max),
+        ("f.min", min)
+      ]
+
+    floatCmps :: [(Text, Float -> Float -> Bool)]
+    floatCmps =
+      [ ("f.==", (==)),
+        ("f.!=", (/=)),
+        ("f.<", (<)),
+        ("f.>", (>)),
+        ("f.<=", (<=)),
+        ("f.>=", (>=))
+      ]
+
+    floatBinOp :: (Monad m) => Text -> (Float -> Float -> Float) -> PreludeVal Text m
+    floatBinOp name f =
+      PreludeVal
+        name
+        (mkScalarArrayType $ [A Float mempty, A Float mempty] :-> A Float mempty)
+        ( ValFun $ \args -> baseValViews args $ \[FloatVal x, FloatVal y] ->
+            pure $ ValArray mempty [ValBase $ FloatVal $ f x y]
+        )
+
+    floatCmp :: (Monad m) => Text -> (Float -> Float -> Bool) -> PreludeVal Text m
+    floatCmp name f =
+      PreludeVal
+        name
+        (mkScalarArrayType $ [A Float mempty, A Float mempty] :-> A Bool mempty)
+        ( ValFun $ \args -> baseValViews args $ \[FloatVal x, FloatVal y] ->
+            pure $ ValArray mempty [ValBase $ BoolVal $ f x y]
+        )
+
+    floatUnOp :: (Monad m) => Text -> (Float -> Float) -> PreludeVal Text m
+    floatUnOp name f =
+      PreludeVal
+        name
+        (mkScalarArrayType $ [A Float mempty] :-> A Float mempty)
+        ( ValFun $ \args -> baseValViews args $ \[FloatVal x] ->
+            pure $ ValArray mempty [ValBase $ FloatVal $ f x]
+        )
+
+boolOps :: (Monad m) => [PreludeVal Text m]
+boolOps =
+  map (uncurry boolUnOp) boolUnOps
+    ++ map (uncurry boolBinOp) boolBinOps
+    ++ [ PreludeVal
+           "bool->i"
+           (mkScalarArrayType $ [A Bool mempty] :-> A Int mempty)
+           ( ValFun $ \args -> baseValViews args $ \[BoolVal b] ->
+               pure $ ValArray mempty [ValBase $ IntVal $ fromEnum b]
+           ),
+         PreludeVal
+           "bool->f"
+           (mkScalarArrayType $ [A Bool mempty] :-> A Float mempty)
+           ( ValFun $ \args -> baseValViews args $ \[BoolVal b] ->
+               pure $ ValArray mempty [ValBase $ FloatVal $ fromIntegral $ fromEnum b]
+           )
+       ]
+  where
+    boolUnOps :: [(Text, Bool -> Bool)]
+    boolUnOps =
+      [("not", not)]
+
+    boolBinOps :: [(Text, Bool -> Bool -> Bool)]
+    boolBinOps =
+      [ ("and", (&&)),
+        ("or", (||)),
+        ("bool.==", (==)),
+        ("bool.!=", (/=))
+      ]
+
+    boolBinOp :: (Monad m) => Text -> (Bool -> Bool -> Bool) -> PreludeVal Text m
+    boolBinOp name f =
+      PreludeVal
+        name
+        (mkScalarArrayType $ [A Bool mempty, A Bool mempty] :-> A Bool mempty)
+        ( ValFun $ \args -> baseValViews args $ \[BoolVal x, BoolVal y] ->
+            pure $ ValArray mempty [ValBase $ BoolVal $ f x y]
+        )
+
+    boolUnOp :: (Monad m) => Text -> (Bool -> Bool) -> PreludeVal Text m
+    boolUnOp name f =
+      PreludeVal
+        name
+        (mkScalarArrayType $ [A Bool mempty] :-> A Bool mempty)
+        ( ValFun $ \args -> baseValViews args $ \[BoolVal x] ->
+            pure $ ValArray mempty [ValBase $ BoolVal $ f x]
+        )
 
 prelude :: (Monad m) => Prelude Text m
 prelude =
-  scalarPrims
+  intOps
+    ++ floatOps
+    ++ boolOps
     ++ [ PreludeVal
            "head"
            ( mkScalarArrayType $
