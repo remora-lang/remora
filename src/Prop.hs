@@ -214,9 +214,8 @@ convertAtomTypeExp (TESigma ps t _) =
 convertAtomTypeExp _ = Nothing
 
 convertArrayTypeExp :: (Ord v) => TypeExp v -> Maybe (ArrayType v)
-convertArrayTypeExp (TEArray t s _) = do
-  A et s' <- convertArrayTypeExp t
-  pure $ A et (s <> s')
+convertArrayTypeExp (TEArray t s _) =
+  A <$> convertAtomTypeExp t <*> pure s
 convertArrayTypeExp (TEArrayVar v _) =
   pure $ A (AtomTypeVar v) (ShapeVar v)
 convertArrayTypeExp t =
