@@ -182,7 +182,7 @@ pType =
         brackets $ TEArray <$> pType <*> pShapeSplice,
         parens $
           choice
-            [ TEArray <$> (lKeyword "A" >> pType) <*> pShape,
+            [ TEArray <$> (lKeyword "A" >> pType) <*> (extentToShape <$> pExtent),
               TEArrow
                 <$> ( (lKeyword "->" <|> lKeyword "→")
                         >> listOf pType
@@ -453,7 +453,6 @@ pShape :: Parser Shape
 pShape =
   choice
     [ "@" >> ShapeVar <$> lId,
-      try $ Syntax.ShapeDim <$> pDim,
       parens $
         choice
           [ lKeyword "dims" >> Syntax.Concat <$> many (ShapeDim <$> pDim),
