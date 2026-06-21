@@ -7,7 +7,7 @@ author: |
   \
   Original authors:\
   Olin Shivers, Justin Slepak, and Panagiotis Manolios (2019)
-date: Version 2.0 — June 10, 2026
+date: Version 2.1 — June 21, 2026
 abstract: |
   Remora is a higher-order, rank-polymorphic array-processing
   language, in the same general class of languages as APL and J,
@@ -62,7 +62,7 @@ polymorphism information is written explicitly — there is no type
 inference and no dynamic dialect.
 
 **Every example in this document has been machine-verified** against the
-implementation at commit `ebca13b` (2026-06-10).  Examples are shown as
+implementation at commit `a72fcd4` (2026-06-21).  Examples are shown as
 a fenced code block whose last line is a comment giving the verified
 result:
 
@@ -185,10 +185,13 @@ genuinely need mixed sizes, you need *boxes*: §7.)
 
 Two honest warnings about the corners of this table:
 
-- **Bool values exist but nothing consumes them.**  The current prelude
-  has no comparisons, no boolean operators, and the language has no
-  `if`.  (The original tutorial's `filter`, `select`, `grade`,
-  conditionals, etc. all belong to the missing-builtins list in §10.)
+- **Booleans have operations, but there is no `if`.**  Comparisons
+  (`<`, `==`, …) produce `Bool`, and `and`/`or`/`not` consume them
+  (§8.1) — but the language has no `if`/`cond`, so booleans drive
+  *data-parallel* computation rather than branching (convert to numbers
+  with `bool->i` when you need arithmetic).  (The original tutorial's
+  `filter`, `select`, `grade`, conditionals, etc. are on the
+  missing-builtins list in §10.)
 - **Strings are Int vectors.**  `"abc"` parses, but there is no `Char`
   type — a string literal denotes the vector of Unicode code points:
 
@@ -230,13 +233,19 @@ shapes that the ispace language can express.  (One would like to add
 `@s`, an explicit `(dims d1 d2 ...)`, a concatenation `(++ s1 s2 ...)`,
 or — most commonly — the **splice notation** `[i1 i2 ...]`, which
 splices any mix of dimensions and shapes into one shape.  `[2 @s 3]`
-means "2, then all of `@s`, then 3".
+means "2, then all of `@s`, then 3".  A bare dimension is *not* itself a
+shape: a one-dimension shape is written `(dims d)`, and `(++ ...)` joins
+shapes, so `(++ (dims $m) @s)` — not `(++ $m @s)`.  (Wherever an
+*ispace* is expected, though — see below — a bare dimension *is*
+accepted, and raised to a shape automatically.)
 
-The **array type** is `(A atom-type shape)`.  Its sugar absorbs most of
-the notation you'll actually write:
+The **array type** is `(A atom-type ispace)`.  Its second slot is an
+ispace, so it may be either a shape or a bare dimension.  The
+notation's sugar absorbs most of what you'll actually write:
 
 | You write | It means |
 | --- | --- |
+| `(A Int 3)` | a vector of 3 Ints |
 | `[Int 2 3]` | `(A Int (dims 2 3))` |
 | `(A Int [2 3])` | same |
 | `[&t $m @s]` | `(A &t (++ (dims $m) @s))` |
@@ -906,19 +915,21 @@ unboxing each:
 (let ((type *str (Sigma ($n) [Int $n]))
       (fun (strlen (s *str) : Int)
         (unbox ($n cs s) (@length (Int) ($n []) cs))))
-  (strlen [(box (6) "Monday" *str)
-           (box (7) "Tuesday" *str)
-           (box (9) "Wednesday" *str)
-           (box (8) "Thursday" *str)
-           (box (6) "Friday" *str)]))
-; ⇒ [6 7 9 8 6]
+  (== (strlen [(box (6) "Monday" *str)
+               (box (7) "Tuesday" *str)
+               (box (9) "Wednesday" *str)
+               (box (8) "Thursday" *str)
+               (box (6) "Friday" *str)])
+      6))
+; ⇒ [#t #f #f #f #t]
 ```
 
 `strlen` consumes scalar `*str` cells, so it lifts over the `[5]`-frame
-of boxes; each application opens its own box with its own private
-witness `$n`.  (The original computed `[#t #f #f #f #t]` by comparing
-with 6 — no comparisons in the current prelude, so we report the
-lengths themselves.)
+of boxes — each application opens its own box with its own private
+witness `$n` — giving the lengths `[6 7 9 8 6]`.  Comparing those with
+`6` (the scalar `6` is replicated across the frame by `==`) reproduces
+the original tutorial's result: the weekdays that are exactly six
+letters long.
 
 ---
 
@@ -929,19 +940,61 @@ with verified examples.  Types are written with the sugar of §2;
 remember every entry is `∀`-then-`Π` nested, eliminated as
 `(@name (types) (ispaces) args ...)`.
 
-### 8.1 Arithmetic (monomorphic, scalar)
+### 8.1 Scalar primitives
+
+These are all monomorphic scalar functions: they take scalar cells and
+lift over any frame.
+
+**Arithmetic.**
 
 | Name | Type |
 | --- | --- |
-| `+` `-` `*` | `(-> (Int Int) Int)` |
-| `f.+` `f.-` `f.*` `f./` `f.^` | `(-> (Float Float) Float)` |
+| `+` `-` `*` `div` `mod` `max` `min` | `(-> (Int Int) Int)` |
+| `f.+` `f.-` `f.*` `f./` `f.^` `f.max` `f.min` | `(-> (Float Float) Float)` |
 | `sqrt` | `(-> (Float) Float)` |
-| `i->f` | `(-> (Int) Float)` |
 | `truncate` `round` `ceiling` `floor` | `(-> (Float) Int)` |
 
-Int and Float arithmetic are disjoint families — no overloading, no
-coercion except explicit `i->f`.  There is no Int division, no `expt`,
-and (worth repeating) no comparisons.  All of them lift, of course:
+`div`/`mod` are integer division and remainder, floor convention
+(`(div -17 5)` is `-4`).  There is no integer exponentiation — only
+`f.^` raises floats.  Int and Float are disjoint families: no
+overloading, no implicit coercion (convert explicitly, below).
+
+**Comparison** — each returns a `Bool`.
+
+| Name | Type |
+| --- | --- |
+| `==` `!=` `<` `>` `<=` `>=` | `(-> (Int Int) Bool)` |
+| `f.==` `f.!=` `f.<` `f.>` `f.<=` `f.>=` | `(-> (Float Float) Bool)` |
+| `bool.==` `bool.!=` | `(-> (Bool Bool) Bool)` |
+
+**Boolean.**
+
+| Name | Type |
+| --- | --- |
+| `and` `or` | `(-> (Bool Bool) Bool)` |
+| `not` | `(-> (Bool) Bool)` |
+
+**Bitwise** — on `Int`, as a two's-complement machine word.
+
+| Name | Type |
+| --- | --- |
+| `bit-and` `bit-or` `bit-xor` `shl` `shr` | `(-> (Int Int) Int)` |
+| `bit-not` `popc` | `(-> (Int) Int)` |
+
+**Conversion.**
+
+| Name | Type | Notes |
+| --- | --- | --- |
+| `i->f` | `(-> (Int) Float)` | |
+| `i->bool` | `(-> (Int) Bool)` | nonzero → `#t` |
+| `bool->i` | `(-> (Bool) Int)` | `#t`→`1`, `#f`→`0` |
+| `bool->f` | `(-> (Bool) Float)` | `#t`→`1.0`, `#f`→`0.0` |
+
+Comparisons return `Bool`, and the language has no `if` (§1.1) — so
+booleans are not for branching.  They flow through *data-parallel*
+computation: a `bool->i` comparison mask, summed, counts (§8.3 `sum`);
+multiplied into data, it selects.  These masks are the data-parallel
+stand-ins for the `if` the language lacks.  Everything here lifts:
 
 ```remora
 (truncate (f.* (i->f 3) 1.5))
@@ -951,6 +1004,16 @@ and (worth repeating) no comparisons.  All of them lift, of course:
 ```remora
 (sqrt (f.* 4.5 2.0))
 ; ⇒ 3.0
+```
+
+```remora
+(< [1 5 3] 3)                  ; comparison lifts elementwise
+; ⇒ [#t #f #f]
+```
+
+```remora
+(bool->i (< [1 5 3] 3))        ; Bool mask → 0/1 Int (sum it to count)
+; ⇒ [1 0 0]
 ```
 
 ### 8.2 Shape surgery
@@ -1034,17 +1097,25 @@ operator (§4.5 showed both the scalar-cell and vector-cell cases; §6.2
 showed reranking it).  Its `(+ 1 $d)` makes empty reductions a type
 error — there is no `reduce/zero` in the current prelude.
 
-`fold` is the general accumulator version (operator takes `(acc,
-item)`, left to right).  **Caveat, verified:** the current interpreter
-only implements `fold` correctly for *scalar* items and accumulator
-(`@s = @s2 = []`).  With vector items it folds over the flattened
-atoms — `(@fold (Int Int) (1 [3] [3]) (fn ((a [Int 3]) (e [Int 3])) (+
-a e)) [0 0 0] [[1 2 3] [10 20 30]])` returns `[66 66 66]`, not the
-`[11 22 33]` its type promises.  Use `reduce` for non-scalar items.
+`fold` is the general accumulator version.  Two things set it apart
+from `reduce`: it takes an explicit initial accumulator (rather than
+seeding from the first item), and that accumulator carries its own atom
+type `&t2` and cell shape `@s2` — so a fold can consume items of one
+shape while building a result of another.  The operator runs
+`(acc, item)` left to right.  (Like `reduce`, its `(+ 1 $d)` still
+requires at least one item.)
 
 ```remora
 (@fold (Int Int) (3 [] []) + 0 [1 2 3 4])
 ; ⇒ 10
+```
+
+```remora
+(@fold (Int Int) (1 [3] [3])
+  (fn ((a [Int 3]) (e [Int 3])) (+ a e))
+  [0 0 0]
+  [[1 2 3] [10 20 30]])
+; ⇒ [11 22 33]
 ```
 
 `sum` adds up *all* atoms of an Int array of any shape — handy with a
@@ -1274,8 +1345,7 @@ counterpart** (the type system parts of the old tutorial fare much
 better than the library parts; the dialect itself lives on, unmaintained,
 as `#lang remora/dynamic` in the Racket implementation at
 github.com/jrslepak/Remora): `if`/`cond` and all conditional code;
-comparisons and boolean operators (`#t`/`#f` parse, nothing consumes
-them); `filter`, `partition`, `select`, count-`replicate`, `grade`,
+`filter`, `partition`, `select`, count-`replicate`, `grade`,
 `sort`; `rotate`, `index`, `index-item`, `subarray` and friends;
 `scan`/`iscan`/`open-scan` (all scans), `fold-right`, `reduce/zero`,
 `with-shape`, `expt`, `zero?`; characters and real strings.  Where the
@@ -1359,12 +1429,12 @@ bind     ::= (val id exp) | (val (id : type) exp)
            | (type tvar type) | (extent ispace-var ispace)
 type     ::= &id | *id | Int | Bool | Float
            | [type ispace ...]                       ; (A type [ispace ...])
-           | (A type shape)
+           | (A type ispace)                         ; ispace: a dim or a shape
            | (->|→ (type ...) type)
            | (Forall|∀ (tvar ...) type)
            | (Pi|Π (ispace-var ...) type) | (Sigma|Σ (ispace-var ...) type)
 dim      ::= $id | nat | (+ dim ...) | (* dim ...) | (- dim ...)
-shape    ::= @id | dim | (dims dim ...) | (++ shape ...) | [ispace ...]
+shape    ::= @id | (dims dim ...) | (++ shape ...) | [ispace ...]
 ispace   ::= dim | shape
 tvar     ::= &id | *id
 ispace-var ::= $id | @id
