@@ -1,0 +1,42 @@
+2026-06-21
+The file remora-tutorial-2.pdf was generated from
+remora-tutorial-2.md on a Mac using pandoc, which was
+installed using homebrew.
+
+# run from the directory containing remora-tutorial-2.md:
+pandoc -f gfm+yaml_metadata_block+raw_attribute -o remora-tutorial-2.pdf remora-tutorial-2.md \
+    --pdf-engine=xelatex \
+    -V geometry:margin=1in \
+    -V colorlinks=true \
+    -V linkcolor=RoyalBlue \
+    -V urlcolor=RoyalBlue \
+    -V mainfont="Lucida Grande" \
+    -V monofont="Menlo" \
+    -V monofontoptions="Scale=0.85" \
+    --highlight-style=tango
+
+# Notes on the format extensions:
+#   yaml_metadata_block  — parse the title/author/date/abstract block
+#   raw_attribute        — honor the ```{=latex} block that places the
+#                          table of contents (so no --toc flag is used)
+
+Missing glyphs can be dropped without warning.
+To check for missing characters, do:
+
+mkdir -p /tmp/glyphcheck
+
+# run from the directory containing remora-tutorial-2.md:
+pandoc -f gfm+yaml_metadata_block+raw_attribute -s remora-tutorial-2.md -o /tmp/glyphcheck/full.tex \
+      --pdf-engine=xelatex \
+      -V geometry:margin=1in \
+      -V colorlinks=true \
+      -V linkcolor=RoyalBlue \
+      -V urlcolor=RoyalBlue \
+      -V mainfont="Lucida Grande" \
+      -V monofont="Menlo" \
+      -V monofontoptions="Scale=0.85" \
+      --highlight-style=tango
+
+cd /tmp/glyphcheck
+xelatex -interaction=batchmode full.tex
+grep 'Missing character' full.log | sort -u    # any dropped glyphs (none = good)
