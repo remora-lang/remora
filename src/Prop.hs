@@ -7,6 +7,7 @@ module Prop
     HasArrayType (..),
     HasType (..),
     HasShape (..),
+    isScalar,
     IsType (..),
     (@=),
     (\\),
@@ -15,18 +16,22 @@ module Prop
     convertTypeExp,
     convertAtomTypeExp,
     convertArrayTypeExp,
+    unrollArrow,
+    peelArrayType,
+    findRet,
+    unrollApp,
   )
 where
 
 import Control.Applicative
-import Control.Monad
+import Data.Bifunctor (first, second)
+import Data.List.NonEmpty qualified as NE
 import Data.Maybe
+import ISpace
 import Prettyprinter
-import Shape
 import Substitute
 import Symbolic qualified
 import Syntax
-import Util
 import VName
 
 class HasArrayType x where
@@ -35,7 +40,7 @@ class HasArrayType x where
 
   arrayTypeOf_ :: x -> ArrayType VName
 
-instance HasArrayType (Exp Info VName) where
+instance HasArrayType Exp where
   arrayTypeOf_ (Var _ (Info t) _) = t
   arrayTypeOf_ (Array _ _ (Info t) _) = t
   arrayTypeOf_ (EmptyArray _ _ (Info t) _) = t
@@ -47,10 +52,10 @@ instance HasArrayType (Exp Info VName) where
   arrayTypeOf_ (Unbox _ _ _ _ (Info t) _) = t
   arrayTypeOf_ (Let _ _ (Info t) _) = t
 
-instance HasArrayType (Pat Info VName) where
+instance HasArrayType Pat where
   arrayTypeOf_ (PatId _ _ (Info t) _) = t
 
-scalarTypeOf :: Atom Info VName -> AtomType VName
+scalarTypeOf :: Atom -> AtomType VName
 scalarTypeOf = normType . scalarTypeOf_
   where
     scalarTypeOf_ (Base _ (Info t) _) = t
@@ -75,13 +80,13 @@ class HasType x where
 instance HasType Base where
   typeOf_ = AtomType . baseTypeOf
 
-instance HasType (Atom Info VName) where
+instance HasType Atom where
   typeOf_ = AtomType . scalarTypeOf
 
-instance HasType (Exp Info VName) where
+instance HasType Exp where
   typeOf_ = ArrayType . arrayTypeOf
 
-instance HasType (Pat Info VName) where
+instance HasType Pat where
   typeOf_ = ArrayType . arrayTypeOf
 
 -- | Things that have a shape.
@@ -91,7 +96,7 @@ class HasShape x where
 
   shapeOf_ :: x -> Shape VName
 
-instance HasShape (Atom f VName) where
+instance HasShape (AtomBase tp f VName) where
   shapeOf_ _ = mempty
 
 instance HasShape (ArrayType VName) where
@@ -101,53 +106,37 @@ instance HasShape (Type VName) where
   shapeOf_ (ArrayType t) = shapeOf t
   shapeOf_ _ = mempty
 
-instance HasShape (Exp Info VName) where
+instance HasShape Exp where
   shapeOf_ = shapeOf_ . typeOf_
 
 -- | Things that are types.
 class IsType x where
   normType :: x -> x
-  (~=) :: (MonadVName m) => x -> x -> m Bool
+  (~=) :: x -> x -> Bool
 
 infix 4 ~=
 
 instance IsType (AtomType VName) where
-  normType (ts :-> r) = map normType ts :-> normType r
+  normType (t :-> r) = normType t :-> normType r
   normType (Forall pts t) = Forall pts $ normType t
   normType (Pi pts t) = Pi pts $ normType t
   normType (Sigma pts t) = Sigma pts $ normType t
   normType t = t
 
-  (ps :-> r) ~= (qs :-> t)
-    | length ps == length qs =
-        andM (zipWith (~=) ps qs) ^&& (r ~= t)
-  Forall ps r ~= Forall qs t
-    | length ps == length qs = do
-        xs <- forM ps $ \p -> do
-          vname <- newVName $ prettyText p
-          pure $ vname <$ p
-        substitute' (zip ps xs) r ~= substitute' (zip qs xs) t
-  Pi ps r ~= Pi qs t
-    | length ps == length qs = do
-        xs <- forM ps $ \p -> do
-          vname <- newVName $ prettyText p
-          pure $ vname <$ p
-        substitute' (zip ps xs) r ~= substitute' (zip qs xs) t
-  Sigma ps r ~= Sigma qs t
-    | length ps == length qs = do
-        xs <- forM ps $ \p -> do
-          vname <- newVName $ prettyText p
-          pure $ vname <$ p
-        substitute' (zip ps xs) r ~= substitute' (zip qs xs) t
-  t ~= r = pure $ t == r
+  (p :-> r) ~= (q :-> t) = p ~= q && r ~= t
+  Forall p r ~= Forall q t =
+    substitute (renameVar (unTypeParam p) (unTypeParam q)) r ~= t
+  Pi p r ~= Pi q t =
+    substitute (renameVar (unISpaceParam p) (unISpaceParam q)) r ~= t
+  Sigma p r ~= Sigma q t =
+    substitute (renameVar (unISpaceParam p) (unISpaceParam q)) r ~= t
+  t ~= r = t == r
 
 instance IsType (ArrayType VName) where
   normType (A t s) = A (normType t) (normShape s)
-  normType t = t
 
   A t s ~= A y x =
-    (t ~= y) ^&& pure (s Symbolic.@= x)
-  t ~= r = pure $ t == r
+    (t ~= y) && (s Symbolic.@= x)
 
 instance IsType (Type VName) where
   normType (AtomType t) = AtomType $ normType t
@@ -155,13 +144,33 @@ instance IsType (Type VName) where
 
   AtomType t ~= AtomType r = t ~= r
   ArrayType t ~= ArrayType r = t ~= r
-  _ ~= _ = pure False
+  _ ~= _ = False
 
 -- | Naive shape equality.
 (@=) :: (Ord v) => Shape v -> Shape v -> Bool
 s @= t = normShape s == normShape t
 
+isScalar :: (HasShape x) => x -> Bool
+isScalar x = shapeOf x @= mempty
+
 infix 4 @=
+
+-- | Unroll a curried function type into its parameter types and return type.
+unrollArrow :: (Ord v) => ArrayType v -> ([ArrayType v], ArrayType v)
+unrollArrow (A (param :-> ret) s)
+  | s @= mempty = first (param :) (unrollArrow ret)
+unrollArrow t = ([], t)
+
+peelArrayType :: (Ord v) => ArrayType v -> ArrayType v
+peelArrayType (A a s) = A a $ peelShape s
+
+findRet :: (Ord v) => AtomType v -> ArrayType v
+findRet = snd . unrollArrow . mkScalarArrayType
+
+-- | Unroll a curried app.
+unrollApp :: ExpBase tp f v -> (ExpBase tp f v, [ExpBase tp f v])
+unrollApp (App f x _ _) = second (++ [x]) (unrollApp f)
+unrollApp x = (x, [])
 
 -- | Shape suffix subtraction; given shapes @(++ s1 s2)@ and @t@ if @t == s2@ then
 -- returns @Just s1@. Otherwise fails with @Nothing@.
@@ -191,26 +200,34 @@ maximumShape =
           else shape
     )
     mempty
-    . foldMap ((\x -> [x]) . normShape)
+    . foldMap ((: []) . normShape)
 
 convertTypeExp :: (Ord v) => TypeExp v -> Maybe (Type v)
 convertTypeExp t =
   (AtomType <$> convertAtomTypeExp t)
     <|> (ArrayType <$> convertArrayTypeExp t)
 
+convertTypeParamExp :: TypeParamExp v -> Maybe (TypeParam v)
+convertTypeParamExp (TEAtomTypeParam v) = Just (AtomTypeParam v)
+convertTypeParamExp (TEArrayTypeParam _) = Nothing
+
 convertAtomTypeExp :: (Ord v) => TypeExp v -> Maybe (AtomType v)
 convertAtomTypeExp (TEAtomVar v _) = pure $ AtomTypeVar v
 convertAtomTypeExp (TEBool _) = pure Bool
 convertAtomTypeExp (TEInt _) = pure Int
 convertAtomTypeExp (TEFloat _) = pure Float
-convertAtomTypeExp (TEArrow ts t _) =
-  (:->) <$> mapM convertArrayTypeExp ts <*> convertArrayTypeExp t
-convertAtomTypeExp (TEForall ps t _) =
-  Forall ps <$> convertArrayTypeExp t
-convertAtomTypeExp (TEPi ps t _) =
-  Pi ps <$> convertArrayTypeExp t
-convertAtomTypeExp (TESigma ps t _) =
-  Sigma ps <$> convertArrayTypeExp t
+convertAtomTypeExp (TEArrow t1 t2 _) =
+  (:->) <$> convertArrayTypeExp t1 <*> convertArrayTypeExp t2
+convertAtomTypeExp (TEForall ps t _) = do
+  params <- traverse convertTypeParamExp ps
+  t' <- convertArrayTypeExp t
+  pure $ foldr (\p r -> Forall p (mkScalarArrayType r)) (Forall (NE.last params) t') (NE.init params)
+convertAtomTypeExp (TEPi ps t _) = do
+  t' <- convertArrayTypeExp t
+  pure $ foldr (\p r -> Pi p (mkScalarArrayType r)) (Pi (NE.last ps) t') (NE.init ps)
+convertAtomTypeExp (TESigma ps t _) = do
+  t' <- convertArrayTypeExp t
+  pure $ foldr (\p r -> Sigma p (mkScalarArrayType r)) (Sigma (NE.last ps) t') (NE.init ps)
 convertAtomTypeExp _ = Nothing
 
 convertArrayTypeExp :: (Ord v) => TypeExp v -> Maybe (ArrayType v)

@@ -1,3 +1,4 @@
+;; expected: [3 6]
 ; add two arrays
 ((fn ((x (A Int (dims 2))) (y (A Int (dims 2))))
     (+ x y)

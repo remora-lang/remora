@@ -2,29 +2,44 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Syntax
-  ( module Shape,
+  ( module ISpace,
     SourcePos,
     NoInfo (..),
     Info (..),
-    TypeParam (..),
+    TypeParamExp (..),
     TypeExp (..),
     unTypeParam,
-    fromAtomTypeParam,
-    fromArrayTypeParam,
+    TypeParam (..),
     AtomType (..),
     ArrayType (..),
     Type (..),
     fromAtomType,
     fromArrayType,
     mkScalarArrayType,
+    arrowType,
+    forallType,
+    piType,
+    sigmaType,
     elemType,
     Base (..),
-    Pat (..),
+    PatBase (..),
+    Pat,
+    UncheckedPat,
+    UniquePat,
     patVar,
     unpackPat,
-    Atom (..),
-    Bind (..),
-    Exp (..),
+    AtomBase (..),
+    Atom,
+    UncheckedAtom,
+    UniqueAtom,
+    BindBase (..),
+    Bind,
+    UncheckedBind,
+    UniqueBind,
+    ExpBase (..),
+    Exp,
+    UncheckedExp,
+    UniqueExp,
     HasSrcPos (..),
     mkScalar,
     arrayElems,
@@ -35,8 +50,10 @@ module Syntax
   )
 where
 
+import Data.List.NonEmpty qualified as NE
+import Data.Text (Text)
+import ISpace
 import Prettyprinter
-import Shape
 import Text.Megaparsec.Pos (Pos, SourcePos (..), unPos)
 import VName
 
@@ -55,11 +72,16 @@ newtype Info a = Info a
 instance (Pretty a) => Pretty (Info a) where
   pretty (Info a) = pretty a
 
--- | Type parameters.
-data TypeParam v
-  = AtomTypeParam v
-  | ArrayTypeParam v
+-- | Source-level type parameters. Different from `TypeParam` because they allow
+-- array type parameters.
+data TypeParamExp v
+  = TEAtomTypeParam v
+  | TEArrayTypeParam v
   deriving (Show, Ord, Eq, Functor, Foldable, Traversable)
+
+instance (Show v, Pretty v) => Pretty (TypeParamExp v) where
+  pretty (TEAtomTypeParam v) = "&" <> pretty v
+  pretty (TEArrayTypeParam v) = "*" <> pretty v
 
 -- | Source-level types.
 data TypeExp v
@@ -69,10 +91,10 @@ data TypeExp v
   | TEInt SourcePos
   | TEFloat SourcePos
   | TEArray (TypeExp v) (Shape v) SourcePos
-  | TEArrow [TypeExp v] (TypeExp v) SourcePos
-  | TEForall [TypeParam v] (TypeExp v) SourcePos
-  | TEPi [ExtentParam v] (TypeExp v) SourcePos
-  | TESigma [ExtentParam v] (TypeExp v) SourcePos
+  | TEArrow (TypeExp v) (TypeExp v) SourcePos
+  | TEForall (NE.NonEmpty (TypeParamExp v)) (TypeExp v) SourcePos
+  | TEPi (NE.NonEmpty (ISpaceParam v)) (TypeExp v) SourcePos
+  | TESigma (NE.NonEmpty (ISpaceParam v)) (TypeExp v) SourcePos
   deriving (Eq, Ord, Show)
 
 instance (Show v, Pretty v) => Pretty (TypeExp v) where
@@ -83,40 +105,34 @@ instance (Show v, Pretty v) => Pretty (TypeExp v) where
   pretty (TEFloat _) = "Float"
   pretty (TEArray t s _) =
     parens $ "A" <+> pretty t <+> pretty s
-  pretty (TEArrow ts t _) =
-    parens $ "->" <+> parens (hsep (map pretty ts)) <+> pretty t
+  pretty (TEArrow t1 t2 _) =
+    parens $ "->" <+> pretty t1 <+> pretty t2
   pretty (TEForall xs t _) =
     parens $
       "∀"
-        <+> parens (hsep (map pretty xs))
+        <+> parens (hsep (map pretty (NE.toList xs)))
         <+> pretty t
   pretty (TEPi xs t _) =
     parens $
       "Π"
-        <+> parens (hsep (map pretty xs))
+        <+> parens (hsep (map pretty (NE.toList xs)))
         <+> pretty t
   pretty (TESigma xs t _) =
     parens $
       "Σ"
-        <+> parens (hsep (map pretty xs))
+        <+> parens (hsep (map pretty (NE.toList xs)))
         <+> pretty t
+
+-- | Type parameters.
+newtype TypeParam v = AtomTypeParam v
+  deriving (Show, Ord, Eq, Functor, Foldable, Traversable)
+
+instance (Show v, Pretty v) => Pretty (TypeParam v) where
+  pretty (AtomTypeParam v) = "&" <> pretty v
 
 -- | Extract the variable out of a 'TypeParam'.
 unTypeParam :: TypeParam v -> v
 unTypeParam (AtomTypeParam v) = v
-unTypeParam (ArrayTypeParam v) = v
-
-fromAtomTypeParam :: TypeParam v -> Maybe v
-fromAtomTypeParam (AtomTypeParam v) = pure v
-fromAtomTypeParam _ = Nothing
-
-fromArrayTypeParam :: TypeParam v -> Maybe v
-fromArrayTypeParam (ArrayTypeParam v) = pure v
-fromArrayTypeParam _ = Nothing
-
-instance (Show v, Pretty v) => Pretty (TypeParam v) where
-  pretty (AtomTypeParam v) = "&" <> pretty v
-  pretty (ArrayTypeParam v) = "*" <> pretty v
 
 data AtomType v
   = -- | Atom type variable.
@@ -128,13 +144,13 @@ data AtomType v
   | -- | Float type.
     Float
   | -- | Function type.
-    (:->) [ArrayType v] (ArrayType v)
+    (:->) (ArrayType v) (ArrayType v)
   | -- | Univerall type.
-    Forall [TypeParam v] (ArrayType v)
+    Forall (TypeParam v) (ArrayType v)
   | -- | Dependent product type.
-    Pi [ExtentParam v] (ArrayType v)
+    Pi (ISpaceParam v) (ArrayType v)
   | -- | Dependent sum type.
-    Sigma [ExtentParam v] (ArrayType v)
+    Sigma (ISpaceParam v) (ArrayType v)
   deriving (Show, Eq)
 
 instance (Show v, Pretty v) => Pretty (AtomType v) where
@@ -142,30 +158,30 @@ instance (Show v, Pretty v) => Pretty (AtomType v) where
   pretty Bool = "Bool"
   pretty Int = "Int"
   pretty Float = "Float"
-  pretty (ts :-> t) =
-    parens $ "->" <+> parens (hsep (map pretty ts)) <+> pretty t
-  pretty (Forall xs t) =
+  pretty (t1 :-> t2) =
+    parens $ "->" <+> pretty t1 <+> pretty t2
+  pretty (Forall x t) =
     parens $
       "∀"
-        <+> parens (hsep (map pretty xs))
+        <+> pretty x
         <+> pretty t
-  pretty (Pi xs t) =
+  pretty (Pi x t) =
     parens $
       "Π"
-        <+> parens (hsep (map pretty xs))
+        <+> pretty x
         <+> pretty t
-  pretty (Sigma xs t) =
+  pretty (Sigma x t) =
     parens $
       "Σ"
-        <+> parens (hsep (map pretty xs))
+        <+> pretty x
         <+> pretty t
 
+-- | An array type literal consisting of an atom type and a shape.
 data ArrayType v
-  = -- | An array type literal consisting of an atom type and a shape.
-    A
-    { arrayTypeAtom :: AtomType v,
-      arrayTypeShape :: Shape v
-    }
+  = A
+  { arrayTypeAtom :: AtomType v,
+    arrayTypeShape :: Shape v
+  }
   deriving (Eq, Show)
 
 instance (Show v, Pretty v) => Pretty (ArrayType v) where
@@ -193,6 +209,23 @@ fromArrayType _ = Nothing
 mkScalarArrayType :: AtomType v -> ArrayType v
 mkScalarArrayType = flip A mempty
 
+nestedType :: (a -> ArrayType v -> AtomType v) -> [a] -> ArrayType v -> AtomType v
+nestedType _ [] r = arrayTypeAtom r
+nestedType con [x] r = con x r
+nestedType con (x : xs) r = con x $ mkScalarArrayType $ nestedType con xs r
+
+arrowType :: [ArrayType v] -> ArrayType v -> AtomType v
+arrowType = nestedType (:->)
+
+forallType :: [TypeParam v] -> ArrayType v -> AtomType v
+forallType = nestedType Forall
+
+piType :: [ISpaceParam v] -> ArrayType v -> AtomType v
+piType = nestedType Pi
+
+sigmaType :: [ISpaceParam v] -> ArrayType v -> AtomType v
+sigmaType = nestedType Sigma
+
 -- | Get the element type.
 elemType :: Type v -> AtomType v
 elemType (AtomType t) = t
@@ -211,78 +244,66 @@ instance Pretty Base where
   pretty (IntVal i) = pretty i
   pretty (FloatVal f) = pretty f
 
-data Pat f v
+data PatBase f v
   = PatId v (TypeExp v) (f (ArrayType v)) SourcePos
 
-patVar :: Pat f v -> v
+patVar :: PatBase f v -> v
 patVar (PatId v _ _ _) = v
 
-unpackPat :: Pat f v -> (v, TypeExp v)
+unpackPat :: PatBase f v -> (v, TypeExp v)
 unpackPat (PatId v t _ _) = (v, t)
 
-deriving instance (Show v) => Show (Pat NoInfo v)
+deriving instance (Show v) => Show (PatBase NoInfo v)
 
-deriving instance (Show v) => Show (Pat Info v)
+deriving instance (Show v) => Show (PatBase Info v)
 
-instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Pat f v) where
+instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (PatBase f v) where
   pretty (PatId v t _ _) = parens $ pretty v <+> pretty t
 
 -- | Atoms. An @Atom f v@ is an 'Atom' whose variables have type @v@ and with
 -- type annotations of type @f (Type v)@. When @f = NoInfo@, the type
 -- @NoInfo (Type v)@ only has a single inhabitant (namely 'NoInfo').
-data Atom f v
+data AtomBase tp f v
   = -- | Base values.
     Base Base (f (AtomType v)) SourcePos
   | -- | Term lambda.
-    Lambda [Pat f v] (Exp f v) (f (AtomType v)) SourcePos
+    Lambda (PatBase f v) (ExpBase tp f v) (f (AtomType v)) SourcePos
   | -- | Type lambda.
-    TLambda [TypeParam v] (Exp f v) (f (AtomType v)) SourcePos
+    TLambda (tp v) (ExpBase tp f v) (f (AtomType v)) SourcePos
   | -- | Index lambda.
-    ILambda [ExtentParam v] (Exp f v) (f (AtomType v)) SourcePos
+    ILambda (ISpaceParam v) (ExpBase tp f v) (f (AtomType v)) SourcePos
   | -- | Boxed expression.
-    Box [Extent v] (Exp f v) (TypeExp v) (f (AtomType v)) SourcePos
+    Box (ISpace v) (ExpBase tp f v) (TypeExp v) (f (AtomType v)) SourcePos
 
-deriving instance (Show v) => Show (Atom NoInfo v)
+deriving instance (Show v, Show (tp v)) => Show (AtomBase tp NoInfo v)
 
-deriving instance (Show v) => Show (Atom Info v)
+deriving instance (Show v, Show (tp v)) => Show (AtomBase tp Info v)
 
-instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Atom f v) where
+instance (Show v, Pretty v, Pretty (f (Type v)), Pretty (tp v)) => Pretty (AtomBase tp f v) where
   pretty (Base b _ _) = pretty b
-  pretty (Lambda args e _ _) =
-    let pArgs =
-          parens $
-            hsep $
-              map pretty args
-     in parens $ "λ" <+> pArgs <+> pretty e
-  pretty (TLambda args e _ _) =
-    let pArgs =
-          parens $
-            hsep $
-              map pretty args
-     in parens $ "tλ" <+> pArgs <+> pretty e
-  pretty (ILambda args e _ _) =
-    let pArgs =
-          parens $
-            hsep $
-              map pretty args
-     in parens $ "iλ" <+> pArgs <+> pretty e
-  pretty (Box is e t _ _) =
-    parens $ "box" <+> hsep (map pretty is) <+> pretty e <+> pretty t
+  pretty (Lambda arg e _ _) =
+    parens $ "λ" <+> parens (pretty arg) <+> pretty e
+  pretty (TLambda arg e _ _) =
+    parens $ "tλ" <+> parens (pretty arg) <+> pretty e
+  pretty (ILambda arg e _ _) =
+    parens $ "iλ" <+> parens (pretty arg) <+> pretty e
+  pretty (Box i e t _ _) =
+    parens $ "box" <+> pretty i <+> pretty e <+> pretty t
 
 -- | Binds
-data Bind f v
-  = BindVal v (Maybe (TypeExp v)) (Exp f v) SourcePos
-  | BindType (TypeParam v) (TypeExp v) (f (Type v)) SourcePos
-  | BindExtent (ExtentParam v) (Extent v) SourcePos
-  | BindFun v [Pat f v] (Maybe (TypeExp v)) (Exp f v) (f (AtomType v)) SourcePos
-  | BindTFun v [TypeParam v] (Maybe (TypeExp v)) (Exp f v) (f (AtomType v)) SourcePos
-  | BindIFun v [ExtentParam v] (Maybe (TypeExp v)) (Exp f v) (f (AtomType v)) SourcePos
+data BindBase tp f v
+  = BindVal v (Maybe (TypeExp v)) (ExpBase tp f v) SourcePos
+  | BindType (tp v) (TypeExp v) (f (Type v)) SourcePos
+  | BindISpace (ISpaceParam v) (ISpace v) SourcePos
+  | BindFun v [PatBase f v] (Maybe (TypeExp v)) (ExpBase tp f v) (f (AtomType v)) SourcePos
+  | BindTFun v [tp v] (Maybe (TypeExp v)) (ExpBase tp f v) (f (AtomType v)) SourcePos
+  | BindIFun v [ISpaceParam v] (Maybe (TypeExp v)) (ExpBase tp f v) (f (AtomType v)) SourcePos
 
-deriving instance (Show v) => Show (Bind NoInfo v)
+deriving instance (Show v, Show (tp v)) => Show (BindBase tp NoInfo v)
 
-deriving instance (Show v) => Show (Bind Info v)
+deriving instance (Show v, Show (tp v)) => Show (BindBase tp Info v)
 
-instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Bind f v) where
+instance (Show v, Pretty v, Pretty (f (Type v)), Pretty (tp v)) => Pretty (BindBase tp f v) where
   pretty (BindVal v t e _) =
     parens $ pretty v <+> pretty t <+> pretty e
   pretty (BindFun f params mt body _ _) =
@@ -305,44 +326,44 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Bind f v) where
         <+> pretty body
   pretty (BindType tvar t _ _) =
     parens $ pretty tvar <+> pretty t
-  pretty (BindExtent ivar extent _) =
-    parens $ pretty ivar <+> pretty extent
+  pretty (BindISpace ivar ispace _) =
+    parens $ pretty ivar <+> pretty ispace
 
 -- | Expressions.
-data Exp f v
+data ExpBase tp f v
   = -- | Variables.
     Var v (f (ArrayType v)) SourcePos
   | -- | Array literals.
-    Array [Int] [Atom f v] (f (ArrayType v)) SourcePos
+    Array [Int] (NE.NonEmpty (AtomBase tp f v)) (f (ArrayType v)) SourcePos
   | -- | Empty arrays.
     EmptyArray [Int] (TypeExp v) (f (ArrayType v)) SourcePos
   | -- | Frame literals.
-    Frame [Int] [Exp f v] (f (ArrayType v)) SourcePos
+    Frame [Int] (NE.NonEmpty (ExpBase tp f v)) (f (ArrayType v)) SourcePos
   | -- | Empty frames.
     EmptyFrame [Int] (TypeExp v) (f (ArrayType v)) SourcePos
   | -- | Function application.
-    App (Exp f v) [Exp f v] (f (ArrayType v, Shape v)) SourcePos
+    App (ExpBase tp f v) (ExpBase tp f v) (f (ArrayType v, Shape v)) SourcePos
   | -- | Type application.
-    TApp (Exp f v) [TypeExp v] (f (ArrayType v)) SourcePos
+    TApp (ExpBase tp f v) (TypeExp v) (f (ArrayType v)) SourcePos
   | -- | Index application.
-    IApp (Exp f v) [Extent v] (f (ArrayType v)) SourcePos
+    IApp (ExpBase tp f v) (ISpace v) (f (ArrayType v)) SourcePos
   | -- | Unboxing.
-    Unbox [ExtentParam v] v (Exp f v) (Exp f v) (f (ArrayType v)) SourcePos
+    Unbox (ISpaceParam v) v (ExpBase tp f v) (ExpBase tp f v) (f (ArrayType v)) SourcePos
   | -- | Let
-    Let [Bind f v] (Exp f v) (f (ArrayType v)) SourcePos
+    Let (NE.NonEmpty (BindBase tp f v)) (ExpBase tp f v) (f (ArrayType v)) SourcePos
 
-deriving instance (Show v) => Show (Exp NoInfo v)
+deriving instance (Show v, Show (tp v)) => Show (ExpBase tp NoInfo v)
 
-deriving instance (Show v) => Show (Exp Info v)
+deriving instance (Show v, Show (tp v)) => Show (ExpBase tp Info v)
 
-instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Exp f v) where
+instance (Show v, Pretty v, Pretty (f (Type v)), Pretty (tp v)) => Pretty (ExpBase tp f v) where
   pretty (Var v _ _) = pretty v
   pretty (Array shape as _ _) =
     group $
       parens $
         "array"
           <+> brackets (hsep (map pretty shape))
-          <+> group (hsep (map pretty as))
+          <+> group (hsep (map pretty $ NE.toList as))
   pretty (EmptyArray shape t _ _) =
     group $
       parens $
@@ -354,51 +375,51 @@ instance (Show v, Pretty v, Pretty (f (Type v))) => Pretty (Exp f v) where
       parens $
         "frame"
           <+> brackets (hsep (map pretty shape))
-          <+> group (hsep (map pretty es))
+          <+> group (hsep (map pretty $ NE.toList es))
   pretty (EmptyFrame shape t _ _) =
     group $
       parens $
         "empty-frame"
           <+> brackets (hsep (map pretty shape))
           <+> pretty t
-  pretty (App f es _ _) =
-    parens $ hsep $ map pretty (f : es)
-  pretty (TApp e ts _ _) =
-    parens $ "t-app" <+> pretty e <+> hsep (map pretty ts)
-  pretty (IApp e is _ _) =
-    parens $ "i-app" <+> pretty e <+> hsep (map pretty is)
-  pretty (Unbox vs v e b _ _) =
-    parens $ "unbox" <+> parens (hsep (map pretty vs ++ [pretty v, pretty e])) <+> pretty b
+  pretty (App f e _ _) =
+    parens $ pretty f <+> pretty e
+  pretty (TApp e t _ _) =
+    parens $ "t-app" <+> pretty e <+> pretty t
+  pretty (IApp e i _ _) =
+    parens $ "i-app" <+> pretty e <+> pretty i
+  pretty (Unbox ep v e b _ _) =
+    parens $ "unbox" <+> parens (pretty ep <+> pretty v <+> pretty e) <+> pretty b
   pretty (Let binds body _ _) =
-    parens $ "let" <+> hsep (map pretty binds) <+> pretty body
+    parens $ "let" <+> hsep (map pretty $ NE.toList binds) <+> pretty body
 
 -- | Make a scalar from an 'Atom'.
-mkScalar :: Atom NoInfo v -> Exp NoInfo v
-mkScalar a = Array [] [a] NoInfo $ posOf a
+mkScalar :: AtomBase tp NoInfo v -> ExpBase tp NoInfo v
+mkScalar a = Array [] (pure a) NoInfo $ posOf a
 
 -- | Gets the 'Atom's of an 'Array' literal.
-arrayElems :: Exp f v -> Maybe [Atom f v]
+arrayElems :: ExpBase tp f v -> Maybe (NE.NonEmpty (AtomBase tp f v))
 arrayElems (Array _ as _ _) = pure as
 arrayElems _ = Nothing
 
 -- | Gets the 'Exp's of a 'Frame' literal.
-frameElems :: Exp f v -> Maybe [Exp f v]
+frameElems :: ExpBase tp f v -> Maybe (NE.NonEmpty (ExpBase tp f v))
 frameElems (Frame _ es _ _) = pure es
 frameElems _ = Nothing
 
 -- | Flattens nested 'Frame's and 'Array's.
-flattenExp :: Exp f v -> Exp f v
+flattenExp :: ExpBase tp f v -> ExpBase tp f v
 flattenExp (Frame shape es t pos) =
-  case es' of
-    (Frame shape' _ _ _ : _)
-      | Just ess' <- mapM frameElems es' ->
-          Frame (shape <> shape') (concat ess') t pos
-    (Array shape' _ _ _ : _)
-      | Just ass' <- mapM arrayElems es' ->
-          Array (shape <> shape') (concat ass') t pos
+  case NE.head es' of
+    Frame shape' _ _ _
+      | Just ess' <- traverse frameElems es' ->
+          Frame (shape <> shape') (foldr1 (<>) ess') t pos
+    Array shape' _ _ _
+      | Just ass' <- traverse arrayElems es' ->
+          Array (shape <> shape') (foldr1 (<>) ass') t pos
     _ -> Frame shape es' t pos
   where
-    es' = map flattenExp es
+    es' = fmap flattenExp es
 flattenExp e = e
 
 arrayifyType :: Type VName -> Type VName
@@ -420,20 +441,22 @@ instance Pretty SourcePos where
 class HasSrcPos x where
   posOf :: x -> SourcePos
 
-instance HasSrcPos (Bind f v) where
+instance HasSrcPos (BindBase tp f v) where
   posOf (BindVal _ _ _ pos) = pos
   posOf (BindFun _ _ _ _ _ pos) = pos
+  posOf (BindTFun _ _ _ _ _ pos) = pos
+  posOf (BindIFun _ _ _ _ _ pos) = pos
   posOf (BindType _ _ _ pos) = pos
-  posOf (BindExtent _ _ pos) = pos
+  posOf (BindISpace _ _ pos) = pos
 
-instance HasSrcPos (Atom f v) where
+instance HasSrcPos (AtomBase tp f v) where
   posOf (Base _ _ pos) = pos
   posOf (Lambda _ _ _ pos) = pos
   posOf (TLambda _ _ _ pos) = pos
   posOf (ILambda _ _ _ pos) = pos
   posOf (Box _ _ _ _ pos) = pos
 
-instance HasSrcPos (Exp f v) where
+instance HasSrcPos (ExpBase tp f v) where
   posOf (Var _ _ pos) = pos
   posOf (Array _ _ _ pos) = pos
   posOf (EmptyArray _ _ _ pos) = pos
@@ -445,7 +468,7 @@ instance HasSrcPos (Exp f v) where
   posOf (Unbox _ _ _ _ _ pos) = pos
   posOf (Let _ _ _ pos) = pos
 
-instance HasSrcPos (Pat f v) where
+instance HasSrcPos (PatBase f v) where
   posOf (PatId _ _ _ pos) = pos
 
 instance HasSrcPos (TypeExp v) where
@@ -459,3 +482,27 @@ instance HasSrcPos (TypeExp v) where
   posOf (TEForall _ _ pos) = pos
   posOf (TEPi _ _ pos) = pos
   posOf (TESigma _ _ pos) = pos
+
+type UncheckedExp = ExpBase TypeParamExp NoInfo Text
+
+type UncheckedAtom = AtomBase TypeParamExp NoInfo Text
+
+type UncheckedBind = BindBase TypeParamExp NoInfo Text
+
+type UncheckedPat = PatBase NoInfo Text
+
+type UniqueExp = ExpBase TypeParam NoInfo VName
+
+type UniqueAtom = AtomBase TypeParam NoInfo VName
+
+type UniqueBind = BindBase TypeParam NoInfo VName
+
+type UniquePat = PatBase NoInfo VName
+
+type Exp = ExpBase TypeParam Info VName
+
+type Atom = AtomBase TypeParam Info VName
+
+type Bind = BindBase TypeParam Info VName
+
+type Pat = PatBase Info VName

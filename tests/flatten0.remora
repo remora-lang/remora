@@ -1,3 +1,4 @@
+;; expected: [1 2 3 4]
 ; flatten
 (let (
   (val (xss : [Int 2 2]) [[1 2] [3 4]])

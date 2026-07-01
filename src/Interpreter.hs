@@ -4,18 +4,23 @@ import Control.Monad
 import Control.Monad.Error.Class
 import Control.Monad.Reader hiding (lift)
 import Control.Monad.Trans.Except
-import Data.List qualified as L
+import Data.List.NonEmpty qualified as NE
 import Data.Map (Map)
 import Data.Map qualified as M
 import Data.Maybe
 import Data.Text (Text)
-import Debug.Trace (traceM)
+import Data.Text qualified as T
+import Data.Text.IO qualified as TIO
+import Interpreter.Intrinsics
 import Interpreter.Value hiding (Val)
 import Interpreter.Value qualified as Value
+import Parser qualified as P
 import Prop hiding ((\\))
-import {-# SOURCE #-} RemoraPrelude (Prelude, PreludeVal (..))
-import Syntax hiding (ArrayType, Atom, Bind, Dim, Exp, Extent, Shape, Type, TypeExp)
+import Syntax hiding (ArrayType, Dim, ISpace, Shape, Type, TypeExp)
 import Syntax qualified
+import System.IO.Unsafe (unsafePerformIO)
+import TypeCheck qualified as TC
+import Uniquify qualified as U
 import Util
 import VName
 
@@ -23,27 +28,20 @@ type Dim = Syntax.Dim VName
 
 type Val = Value.Val InterpM
 
-type Exp = Syntax.Exp Info VName
-
-type Atom = Syntax.Atom Info VName
-
 type Shape = Syntax.Shape VName
 
 type Type = Syntax.Type VName
 
-type Extent = Syntax.Extent VName
-
-type Bind = Syntax.Bind Info VName
+type ISpace = Syntax.ISpace VName
 
 type TypeExp = Syntax.TypeExp VName
 
 type ArrayType = Syntax.ArrayType VName
 
--- | Interpret a program. Takes a type checked prelude to populate the initial
--- environment with.
-interpret :: Prelude VName InterpM -> Exp -> Either Error Val
-interpret prelude e =
-  runReader (runExceptT $ runInterpM $ intExp e) (initEnv prelude)
+-- | Interpret a program.
+interpret :: Exp -> Either Error Val
+interpret e =
+  runReader (runExceptT $ runInterpM $ intExp e) initEnv
 
 -- | The interpreter environment.
 data Env = Env
@@ -57,17 +55,44 @@ data Env = Env
     envSMap :: Map VName [Int]
   }
 
--- | The initial environment. Takes a type checked prelude to populate the
--- initial variable and type mappings.
-initEnv :: Prelude VName InterpM -> Env
-initEnv prelude = Env m tm mempty mempty
+instance Semigroup Env where
+  Env vs1 ts1 ds1 ss1 <> Env vs2 ts2 ds2 ss2 =
+    Env (vs1 <> vs2) (ts1 <> ts2) (ds1 <> ds2) (ss1 <> ss2)
+
+instance Monoid Env where
+  mempty = Env mempty mempty mempty mempty
+
+-- | The initial environment.
+initEnv :: Env
+initEnv = Env m tm mempty mempty
   where
-    m =
+    intrinsicList = intrinsics :: Intrinsics InterpM
+    m0 =
       M.fromList $
-        map (\(PreludeVal v _ val) -> (v, val)) prelude
+        map (\(IntrinsicVal v _ val) -> (v, val)) intrinsicList
     tm =
       M.fromList $
-        map (\(PreludeVal v t _) -> (v, Syntax.ArrayType t)) prelude
+        map (\(IntrinsicVal v t _) -> (v, Syntax.ArrayType t)) intrinsicList
+    rfVname =
+      case [v | IntrinsicVal v _ _ <- intrinsicList, varName v == "read-file"] of
+        v : _ -> v
+        [] -> error "initialEnv: missing read-file intrinsic"
+    rfImpl =
+      ValTFun $ \_ ->
+        pure $ ValIFun $ \_ ->
+          pure $ ValIFun $ \_ ->
+            pure $ ValFun $ \filename ->
+              let file = valToString filename
+               in pure $ unsafePerformIO $ do
+                    input <- TIO.readFile file
+                    let mv = do
+                          parsed <- P.parse "<read-file>" input
+                          checked <- TC.check (U.uniquify parsed)
+                          interpret checked
+                    case mv of
+                      Left err -> error $ "read-file: " <> T.unpack err
+                      Right v -> pure v
+    m = M.insert rfVname rfImpl m0
 
 type Error = Text
 
@@ -122,22 +147,29 @@ lookupDim v = do
           ]
     Just d -> pure d
 
+bindEnv :: VName -> Val -> Env -> Env
+bindEnv v val env = env {envMap = M.insert v val $ envMap env}
+
 -- | Locally bind a variable to a value.
 bind :: VName -> Val -> InterpM a -> InterpM a
-bind v val =
-  local (\env -> env {envMap = M.insert v val $ envMap env})
+bind v val = local (bindEnv v val)
+
+-- | Extend an environment with a type variable binding.
+tbindEnv :: VName -> Type -> Env -> Env
+tbindEnv v t env = env {envTMap = M.insert v t $ envTMap env}
 
 -- | Locally bind a type variable to a type.
 tbind :: VName -> Type -> InterpM a -> InterpM a
-tbind v t =
-  local (\env -> env {envTMap = M.insert v t $ envTMap env})
+tbind v t = local (tbindEnv v t)
+
+-- | Extend an environment with an index variable binding.
+ibindEnv :: VName -> Either Int [Int] -> Env -> Env
+ibindEnv v (Left d) env = env {envDMap = M.insert v d $ envDMap env}
+ibindEnv v (Right s) env = env {envSMap = M.insert v s $ envSMap env}
 
 -- | Locally bind an index variable to a shape literal.
 ibind :: VName -> Either Int [Int] -> InterpM a -> InterpM a
-ibind v (Left d) =
-  local (\env -> env {envDMap = M.insert v d $ envDMap env})
-ibind v (Right s) =
-  local (\env -> env {envSMap = M.insert v s $ envSMap env})
+ibind v i = local (ibindEnv v i)
 
 -- | Many binds.
 binds :: (v -> val -> a -> a) -> [(v, val)] -> a -> a
@@ -145,48 +177,61 @@ binds _ [] m = m
 binds f ((v, val) : vvals) m =
   f v val $ binds f vvals m
 
+-- | Build a curried function value.
+curryBind ::
+  ((x -> InterpM Val) -> Val) ->
+  (p -> x -> Env -> Env) ->
+  Exp ->
+  Env ->
+  [p] ->
+  InterpM Val
+curryBind wrap ext body = doBind
+  where
+    doBind e [] = local (const e) $ intExp body
+    doBind e (p : ps) = pure $ wrap $ \x -> doBind (ext p x e) ps
+
 -- | Intepret an expression.
 intExp :: Exp -> InterpM Val
 intExp (Var v _ _) = lookupVal v
-intExp (Array shape as _ _) = do
-  ValArray shape <$> mapM intAtom as
+intExp (Array shape as _ _) =
+  ValArray shape . NE.toList <$> mapM intAtom as
 intExp (EmptyArray shape _ _ _) =
   pure $ ValArray shape mempty
-intExp (Frame shape es _ _) = do
-  ValArray shape <$> mapM intExp es
+intExp (Frame shape es _ _) =
+  ValArray shape . NE.toList <$> mapM intExp es
 intExp (EmptyFrame shape _ _ _) =
   pure $ ValArray shape mempty
-intExp expr@(App f es (Info (_, pframe)) _) = do
+intExp expr@(App f e (Info (_, pframe)) _) = do
   pframe' <- intShape pframe
   f' <- arrayifyVal <$> intExp f
-  argvs <- mapM intExp es
+  argv <- intExp e
   arrayTypeView (typeOf f) $ \(t, _) ->
     case t of
       pts :-> _ -> do
-        sparams <- mapM (intShape . shapeOf) pts
-        let (f'', argvs') = lift pframe' f' (sparams, argvs)
-        apMap f'' (sparams, argvs')
+        sparam <- intShape $ shapeOf pts
+        let (f'', argv') = lift pframe' f' (sparam, argv)
+        apMap f'' (sparam, argv')
       _ ->
         error $
           unlines
             [ "intExp: non-function type in application",
               prettyString expr
             ]
-intExp expr@(TApp e ts _ _) =
+intExp expr@(TApp e t _ _) =
   tApply =<< intExp e
   where
     tApply :: Val -> InterpM Val
     tApply (ValVar f) = do
       f' <- lookupVal f
       case f' of
-        ValTFun func -> func $ map (fromJust . convertTypeExp) ts
+        ValTFun func -> func (fromJust $ convertTypeExp t)
         _ ->
           error $
             unlines
               [ "intExp: non-type function value in type application",
                 prettyString expr
               ]
-    tApply (ValTFun f) = f $ map (fromJust . convertTypeExp) ts
+    tApply (ValTFun f) = f (fromJust $ convertTypeExp t)
     tApply (ValArray shape fs) = do
       ValArray shape <$> mapM tApply fs
     tApply _ =
@@ -195,29 +240,29 @@ intExp expr@(TApp e ts _ _) =
           [ "intExp: non-type function value in type application",
             prettyString expr
           ]
-intExp expr@(IApp e is _ _) = do
+intExp expr@(IApp e i _ _) = do
   e' <- intExp e
-  is' <- mapM intExtent is
-  iapply e' is'
+  i' <- intISpace i
+  iapply e' i'
   where
-    iapply :: Val -> [Either Int [Int]] -> InterpM Val
-    iapply (ValIFun f) extents = f extents
-    iapply (ValArray shape fs) shapes = do
-      ValArray shape <$> mapM (`iapply` shapes) fs
+    iapply :: Val -> Either Int [Int] -> InterpM Val
+    iapply (ValIFun f) ispace = f ispace
+    iapply (ValArray shape fs) ispace = do
+      ValArray shape <$> mapM (`iapply` ispace) fs
     iapply _ _ =
       error $
         unlines
           [ "intExp: non-index function value in index application",
             prettyString expr
           ]
-intExp expr@(Unbox is x_e box e _ _) = do
+intExp expr@(Unbox ep x_e box e _ _) = do
   box' <- intExp box
-  arrayValView box' $ \(ns, boxes) -> do
-    elems <- mapM unbox boxes
-    pure $ collapse $ ValArray (valShapeOf box' <> ns) elems
+  let (ns, boxes) = asArray box'
+  elems <- mapM unbox boxes
+  pure $ collapse $ ValArray (valShapeOf box' <> ns) elems
   where
-    unbox (ValBox extents v) =
-      binds ibind (zip (map unExtentParam is) extents) $
+    unbox (ValBox [ispace] v) =
+      ibind (unISpaceParam ep) ispace $
         bind x_e v $
           intExp e
     unbox v =
@@ -228,64 +273,41 @@ intExp expr@(Unbox is x_e box e _ _) = do
             "in",
             prettyString expr
           ]
-intExp expr@(Let bs e _ _) =
-  foldr intBind (intExp e) bs
+intExp (Let bs e _ _) =
+  foldr intBind (intExp e) (NE.toList bs)
   where
     intBind :: Bind -> InterpM a -> InterpM a
-    intBind (BindVal v _ e _) m = do
-      val <- intExp e
+    intBind (BindVal v _ e' _) m = do
+      val <- intExp e'
       bind v val m
     intBind (BindFun f params _ body _ _) m = do
       env <- ask
-      flip (bind f) m $ ValFun $ \vals ->
-        local (const env) $
-          binds bind (zip (map patVar params) vals) $
-            intExp body
+      flip (bind f) m =<< curryBind ValFun (bindEnv . patVar) body env params
     intBind (BindTFun f params _ body _ _) m = do
       env <- ask
-      flip (bind f) m $ ValTFun $ \ts ->
-        local (const env) $
-          binds tbind (zip (map unTypeParam params) ts) $
-            intExp body
+      flip (bind f) m =<< curryBind ValTFun (tbindEnv . unTypeParam) body env params
     intBind (BindIFun f params _ body _ _) m = do
       env <- ask
-      flip (bind f) m $ ValIFun $ \is ->
-        local (const env) $
-          binds ibind (zip (map unExtentParam params) is) $ do
-            intExp body
+      flip (bind f) m =<< curryBind ValIFun (ibindEnv . unISpaceParam) body env params
     intBind _ m = m
 
--- | Interpret a 'Dim'.
+-- | Interpret a 'Dim'. Variables are looked up in the environment; the result
+-- must be non-negative (subtraction may produce negatives in subterms).
 intDim :: Dim -> InterpM Int
-intDim d = guardNonNeg =<< intDim' d
-  where
-    guardNonNeg x = do
-      when (x < 0) $
-        throwError $
-          "intDim: negative dimension: " <> prettyText x <> " from " <> prettyText d
-      pure x
-    -- intDim' allows for negative dimensions
-    intDim' :: Dim -> InterpM Int
-    intDim' (DimVar d) = lookupDim d
-    intDim' (DimN d) = pure d
-    intDim' (Add ds) = sum <$> mapM intDim' ds
-    intDim' (Mul ds) = product <$> mapM intDim' ds
-    intDim' (Sub []) = pure 0
-    intDim' (Sub [d]) = negate <$> intDim' d
-    intDim' e@(Sub (d : ds)) = do
-      d' <- intDim' d
-      ds' <- sum <$> mapM intDim' ds
-      pure $ d' - ds'
+intDim d = do
+  x <- dimToInt lookupDim d
+  when (x < 0) $
+    throwError $
+      "intDim: negative dimension: " <> prettyText x <> " from " <> prettyText d
+  pure x
 
 -- | Interpret a 'Shape'.
 intShape :: Shape -> InterpM [Int]
-intShape (ShapeVar s) = lookupShape s
-intShape (ShapeDim d) = pure <$> intDim d
-intShape (Concat ss) = concat <$> mapM intShape ss
+intShape = shapeToInts intDim lookupShape
 
--- | Interpret an 'Extent'.
-intExtent :: Extent -> InterpM (Either Int [Int])
-intExtent = mapExtent (fmap Left . intDim) (fmap Right . intShape)
+-- | Interpret an 'ISpace'.
+intISpace :: ISpace -> InterpM (Either Int [Int])
+intISpace = mapISpace (fmap Left . intDim) (fmap Right . intShape)
 
 -- | Interpret a type expression.
 intTypeExp :: TypeExp -> ArrayType
@@ -294,80 +316,71 @@ intTypeExp = fromJust . convertArrayTypeExp
 -- | Interpret an 'Atom'.
 intAtom :: Atom -> InterpM Val
 intAtom (Base b _ _) = pure $ ValBase b
-intAtom (Lambda ps e _ _) = do
+intAtom (Lambda p e _ _) = do
   env <- ask
-  pure $ ValFun $ \vs ->
+  pure $ ValFun $ \v ->
     local (const env) $
-      binds bind (zip (map patVar ps) vs) $
+      bind (patVar p) v $
         intExp e
-intAtom (TLambda ps e _ _) = do
+intAtom (TLambda p e _ _) = do
   env <- ask
-  pure $ ValTFun $ \ts ->
+  pure $ ValTFun $ \t ->
     local (const env) $
-      binds tbind (zip (map unTypeParam ps) ts) $
+      tbind (unTypeParam p) t $
         intExp e
-intAtom (ILambda ps e _ _) = do
+intAtom (ILambda p e _ _) = do
   env <- ask
-  pure $ ValIFun $ \extents ->
+  pure $ ValIFun $ \ispace ->
     local (const env) $
-      binds ibind (zip (map unExtentParam ps) extents) $
+      ibind (unISpaceParam p) ispace $
         intExp e
-intAtom (Box extents e _ _ _) = do
-  extents' <- mapM intExtent extents
-  ValBox extents' <$> intExp e
+intAtom (Box ispace e _ _ _) = do
+  ispace' <- intISpace ispace
+  ValBox [ispace'] <$> intExp e
 
 -- | Replicates cells to make shapes match for function application.
-lift :: [Int] -> Val -> ([[Int]], [Val]) -> (Val, [Val])
-lift pframe (ValArray fsshape fs) (sparams, argvs) =
-  (ValArray pframe fs', lifted_argvs)
+lift :: [Int] -> Val -> ([Int], Val) -> (Val, Val)
+lift pframe (ValArray fsshape fs) (sparam, argv) =
+  (ValArray pframe fs', liftArg sparam argv)
   where
     -- replicate the function array to match the frame
     n_fun_reps = fromIntegral $ product pframe `div` product fsshape
     fs' = concat $ rep n_fun_reps $ split 1 fs
 
-    -- lift each argument to the new frame
-    lifted_argvs = zipWith liftArg sparams argvs
-
     liftArg :: [Int] -> Val -> Val
     liftArg shape_param arg =
-      arrayValView arg $ \(shapeArg, as) ->
-        -- Number of cells the argument expects.
-        let n_arg_cell = product shape_param
-            -- Number of times the argument needs to be replicated.
-            n_arg_reps = product pframe `div` product (shapeArg \\ shape_param)
-         in ValArray
-              (pframe <> shape_param)
-              (concat $ rep n_arg_reps $ split n_arg_cell as)
+      let (shapeArg, as) = asArray arg
+          -- Number of cells the argument expects.
+          n_arg_cell = product shape_param
+          -- Number of times the argument needs to be replicated.
+          n_arg_reps = product pframe `div` product (shapeArg \\ shape_param)
+       in ValArray
+            (pframe <> shape_param)
+            (concat $ rep n_arg_reps $ split n_arg_cell as)
 lift _ v _ = error $ prettyString v
 
 -- | Performs a function application between an array
 -- of functions and arguments that have compatible shapes.
-apMap :: Val -> ([[Int]], [Val]) -> InterpM Val
-apMap v (sparams, argvs) =
-  arrayValView v $ \(shape_f, fs) ->
-    (collapse . ValArray shape_f) <$> zipWithM apply_fun fs arg_splits
+apMap :: Val -> ([Int], Val) -> InterpM Val
+apMap v (sparam, argv) =
+  let (shape_f, fs) = asArray v
+   in collapse . ValArray shape_f <$> zipWithM apply_fun fs (arg_split sparam argv)
   where
-    apply_fun f args =
-      apply f (zipWith ValArray sparams args)
-
-    arg_splits =
-      L.transpose $ zipWith arg_split sparams argvs
+    apply_fun f cell = apply f (ValArray sparam cell)
 
     -- Splits the argument according to the shape of the parameter.
     arg_split shape_param arg =
-      arrayValView arg $
-        split (product shape_param) . snd
+      split (product shape_param) (snd (asArray arg))
 
-    apply :: Val -> [Val] -> InterpM Val
-    apply (ValVar f) args = do
+    apply :: Val -> Val -> InterpM Val
+    apply (ValVar f) arg = do
       f' <- lookupVal f
       case f' of
-        ValFun func -> func args
+        ValFun func -> func arg
         _ -> throwError $ "cannot apply: " <> prettyText f'
-    apply (ValArray shape fs) args = do
-      vs <- zipWithM apply fs (map pure args)
-      pure $ ValArray shape vs
-    apply (ValFun f) args = f args
+    apply (ValArray shape fs) arg =
+      ValArray shape <$> zipWithM apply fs [arg]
+    apply (ValFun f) arg = f arg
     apply val _ =
       error $
         unlines

@@ -1,3 +1,4 @@
+;; expected: 15
 (let (
   (fun (add (x Int) (y Int) : Int) (+ x y))
   (fun (mul (x Int) (y Int)) (* x y))

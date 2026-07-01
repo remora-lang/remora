@@ -1,10 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Symbolic
   ( maximumShape,
@@ -22,13 +19,12 @@ import Data.Map (Map)
 import Data.Map qualified as M
 import Data.SBV hiding (MonadSymbolic, Symbolic, free, prove, sat, symbolic)
 import Data.SBV qualified as SBV
-import Data.SBV.Dynamic (generateSMTBenchmarkProof)
 import Data.SBV.Internals (SolverContext (..))
 import Data.SBV.List qualified as SL
 import Data.SBV.Trans qualified as SBV.Trans
 import GHC.IsList
+import ISpace
 import Prettyprinter
-import Shape
 import System.IO.Unsafe
 import Util
 
@@ -36,7 +32,7 @@ type SShape = SList Integer
 
 type SDim = SInteger
 
-data SEnv v
+newtype SEnv v
   = SEnv
   { senvMap :: Map v (Either SDim SShape)
   }
@@ -97,13 +93,13 @@ toSShape (ShapeDim d) = do
       symDs <- mapM symDim ds
       pure $ product symDs
     symDim (Sub []) = error "toSShape: sub without args"
-    symDim (Sub [d]) = negate <$> symDim d
-    symDim (Sub (d : ds)) = do
-      symD <- symDim d
+    symDim (Sub [d']) = negate <$> symDim d'
+    symDim (Sub (d' : ds)) = do
+      symD <- symDim d'
       symDs <- mapM symDim ds
       pure $ symD - sum symDs
 toSShape (Concat ss) =
-  (SL.concat . fromList) <$> mapM toSShape ss
+  SL.concat . fromList <$> mapM toSShape ss
 
 -- This may not work; stateful actions might need to be performed
 -- in isolation of constraint generation.

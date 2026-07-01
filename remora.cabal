@@ -23,10 +23,13 @@ library
     import:           common
     exposed-modules:
       Syntax
-      Shape
+      ISpace
       Parser
+      Primitive
       Interpreter
       Interpreter.Value
+      Interpreter.Intrinsics
+      Intrinsics
       Futhark
       TypeCheck
       TypeCheck.Monad
@@ -34,11 +37,15 @@ library
       Util
       CLI
       CLI.REPL
-      RemoraPrelude
       Prop
       Substitute
       SExp
       Symbolic
+      Uniquify
+      Uniquify.Monad
+      Uniquify.Type
+      Pipeline
+
     -- other-modules:
     -- other-extensions:
     build-depends:
@@ -78,4 +85,9 @@ test-suite remora-test
     main-is:          Main.hs
     build-depends:
         base >=4.19.2.0,
-        remora
+        remora,
+        text,
+        directory,
+        filepath,
+        tasty,
+        tasty-hunit

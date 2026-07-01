@@ -1,10 +1,12 @@
 module Interpreter.Value
   ( Val (..),
     arrayifyVal,
-    baseValView,
-    baseValViews,
-    arrayValView,
-    arrayValViews,
+    asBase,
+    asInt,
+    asFloat,
+    asBool,
+    asArray,
+    asScalar,
     split,
     rep,
     (\\),
@@ -18,16 +20,12 @@ where
 
 import Data.List qualified as L
 import Prettyprinter
-import Syntax hiding (Atom, AtomType, Exp, Extent, ExtentParam, Shape, Type, TypeParam)
+import Syntax hiding (Atom, AtomType, Exp, ISpace, ISpaceParam, Shape, Type, TypeParam)
 import Syntax qualified
 import Util
 import VName
 
 type Type = Syntax.Type VName
-
-type AtomType = Syntax.AtomType VName
-
-type Extent = Syntax.Extent VName
 
 -- | Values. Paramized by a monad @m@ over which function bodies are
 -- evaluated.
@@ -41,11 +39,11 @@ data Val m
   | -- | Box.
     ValBox [Either Int [Int]] (Val m)
   | -- | Function.
-    ValFun ([Val m] -> m (Val m))
+    ValFun (Val m -> m (Val m))
   | -- | Type function.
-    ValTFun ([Type] -> m (Val m))
+    ValTFun (Type -> m (Val m))
   | -- | Index function.
-    ValIFun ([Either Int [Int]] -> m (Val m))
+    ValIFun (Either Int [Int] -> m (Val m))
 
 instance Show (Val m) where
   show (ValVar v) = "ValVar " <> show v
@@ -76,16 +74,29 @@ instance Pretty (Val m) where
   pretty ValTFun {} = "#<tfun>"
   pretty ValIFun {} = "#<ifun>"
 
--- TODO: shouldn't need this
-baseValView :: Val m -> (Base -> a) -> a
-baseValView v m = baseValViews [v] (m . head)
+-- | View a value as a base value, unwrapping a scalar array if needed.
+asBase :: Val m -> Base
+asBase (ValBase b) = b
+asBase (ValArray [] [v]) = asBase v
+asBase _ = error "not base"
 
-baseValViews :: [Val m] -> ([Base] -> a) -> a
-baseValViews vs m = m $ map unpack vs
-  where
-    unpack (ValBase b) = b
-    unpack (ValArray [] [v]) = unpack v
-    unpack _ = error "not base"
+asInt :: Val m -> Int
+asInt v =
+  case asBase v of
+    IntVal n -> n
+    b -> error $ "asInt: not an integer: " <> show b
+
+asFloat :: Val m -> Float
+asFloat v =
+  case asBase v of
+    FloatVal x -> x
+    b -> error $ "asFloat: not a float: " <> show b
+
+asBool :: Val m -> Bool
+asBool v =
+  case asBase v of
+    BoolVal b -> b
+    b -> error $ "asBool: not a boolean: " <> show b
 
 valShapeOf :: Val m -> [Int]
 valShapeOf (ValArray s _) = s
@@ -96,16 +107,16 @@ arrayifyVal :: Val m -> Val m
 arrayifyVal v@ValArray {} = v
 arrayifyVal v = ValArray mempty [v]
 
--- | An array view on a value.
-arrayValView :: Val m -> (([Int], [Val m]) -> a) -> a
-arrayValView v m = arrayValViews [v] (m . head)
+-- | View a value as an array: its shape together with its elements.
+asArray :: Val m -> ([Int], [Val m])
+asArray v = case collapse v of
+  ValArray shape vs -> (shape, vs)
+  v' -> (mempty, [v'])
 
--- | An array view on a values.
-arrayValViews :: [Val m] -> ([([Int], [Val m])] -> a) -> a
-arrayValViews vs m = m $ map (unpack . collapse) vs
-  where
-    unpack (ValArray shape vs') = (shape, vs')
-    unpack v = (mempty, [v])
+asScalar :: Val m -> Val m
+asScalar v = case asArray v of
+  (_, [x]) -> x
+  _ -> error "asScalar: not a scalar"
 
 -- | @split n xs@ splits @xs@ into @n@-sized chunks.
 split :: Int -> [a] -> [[a]]
@@ -140,16 +151,16 @@ transpose v = v
 
 valConcat :: Val m -> Val m
 valConcat (ValArray (m : n : s) vs) =
-  ValArray (m * n : s) $ arrayValViews vs $ concat . map snd
+  ValArray (m * n : s) $ concatMap (snd . asArray) vs
 valConcat _ = error "concat"
 
 collapse :: Val m -> Val m
 collapse (ValArray s vs) =
   let vs' = map collapse vs
-      unpack (ValArray _ vs) = vs
+      unpack (ValArray _ vs1) = vs1
       unpack v = [v]
    in case vs' of
-        ValArray s' vs'' : rest
+        ValArray s' _ : rest
           | all (\x -> valShapeOf x == s') rest ->
               ValArray (s <> s') $ concatMap unpack vs'
           | otherwise -> error $ "collapse: " <> show vs'
@@ -157,5 +168,5 @@ collapse (ValArray s vs) =
 collapse v = v
 
 valToString :: Val m -> String
-valToString (ValArray _ vs) = map (\(ValBase (IntVal c)) -> toEnum c) vs
+valToString (ValArray _ vs) = map (toEnum . asInt) vs
 valToString _ = error "valToString: not a string"

@@ -1,4 +1,5 @@
-(let ((extent $d (+ 5 (- 3))))
+;; expected: 0
+(let ((ispace $d (+ 5 (- 3))))
   (let ((type *t (A Int $d)))
     (let ((fun (f (x *t)) 0))
       (let ((val a (array [2] 0 1)))
