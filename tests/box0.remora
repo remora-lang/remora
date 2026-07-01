@@ -1,3 +1,4 @@
+;; expected: [1 2 3]
 ; box
 (let (
 

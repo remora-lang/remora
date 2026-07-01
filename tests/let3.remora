@@ -1,6 +1,7 @@
+;; expected: [5 7 9]
 (let (
   (type &MyInt Int)
-  (extent $d 3)
+  (ispace $d 3)
   (type *IntVec3 [&MyInt $d])
   (fun (add-int-vec (x *IntVec3) (y *IntVec3) : *IntVec3) (+ x y))
 )

@@ -1,3 +1,4 @@
+;; expected: [3 6]
 ; add two length-2 vectors
 (let (
 

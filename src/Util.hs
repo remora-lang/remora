@@ -11,6 +11,8 @@ module Util
     asumM,
     unlessM,
     noSrcPos,
+    (.>),
+    splitOn,
   )
 where
 
@@ -59,7 +61,7 @@ allM :: (Monad m, Foldable t) => (a -> m Bool) -> t a -> m Bool
 allM p = foldr (\a b -> ifM (p a) b (pure False)) (pure True)
 
 asumM :: (Monad m, Traversable t, Alternative f) => t (m (f a)) -> m (f a)
-asumM = (fmap asum) . sequence
+asumM = fmap asum . sequence
 
 unlessM :: (Monad m) => m Bool -> m () -> m ()
 unlessM test m = do
@@ -68,3 +70,12 @@ unlessM test m = do
 
 noSrcPos :: SourcePos
 noSrcPos = SourcePos "<no location>" (mkPos 1) (mkPos 1)
+
+(.>) :: (a -> b) -> (b -> c) -> a -> c
+(.>) = flip (.)
+
+splitOn :: (Eq a) => [a] -> a -> [[a]]
+splitOn [] _ = []
+splitOn xs delim = case span (/= delim) xs of
+  (m, []) -> [m]
+  (m, _ : rest) -> m : splitOn rest delim

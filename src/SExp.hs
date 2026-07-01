@@ -2,6 +2,7 @@
 
 module SExp where
 
+import Data.List.NonEmpty qualified as NE
 import Data.String
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -89,9 +90,10 @@ instance
     SExpable (f (AtomType v)) s,
     SExpable (f (Type v)) s,
     SExpable (f (ArrayType v)) s,
-    SExpable (f (ArrayType v, Shape v)) s
+    SExpable (f (ArrayType v, Shape v)) s,
+    SExpable (tp v) s
   ) =>
-  SExpable (Atom f v) s
+  SExpable (AtomBase tp f v) s
   where
   toSExp (Base b t pos) =
     SList
@@ -100,34 +102,34 @@ instance
         toSExp t,
         toSExp pos
       ]
-  toSExp (Lambda params e t pos) =
+  toSExp (Lambda param e t pos) =
     SList
       [ "fn",
-        toSExp params,
+        toSExp param,
         toSExp e,
         toSExp t,
         toSExp pos
       ]
-  toSExp (TLambda tvars e t pos) =
+  toSExp (TLambda tvar e t pos) =
     SList
       [ "t-fn",
-        toSExp tvars,
+        toSExp tvar,
         toSExp e,
         toSExp t,
         toSExp pos
       ]
-  toSExp (ILambda ivars e t pos) =
+  toSExp (ILambda ivar e t pos) =
     SList
-      [ "t-fn",
-        toSExp ivars,
+      [ "i-fn",
+        toSExp ivar,
         toSExp e,
         toSExp t,
         toSExp pos
       ]
-  toSExp (Box shapes e t t' pos) =
+  toSExp (Box shape e t t' pos) =
     SList
       [ "box",
-        toSExp shapes,
+        toSExp shape,
         toSExp e,
         toSExp t,
         toSExp t',
@@ -148,9 +150,10 @@ instance
     SExpable (f (AtomType v)) s,
     SExpable (f (Type v)) s,
     SExpable (f (ArrayType v)) s,
-    SExpable (f (ArrayType v, Shape v)) s
+    SExpable (f (ArrayType v, Shape v)) s,
+    SExpable (tp v) s
   ) =>
-  SExpable (Bind f v) s
+  SExpable (BindBase tp f v) s
   where
   toSExp (BindVal v mt e pos) =
     SList
@@ -198,11 +201,11 @@ instance
         toSExp t',
         toSExp pos
       ]
-  toSExp (BindExtent v extent pos) =
+  toSExp (BindISpace v ispace pos) =
     SList
-      [ "bind-extent",
+      [ "bind-ispace",
         toSExp v,
-        toSExp extent,
+        toSExp ispace,
         toSExp pos
       ]
 
@@ -212,9 +215,10 @@ instance
     SExpable (f (AtomType v)) s,
     SExpable (f (Type v)) s,
     SExpable (f (ArrayType v)) s,
-    SExpable (f (ArrayType v, Shape v)) s
+    SExpable (f (ArrayType v, Shape v)) s,
+    SExpable (tp v) s
   ) =>
-  SExpable (Exp f v) s
+  SExpable (ExpBase tp f v) s
   where
   toSExp (Var v t pos) =
     SList
@@ -227,7 +231,7 @@ instance
     SList
       [ "array",
         SList $ "shape-lit" : map toSExp shape,
-        toSExp as,
+        toSExp (NE.toList as),
         toSExp t,
         toSExp pos
       ]
@@ -243,7 +247,7 @@ instance
     SList
       [ "frame",
         SList $ "shape-lit" : map toSExp shape,
-        toSExp es,
+        toSExp (NE.toList es),
         toSExp t,
         toSExp pos
       ]
@@ -256,34 +260,34 @@ instance
         toSExp t',
         toSExp pos
       ]
-  toSExp (App f es t pos) =
+  toSExp (App f e t pos) =
     SList
       [ "app",
         toSExp f,
-        toSExp es,
+        toSExp e,
         toSExp t,
         toSExp pos
       ]
-  toSExp (TApp e ts t pos) =
+  toSExp (TApp e te t pos) =
     SList
       [ "t-app",
         toSExp e,
-        toSExp ts,
+        toSExp te,
         toSExp t,
         toSExp pos
       ]
-  toSExp (IApp e is t pos) =
+  toSExp (IApp e i t pos) =
     SList
       [ "i-app",
         toSExp e,
-        toSExp is,
+        toSExp i,
         toSExp t,
         toSExp pos
       ]
-  toSExp (Unbox vs v_e x_e e t pos) =
+  toSExp (Unbox ep v_e x_e e t pos) =
     SList
       [ "unbox",
-        toSExp vs,
+        toSExp ep,
         toSExp v_e,
         toSExp x_e,
         toSExp e,
@@ -293,7 +297,7 @@ instance
   toSExp (Let bs e t pos) =
     SList
       [ "let",
-        toSExp bs,
+        toSExp (NE.toList bs),
         toSExp e,
         toSExp t,
         toSExp pos
@@ -305,13 +309,20 @@ instance (IsString s, SExpable v s) => SExpable (TypeParam v) s where
       [ "atom-tvar",
         toSExp v
       ]
-  toSExp (ArrayTypeParam v) =
+
+instance (IsString s, SExpable v s) => SExpable (TypeParamExp v) s where
+  toSExp (TEAtomTypeParam v) =
+    SList
+      [ "atom-tvar",
+        toSExp v
+      ]
+  toSExp (TEArrayTypeParam v) =
     SList
       [ "array-tvar",
         toSExp v
       ]
 
-instance (IsString s, SExpable v s) => SExpable (ExtentParam v) s where
+instance (IsString s, SExpable v s) => SExpable (ISpaceParam v) s where
   toSExp (ShapeParam v) =
     SList
       [ "shape-ivar",
@@ -323,15 +334,15 @@ instance (IsString s, SExpable v s) => SExpable (ExtentParam v) s where
         toSExp v
       ]
 
-instance (IsString s, SExpable v s) => SExpable (Extent v) s where
+instance (IsString s, SExpable v s) => SExpable (ISpace v) s where
   toSExp (Dim v) =
     SList
-      [ "extent-dim",
+      [ "ispace-dim",
         toSExp v
       ]
   toSExp (Shape v) =
     SList
-      [ "extent-shape",
+      [ "ispace-shape",
         toSExp v
       ]
 
@@ -353,7 +364,7 @@ instance
     SExpable v s,
     SExpable (f (ArrayType v)) s
   ) =>
-  SExpable (Pat f v) s
+  SExpable (PatBase f v) s
   where
   toSExp (PatId v te t pos) =
     SList
@@ -399,31 +410,31 @@ instance (IsString s, SExpable v s) => SExpable (TypeExp v) s where
         toSExp shape,
         toSExp pos
       ]
-  toSExp (TEArray ts t pos) =
+  toSExp (TEArrow t1 t2 pos) =
     SList
-      [ "te-array",
-        toSExp ts,
-        toSExp t,
+      [ "te-arrow",
+        toSExp t1,
+        toSExp t2,
         toSExp pos
       ]
   toSExp (TEForall vs t pos) =
     SList
       [ "te-forall",
-        toSExp vs,
+        toSExp (NE.toList vs),
         toSExp t,
         toSExp pos
       ]
   toSExp (TEPi vs t pos) =
     SList
       [ "te-pi",
-        toSExp vs,
+        toSExp (NE.toList vs),
         toSExp t,
         toSExp pos
       ]
   toSExp (TESigma vs t pos) =
     SList
       [ "te-sigma",
-        toSExp vs,
+        toSExp (NE.toList vs),
         toSExp t,
         toSExp pos
       ]

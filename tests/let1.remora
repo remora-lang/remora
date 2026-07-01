@@ -1,3 +1,4 @@
+;; expected: 20
 ; let vals
 (let (
   (val (x : Int) 5)

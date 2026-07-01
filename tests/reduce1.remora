@@ -1,3 +1,4 @@
+;; expected: 6.0
 ;; sum
 (let (
 (val (reduce3 : (-> ((A (-> ((A Float (dims)) (A Float (dims))) (A Float (dims))) (dims))
