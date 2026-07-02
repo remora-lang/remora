@@ -18,6 +18,7 @@ module Prop
     convertArrayTypeExp,
     unrollArrow,
     peelArrayType,
+    arrayOf,
     findRet,
     unrollApp,
   )
@@ -164,6 +165,10 @@ unrollArrow t = ([], t)
 peelArrayType :: (Ord v) => ArrayType v -> ArrayType v
 peelArrayType (A a s) = A a $ peelShape s
 
+arrayOf :: Type v -> Shape v -> ArrayType v
+arrayOf (AtomType et) s = A et s
+arrayOf (ArrayType (A et s')) s = A et (s <> s')
+
 findRet :: (Ord v) => AtomType v -> ArrayType v
 findRet = snd . unrollArrow . mkScalarArrayType
 
@@ -231,8 +236,9 @@ convertAtomTypeExp (TESigma ps t _) = do
 convertAtomTypeExp _ = Nothing
 
 convertArrayTypeExp :: (Ord v) => TypeExp v -> Maybe (ArrayType v)
-convertArrayTypeExp (TEArray t s _) =
-  A <$> convertAtomTypeExp t <*> pure s
+convertArrayTypeExp (TEArray t s _) = do
+  t' <- convertArrayTypeExp t
+  pure $ arrayOf (ArrayType t') s
 convertArrayTypeExp (TEArrayVar v _) =
   pure $ A (AtomTypeVar v) (ShapeVar v)
 convertArrayTypeExp t =
