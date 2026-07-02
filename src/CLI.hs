@@ -36,6 +36,10 @@ data RemoraMode
         expr :: Maybe String,
         sexp :: Bool
       }
+  | Monomorphize
+      { file :: Maybe FilePath,
+        expr :: Maybe String
+      }
   deriving (Data, Typeable, Show, Eq)
 
 parse :: RemoraMode
@@ -66,6 +70,18 @@ interpret =
         "If neither -f nor -e is passed, will read input from stdin."
       ]
 
+monomorphize :: RemoraMode
+monomorphize =
+  Monomorphize
+    { file = Nothing &= help "Monomorphize the passed file.",
+      expr = Nothing &= help "Monomorphize an expression passed as an argument."
+    }
+    &= details
+      [ "Monomorphize a remora program or expression.",
+        "",
+        "If neither -f nor -e is passed, will read input from stdin."
+      ]
+
 futhark :: RemoraMode
 futhark =
   Futhark
@@ -90,7 +106,8 @@ mode =
       [ REPL &= details ["DO NOT USE: remora repl is a broken WIP."],
         interpret,
         futhark,
-        parse
+        parse,
+        monomorphize
       ]
       &= program "remora"
 
@@ -107,6 +124,14 @@ main = do
       case m of
         Left err -> T.putStrLn err
         Right v -> T.putStrLn $ prettyText v
+    Monomorphize mfile mexpr -> do
+      input <- handleInput mfile mexpr
+      let m = do
+            expr <- doParse mfile input
+            Pipeline.monomorphize expr
+      case m of
+        Left err -> T.putStrLn err
+        Right e -> T.putStrLn $ prettyText e
     Futhark mfile mexpr mbackend -> do
       input <- handleInput mfile mexpr
       let m = do

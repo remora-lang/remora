@@ -1,0 +1,2 @@
+;; expected: 1
+((i-app (t-app head Int) 2 (dims)) [1 2 3])

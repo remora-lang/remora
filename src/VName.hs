@@ -44,6 +44,6 @@ newTag = do
 newVName :: (MonadVName m) => Text -> m VName
 newVName s = VName s <$> newTag
 
-instance (Monad m, MonadState Tag m) => MonadVName m where
+instance {-# OVERLAPPABLE #-} (Monad m, MonadState Tag m) => MonadVName m where
   getVarTag = get
   putVarTag = put

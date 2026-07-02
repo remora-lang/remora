@@ -56,6 +56,10 @@ instance HasArrayType Exp where
 instance HasArrayType Pat where
   arrayTypeOf_ (PatId _ _ (Info t) _) = t
 
+instance HasArrayType (Type VName) where
+  arrayTypeOf (AtomType et) = A et mempty
+  arrayTypeOf (ArrayType t) = t
+
 scalarTypeOf :: Atom -> AtomType VName
 scalarTypeOf = normType . scalarTypeOf_
   where
@@ -110,10 +114,14 @@ instance HasShape (Type VName) where
 instance HasShape Exp where
   shapeOf_ = shapeOf_ . typeOf_
 
+instance HasShape (Shape VName) where
+  shapeOf_ = id
+
 -- | Things that are types.
 class IsType x where
   normType :: x -> x
   (~=) :: x -> x -> Bool
+  atomType :: x -> AtomType VName
 
 infix 4 ~=
 
@@ -133,11 +141,15 @@ instance IsType (AtomType VName) where
     substitute (renameVar (unISpaceParam p) (unISpaceParam q)) r ~= t
   t ~= r = t == r
 
+  atomType = id
+
 instance IsType (ArrayType VName) where
   normType (A t s) = A (normType t) (normShape s)
 
   A t s ~= A y x =
     (t ~= y) && (s Symbolic.@= x)
+
+  atomType = arrayTypeAtom
 
 instance IsType (Type VName) where
   normType (AtomType t) = AtomType $ normType t

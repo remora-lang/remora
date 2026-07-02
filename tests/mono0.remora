@@ -1,0 +1,2 @@
+;; expected: 1
+((t-app (t-fn (&t) (fn ((x &t)) x)) Int) 1)

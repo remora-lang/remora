@@ -22,30 +22,32 @@ common common
 library
     import:           common
     exposed-modules:
-      Syntax
-      ISpace
-      Parser
-      Primitive
-      Interpreter
-      Interpreter.Value
-      Interpreter.Intrinsics
-      Intrinsics
-      Futhark
-      TypeCheck
-      TypeCheck.Monad
-      VName
-      Util
       CLI
       CLI.REPL
+      Futhark
+      Interpreter
+      Interpreter.Intrinsics
+      Interpreter.Value
+      Intrinsics
+      ISpace
+      Monomorphize
+      Monomorphize.Monad
+      Parser
       Pass
+      Pipeline
+      Primitive
       Prop
-      Substitute
       SExp
+      Substitute
       Symbolic
+      Syntax
+      TypeCheck
+      TypeCheck.Monad
       Uniquify
       Uniquify.Monad
       Uniquify.Type
-      Pipeline
+      Util
+      VName
 
     -- other-modules:
     -- other-extensions:

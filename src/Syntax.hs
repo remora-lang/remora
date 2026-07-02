@@ -151,7 +151,7 @@ data AtomType v
     Pi (ISpaceParam v) (ArrayType v)
   | -- | Dependent sum type.
     Sigma (ISpaceParam v) (ArrayType v)
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 instance (Show v, Pretty v) => Pretty (AtomType v) where
   pretty (AtomTypeVar x) = "&" <> pretty x
@@ -182,7 +182,7 @@ data ArrayType v
   { arrayTypeAtom :: AtomType v,
     arrayTypeShape :: Shape v
   }
-  deriving (Eq, Show)
+  deriving (Show, Eq, Ord)
 
 instance (Show v, Pretty v) => Pretty (ArrayType v) where
   pretty (A t s) = parens $ "A" <+> pretty t <+> pretty s
@@ -191,7 +191,7 @@ instance (Show v, Pretty v) => Pretty (ArrayType v) where
 data Type v
   = AtomType (AtomType v)
   | ArrayType (ArrayType v)
-  deriving (Eq, Show)
+  deriving (Show, Eq, Ord)
 
 instance (Show v, Pretty v) => Pretty (Type v) where
   pretty (AtomType t) = pretty t
