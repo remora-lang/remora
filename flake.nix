@@ -31,6 +31,7 @@
           haskellProjects.default = {
             packages.sbv.source = inputs.sbv;
             settings.sbv.check = false;
+            settings.remora.check = false;
             devShell = {
               tools = _: { inherit (pkgs) z3 nixfmt futhark cudatoolkit; };
               hlsCheck.enable = true;
