@@ -35,13 +35,13 @@ fun3 ::
   ((a -> m (Val m)) -> Val m) -> (a -> a -> a -> m (Val m)) -> Val m
 fun3 wrap f = wrap $ \x -> pure $ fun2 wrap (f x)
 
-applyOp :: (Monad m) => Val m -> Val m -> Val m -> m (Val m)
-applyOp (ValFun f) l r = do
+applyFun :: (Monad m) => Val m -> Val m -> Val m -> m (Val m)
+applyFun (ValFun f) l r = do
   g <- f l
-  case g of
+  case asScalar g of
     ValFun g' -> g' r
-    _ -> error "applyOp: partial application did not yield a function"
-applyOp _ _ _ = error "applyOp: not a function"
+    _ -> error "applyFun: partial application did not yield a function"
+applyFun _ _ _ = error "applyFun: not a function"
 
 scalarVal :: Base -> Val m
 scalarVal b = ValArray mempty [ValBase b]
@@ -188,7 +188,7 @@ intrinsics =
                 s' = asShape s
                 cells = map (ValArray s') $ split (product s') $ snd $ asArray arr
              in case cells of
-                  c : cs -> foldM (applyOp op) c cs
+                  c : cs -> foldM (applyFun op) c cs
                   [] -> error "reduce: empty array"
     intrinsic "fold" =
       tFun2 $ \_ _ ->
@@ -197,7 +197,7 @@ intrinsics =
             let op = asScalar opv
                 s' = asShape s
                 cells = map (ValArray s') $ split (product s') $ snd $ asArray arr
-             in foldM (applyOp op) zero cells
+             in foldM (applyFun op) zero cells
     intrinsic "sum" =
       let valSum (ValBase (IntVal x)) = x
           valSum (ValArray _ vs) = Prelude.sum $ map valSum vs
