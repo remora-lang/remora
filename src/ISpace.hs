@@ -71,7 +71,11 @@ instance Monoid (Shape v) where
 instance (Show v, Pretty v) => Pretty (Shape v) where
   pretty (ShapeVar v) = "@" <> pretty v
   pretty (ShapeDim d) = pretty d
-  pretty (Concat is) = parens $ hsep ("++" : map pretty is)
+  pretty s@Concat {} = brackets $ hsep $ map pretty $ flattenShape s
+    where
+      flattenShape :: Shape v -> [Shape v]
+      flattenShape (Concat ss) = concatMap flattenShape ss
+      flattenShape s = pure s
 
 -- | An 'ISpace', which is either a 'Dim' or a 'Shape'.
 data ISpace v
