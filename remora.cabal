@@ -61,7 +61,7 @@ library
       process,
       filepath,
       sbv,
-      futhark == 0.25.37
+      futhark
 
     hs-source-dirs:   src
 
