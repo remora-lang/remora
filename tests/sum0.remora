@@ -1,0 +1,2 @@
+;; expected: 5050
+(@sum _ ([101]) (@iota/static _ ([101])))
