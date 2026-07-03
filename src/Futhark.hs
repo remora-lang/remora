@@ -537,15 +537,15 @@ compileBind (BindFun f params _ body (Info ret) _) = do
             F.entryParamUniqueness = F.Nonunique,
             F.entryParamType = F.TypeTransparent $ valueType (F.paramType p)
           }
-  let entryResults =
-        [ F.EntryResult
-            { F.entryResultUniqueness = F.Nonunique,
-              F.entryResultType = F.TypeTransparent $ valueType ret'
-            }
-        ]
+  let entryResult =
+        F.EntryResult
+          { F.entryResultUniqueness = F.Nonunique,
+            F.entryResultType = F.TypeTransparent $ valueType ret'
+          }
+
   let fun =
         F.FunDef
-          { F.funDefEntryPoint = Just (F.nameFromText $ varName f, map mkEntryParam params', entryResults),
+          { F.funDefEntryPoint = Just (F.nameFromText $ varName f, map mkEntryParam params', entryResult, Nothing),
             F.funDefAttrs = mempty,
             F.funDefName = F.nameFromText $ varName f,
             F.funDefRetType = [(F.toDecl (F.staticShapes1 ret') F.Nonunique, mempty)],
@@ -585,10 +585,10 @@ wrapInMain ((e, ret), State stms counter funs _) =
                              Just
                                ( "main",
                                  [],
-                                 [ F.EntryResult F.Nonunique $
-                                     F.TypeTransparent $
-                                       valueType ret
-                                 ]
+                                 F.EntryResult F.Nonunique $
+                                   F.TypeTransparent $
+                                     valueType ret,
+                                 Nothing
                                ),
                            F.funDefAttrs = mempty,
                            F.funDefName = "entry_main",

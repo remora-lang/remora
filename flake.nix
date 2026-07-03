@@ -7,6 +7,18 @@
       url = "github:LeventErkok/sbv";
       flake = false;
     };
+    futhark = {
+      url = "github:diku-dk/futhark";
+      flake = false;
+    };
+    futhark-server = {
+      url = "github:diku-dk/futhark-server-haskell/v1.4.1.0";
+      flake = false;
+    };
+    futhark-manifest = {
+      url = "github:diku-dk/futhark-manifest-haskell/v1.9.0.0";
+      flake = false;
+    };
   };
   outputs =
     inputs@{ nixpkgs, flake-parts, ... }:
@@ -30,8 +42,15 @@
 
           haskellProjects.default = {
             packages.sbv.source = inputs.sbv;
+            packages.futhark.source = inputs.futhark;
+            packages.lsp.source = "2.8.0.0";
+            packages.lsp-types.source = "2.4.0.0";
+            packages.lsp-test.source = "0.18.0.0";
+            packages.futhark-server.source = inputs.futhark-server;
+            packages.futhark-manifest.source = inputs.futhark-manifest;
             settings.sbv.check = false;
             settings.remora.check = false;
+            settings.lsp-test.check = false;
             devShell = {
               tools = _: { inherit (pkgs) z3 nixfmt futhark cudatoolkit; };
               hlsCheck.enable = true;

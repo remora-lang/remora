@@ -18,6 +18,56 @@
         "type": "github"
       }
     },
+    "futhark": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1783110164,
+        "narHash": "sha256-PKpEyjFcs/+t6m5FEPi8dqipD2ZJDnW92+ZfPVgkLp0=",
+        "owner": "diku-dk",
+        "repo": "futhark",
+        "rev": "cd6a4070c8d8c7dc465b31029e29c1dc5501cc67",
+        "type": "github"
+      },
+      "original": {
+        "owner": "diku-dk",
+        "repo": "futhark",
+        "type": "github"
+      }
+    },
+    "futhark-manifest": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1782410341,
+        "narHash": "sha256-4vreJyA1hkr4tvJr1/IJftJqwJE3u1HdWO5oj1zXqQ0=",
+        "owner": "diku-dk",
+        "repo": "futhark-manifest-haskell",
+        "rev": "767c9bd7f71e11e7bb957a7b9782ce0c04867b40",
+        "type": "github"
+      },
+      "original": {
+        "owner": "diku-dk",
+        "ref": "v1.9.0.0",
+        "repo": "futhark-manifest-haskell",
+        "type": "github"
+      }
+    },
+    "futhark-server": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1778774324,
+        "narHash": "sha256-Sbo7uwoHrRc1JSOO859Wb5zbkXmLC2WZMRN5gaVlRuQ=",
+        "owner": "diku-dk",
+        "repo": "futhark-server-haskell",
+        "rev": "d39ac35f11a0efbb21a2dff90e57c86559ecae18",
+        "type": "github"
+      },
+      "original": {
+        "owner": "diku-dk",
+        "ref": "v1.4.1.0",
+        "repo": "futhark-server-haskell",
+        "type": "github"
+      }
+    },
     "haskell-flake": {
       "locked": {
         "lastModified": 1782609638,
@@ -67,6 +117,9 @@
     "root": {
       "inputs": {
         "flake-parts": "flake-parts",
+        "futhark": "futhark",
+        "futhark-manifest": "futhark-manifest",
+        "futhark-server": "futhark-server",
         "haskell-flake": "haskell-flake",
         "nixpkgs": "nixpkgs",
         "sbv": "sbv"
@@ -75,11 +128,11 @@
     "sbv": {
       "flake": false,
       "locked": {
-        "lastModified": 1782936072,
-        "narHash": "sha256-SddAKMUsEEOOtNPbcWsEv+5dAAZSU7jONfnXkqOQkaM=",
+        "lastModified": 1783109314,
+        "narHash": "sha256-4WTWTtj6JjN6QDxzYm/jJk6m/n5vvdZwQtju4/Vwyv0=",
         "owner": "LeventErkok",
         "repo": "sbv",
-        "rev": "1a5e65ca0e64f4d9433080e90e93bab1269bc470",
+        "rev": "ff371e7a5c528b1f8ab2b99dd3ce744d58c55d1f",
         "type": "github"
       },
       "original": {
