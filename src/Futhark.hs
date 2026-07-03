@@ -179,16 +179,34 @@ mkSizeSubExp (ShapeDim (DimN n)) =
   F.Constant $ F.IntValue $ F.Int64Value $ fromIntegral n
 mkSizeSubExp s = error $ "sizeOfShape: unhandled\n" ++ show s
 
+idLambda :: [F.Type] -> FutharkM (F.Lambda F.SOACS)
+idLambda ts = do
+  params <- forM ts $ \t -> do
+    x <- newVar
+    pure $ F.Param mempty x t
+
+  body <-
+    mkBody $
+      pure $
+        map (F.Var . F.paramName) params
+  pure $
+    F.Lambda
+      { F.lambdaParams = params,
+        F.lambdaReturnType = ts,
+        F.lambdaBody = body
+      }
+
 compileReduce :: Exp -> Arg -> FutharkM (F.SOAC F.SOACS)
 compileReduce op arg = do
   tArg <- (compileAtomType . arrayTypeAtom . argType) arg
-  idlam <- idLambda [tArg]
+  idlam1 <- idLambda [tArg]
+  idlam2 <- idLambda [tArg]
   red <- mkReduce
-  pure
-    $ F.Screma
+  pure $
+    F.Screma
       (mkSizeSubExp $ arrayTypeShape $ argType arg)
       [asVar $ argSExp arg]
-    $ F.redomapSOAC [red] idlam
+      (F.ScremaForm idlam1 [] [red] idlam2)
   where
     asVar (F.Var v) = v
     asVar se = error $ "asVar: unhandled " ++ show se
@@ -197,23 +215,6 @@ compileReduce op arg = do
     mkNeutral t = error $ "mkNeutral: unhandled\n" ++ show t
 
     mkNeutrals = map mkNeutral . F.lambdaReturnType
-
-    idLambda :: [F.Type] -> FutharkM (F.Lambda F.SOACS)
-    idLambda ts = do
-      params <- forM ts $ \t -> do
-        x <- newVar
-        pure $ F.Param mempty x t
-
-      body <-
-        mkBody $
-          pure $
-            map (F.Var . F.paramName) params
-      pure $
-        F.Lambda
-          { F.lambdaParams = params,
-            F.lambdaReturnType = ts,
-            F.lambdaBody = body
-          }
 
     mkReduce :: FutharkM (F.Reduce F.SOACS)
     mkReduce = do
@@ -490,6 +491,7 @@ withMapNest (d : ds) t args m = do
   let recRes = withMapNest ds t_body args' m
   body <- mkBody (singleton <$> recRes)
   t' <- compileArrayType t
+  idlam <- idLambda [t_body']
   F.Var
     <$> bind
       t'
@@ -497,12 +499,15 @@ withMapNest (d : ds) t args m = do
           $ F.Screma
             (F.Constant (F.IntValue (F.Int64Value (fromIntegral d))))
             (map (sexpToVName . argSExp) mapArgs)
-          $ F.mapSOAC
+          $ F.ScremaForm
             F.Lambda
               { F.lambdaParams = params,
                 F.lambdaReturnType = [t_body'],
                 F.lambdaBody = body
               }
+            []
+            []
+            idlam
       )
   where
     mapArg :: Arg -> FutharkM (Maybe Arg, Arg)
