@@ -60,8 +60,8 @@ library
       haskeline,
       process,
       filepath,
-      sbv,
-      futhark == 0.25.37
+      sbv >= 14,
+      futhark
 
     hs-source-dirs:   src
 
