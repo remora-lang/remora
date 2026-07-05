@@ -1,11 +1,13 @@
 module TypeCheck (check) where
 
 import Control.Monad
+import Control.Monad.Error.Class
 import Control.Monad.Reader
 import Control.Monad.Trans.Except
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as M
 import Data.Text qualified as T
+import Pass
 import Prop
 import Substitute
 import Symbolic qualified
@@ -15,14 +17,15 @@ import Util
 import VName
 
 -- | Type check a program.
-check :: UniqueExp -> Either Error Exp
+check :: UniqueExp -> PassM Exp
 check e =
-  runReader
-    ( runExceptT $
-        runCheckM $
-          checkExp e
-    )
-    initEnv
+  liftEither $
+    runReader
+      ( runExceptT $
+          runCheckM $
+            checkExp e
+      )
+      initEnv
 
 -- | Check a 'Dim'.
 checkDim :: (MonadCheck m) => Dim VName -> m (Dim VName)

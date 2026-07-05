@@ -1,5 +1,6 @@
 module Util
-  ( prettyText,
+  ( Error,
+    prettyText,
     prettyString,
     ifM,
     (^&&),
@@ -19,6 +20,7 @@ where
 import Control.Applicative
 import Control.Monad
 import Data.Text (Text)
+import Data.Text qualified as T
 import Prettyprinter
 import Prettyprinter.Render.String
 import Prettyprinter.Render.Text
@@ -26,6 +28,8 @@ import Text.Megaparsec.Pos
   ( SourcePos (..),
     mkPos,
   )
+
+type Error = T.Text
 
 prettyText :: (Pretty x) => x -> Text
 prettyText = renderStrict . layoutPretty defaultLayoutOptions . pretty

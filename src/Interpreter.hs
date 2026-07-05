@@ -8,13 +8,13 @@ import Data.List.NonEmpty qualified as NE
 import Data.Map (Map)
 import Data.Map qualified as M
 import Data.Maybe
-import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as TIO
 import Interpreter.Intrinsics
 import Interpreter.Value hiding (Val)
 import Interpreter.Value qualified as Value
 import Parser qualified as P
+import Pass
 import Prop hiding ((\\))
 import Syntax hiding (ArrayType, Dim, ISpace, Shape, Type, TypeExp)
 import Syntax qualified
@@ -39,9 +39,10 @@ type TypeExp = Syntax.TypeExp VName
 type ArrayType = Syntax.ArrayType VName
 
 -- | Interpret a program.
-interpret :: Exp -> Either Error Val
+interpret :: Exp -> PassM Val
 interpret e =
-  runReader (runExceptT $ runInterpM $ intExp e) initEnv
+  liftEither $
+    runReader (runExceptT $ runInterpM $ intExp e) initEnv
 
 -- | The interpreter environment.
 data Env = Env
@@ -87,14 +88,14 @@ initEnv = Env m tm mempty mempty
                     input <- TIO.readFile file
                     let mv = do
                           parsed <- P.parse "<read-file>" input
-                          checked <- TC.check (U.uniquify parsed)
-                          interpret checked
+                          Pass.runPass $
+                            U.uniquify parsed
+                              >>= TC.check
+                              >>= interpret
                     case mv of
                       Left err -> error $ "read-file: " <> T.unpack err
                       Right v -> pure v
     m = M.insert rfVname rfImpl m0
-
-type Error = Text
 
 -- | The interpreter monad.
 newtype InterpM a = InterpM {runInterpM :: ExceptT Error (Reader Env) a}

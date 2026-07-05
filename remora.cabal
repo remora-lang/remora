@@ -37,6 +37,7 @@ library
       Util
       CLI
       CLI.REPL
+      Pass
       Prop
       Substitute
       SExp

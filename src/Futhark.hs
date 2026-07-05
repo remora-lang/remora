@@ -14,6 +14,7 @@ import Data.Map qualified as M
 import Data.Maybe
 import Data.Text qualified as T
 import Futhark.IR.SOACS qualified as F
+import Pass
 import Prettyprinter
 import Prettyprinter.Render.Text
 import Prop
@@ -33,13 +34,11 @@ type ArrayType = Syntax.ArrayType VName
 
 type Type = Syntax.Type VName
 
-type Error = T.Text
-
 data Env = Env
 
 data State = State
   { stateStms :: F.Stms F.SOACS,
-    stateCounter :: Int,
+    stateTag :: Tag,
     stateFuns :: [F.FunDef F.SOACS],
     stateFunBinds :: Map VName (F.FunDef F.SOACS)
   }
@@ -68,9 +67,9 @@ collect m = do
 
 newVar :: FutharkM F.VName
 newVar = do
-  x <- gets stateCounter
-  modify $ \s -> s {stateCounter = succ x}
-  pure $ F.VName "v" x
+  tag <- gets stateTag
+  modify $ \s -> s {stateTag = nextTag tag}
+  pure $ F.VName "v" $ getTag tag
 
 bind :: F.Type -> F.Exp F.SOACS -> FutharkM F.VName
 bind t e = do
@@ -568,8 +567,8 @@ valueType (F.Array pt shape _) =
   F.ValueType F.Signed (F.Rank (F.shapeRank shape)) pt
 valueType t = error $ "valueType: unhandled " ++ show t
 
-wrapInMain :: ((F.SubExp, F.Type), State) -> T.Text
-wrapInMain ((e, ret), State stms counter funs _) =
+wrapInMain :: (F.SubExp, F.Type) -> State -> T.Text
+wrapInMain (e, ret) (State stms counter funs _) =
   renderStrict . layoutPretty defaultLayoutOptions $
     vsep
       [ "name_source" <+> braces (pretty counter),
@@ -600,21 +599,26 @@ wrapInMain ((e, ret), State stms counter funs _) =
       ]
 
 -- | Turn Remora into Futhark.
-compile :: Exp -> Either Error T.Text
-compile e =
-  wrapInMain
-    <$> runExcept
-      ( runReaderT
-          ( runStateT
-              ( runFutharkM
-                  ( (,)
-                      <$> compileExp e
-                      <*> compileType (typeOf e)
+compile :: Exp -> PassM T.Text
+compile e = do
+  tag <- getVarTag
+  let initialState = State mempty tag mempty mempty
+      result =
+        runExcept
+          ( runReaderT
+              ( runStateT
+                  ( runFutharkM
+                      ( (,)
+                          <$> compileExp e
+                          <*> compileType (typeOf e)
+                      )
                   )
+                  initialState
               )
-              initialState
+              Env
           )
-          Env
-      )
-  where
-    initialState = State mempty 1000 mempty mempty
+  case result of
+    Left err -> throwError err
+    Right (res, s) -> do
+      putVarTag $ stateTag s
+      pure $ wrapInMain res s

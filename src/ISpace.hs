@@ -75,7 +75,7 @@ instance (Show v, Pretty v) => Pretty (Shape v) where
     where
       flattenShape :: Shape v -> [Shape v]
       flattenShape (Concat ss) = concatMap flattenShape ss
-      flattenShape s = pure s
+      flattenShape s' = pure s'
 
 -- | An 'ISpace', which is either a 'Dim' or a 'Shape'.
 data ISpace v

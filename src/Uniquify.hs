@@ -1,21 +1,26 @@
 module Uniquify (uniquify) where
 
+import Control.Monad.State (state)
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as M
 import Data.Text (Text)
 import Intrinsics
+import Pass
 import Syntax
 import Uniquify.Monad
 import Uniquify.Type
 import VName
 
-uniquify :: UncheckedExp -> UniqueExp
-uniquify = fst . runUniquify initEnv maxIntrinsicTag . uniquifyExp
+uniquify :: UncheckedExp -> PassM UniqueExp
+uniquify e =
+  state $ \tag -> runUniquify initEnv tag $ uniquifyExp e
   where
     initEnv =
       mempty
         { vnameEnvVars =
-            M.fromList $ map (\(k, _) -> (varName k, k)) $ M.toList intrinsics
+            M.fromList $
+              map (\(k, _) -> (varName k, k)) $
+                M.toList intrinsics
         }
 
 -- | Type uniquify an ununiquifyed 'Exp'.

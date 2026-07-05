@@ -118,8 +118,6 @@ throwErrorPos pos t =
         t
       ]
 
-type Error = Text
-
 type MonadCheck m =
   ( Monad m,
     MonadReader Env m,
