@@ -1,6 +1,8 @@
 module Uniquify.Monad where
 
 import Control.Monad.RWS
+import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty qualified as NE
 import Data.Map (Map)
 import Data.Map qualified as M
 import Data.Text (Text)
@@ -262,3 +264,6 @@ binds bind ps m = binds' ps mempty
     binds' [] cs = m $ reverse cs
     binds' (a : as) cs =
       bind a $ \c -> binds' as (c : cs)
+
+bindsNE :: (a -> (c -> x) -> x) -> NonEmpty a -> (NonEmpty c -> x) -> x
+bindsNE bind ps m = binds bind (NE.toList ps) (m . NE.fromList)

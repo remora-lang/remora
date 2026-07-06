@@ -1,4 +1,4 @@
-module Parser (parse) where
+module Parser (parse, parseExp) where
 
 import Control.Monad (void)
 import Data.Char (isAlphaNum, isDigit, isSpace)
@@ -14,11 +14,13 @@ import Syntax hiding
     Atom,
     AtomType,
     Bind,
+    Decl,
     Dim,
     Exp,
     ISpace,
     ISpaceParam,
     Pat,
+    Prog,
     Shape,
     Type,
     TypeParam,
@@ -70,9 +72,21 @@ type ISpace = Syntax.ISpace Text
 
 type Pat = UncheckedPat
 
-parse :: FilePath -> Text -> Either Text Exp
-parse fname s =
-  case Text.Megaparsec.parse (spaceConsumer *> pExp <* eof) fname s of
+type Decl = UncheckedDecl
+
+type Prog = UncheckedProg
+
+type Bind = UncheckedBind
+
+parse :: FilePath -> Text -> Either Text Prog
+parse = parseWith pProg
+
+parseExp :: FilePath -> Text -> Either Text Exp
+parseExp = parseWith pExp
+
+parseWith :: Parser a -> FilePath -> Text -> Either Text a
+parseWith p fname s =
+  case Text.Megaparsec.parse (spaceConsumer *> p <* eof) fname s of
     Left err -> Left $ T.pack $ errorBundlePretty err
     Right x -> Right x
 
@@ -126,7 +140,9 @@ keywords =
       "fun",
       "t-fun",
       "i-fun",
-      "val"
+      "val",
+      "def",
+      "entry"
     ]
 
 lKeyword :: Text -> Parser ()
@@ -350,33 +366,7 @@ pExp =
       lKeyword "let"
         >> (Let <$> neListOf pBind <*> pExp)
       where
-        pBind =
-          withSrcPos $
-            parens $
-              choice
-                [ uncurry BindVal
-                    <$> (lKeyword "val" >> pVarBind)
-                    <*> pExp,
-                  -- try because atFn also starts with fun
-                  try $ pFun BindFun "fun" (many pPat),
-                  pFun BindTFun "t-fun" (listOf pTypeParamExp),
-                  pFun BindIFun "i-fun" (listOf pISpaceParam),
-                  try pAtFnBind,
-                  lKeyword "type" >> (BindType <$> pTypeParamExp <*> pType <*> pure NoInfo),
-                  lKeyword "ispace" >> (BindISpace <$> pISpaceParam <*> pISpace)
-                ]
-    pVarBind =
-      choice
-        [ (,) <$> lId <*> pure Nothing,
-          parens $ (,) <$> (lId <* symbol ":") <*> (Just <$> pType)
-        ]
-    pFun c kw pParams =
-      withNoInfo $ do
-        lKeyword kw
-        (f, params, t) <-
-          parens $
-            (,,) <$> lId <*> pParams <*> optional (symbol ":" *> pType)
-        c f params t <$> pExp
+
     pAtFn = do
       void $ symbol "@"
       f <- pExp
@@ -396,6 +386,36 @@ pExp =
         tApp pos (Just ts) m =
           foldl' (\fun a -> TApp fun a NoInfo pos) m ts
 
+pBind :: Parser Bind
+pBind =
+  withSrcPos $
+    parens $
+      choice
+        [ uncurry BindVal
+            <$> (lKeyword "val" >> pVarBind)
+            <*> pExp,
+          -- try because atFn also starts with fun
+          try $ pFun BindFun "fun" (many pPat),
+          pFun BindTFun "t-fun" (listOf pTypeParamExp),
+          pFun BindIFun "i-fun" (listOf pISpaceParam),
+          try pAtFnBind,
+          lKeyword "type" >> (BindType <$> pTypeParamExp <*> pType <*> pure NoInfo),
+          lKeyword "ispace" >> (BindISpace <$> pISpaceParam <*> pISpace)
+        ]
+  where
+    pVarBind =
+      choice
+        [ (,) <$> lId <*> pure Nothing,
+          parens $ (,) <$> (lId <* symbol ":") <*> (Just <$> pType)
+        ]
+
+    pFun c kw pParams =
+      withNoInfo $ do
+        lKeyword kw
+        (f, params, t) <-
+          parens $
+            (,,) <$> lId <*> pParams <*> optional (symbol ":" *> pType)
+        c f params t <$> pExp
     nestFunBind c f ps prevBind pos =
       let v = Var f NoInfo pos
        in c f ps Nothing (Let (pure (prevBind pos)) v NoInfo pos) NoInfo pos
@@ -451,3 +471,19 @@ pShape =
           ],
       brackets pShapeSplice
     ]
+
+pDecl :: Parser Decl
+pDecl =
+  parens $
+    choice
+      [ lKeyword "def" >> Def <$> pBind,
+        withNoInfoPos $ do
+          lKeyword "entry"
+          (f, params, t) <-
+            parens $
+              (,,) <$> lId <*> (many pPat) <*> optional (symbol ":" *> pType)
+          Entry f params t <$> pExp
+      ]
+
+pProg :: Parser Prog
+pProg = Syntax.Prog <$> many pDecl

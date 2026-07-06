@@ -40,6 +40,14 @@ module Syntax
     Exp,
     UncheckedExp,
     UniqueExp,
+    DeclBase (..),
+    Decl,
+    UncheckedDecl,
+    UniqueDecl,
+    ProgBase (..),
+    Prog,
+    UncheckedProg,
+    UniqueProg,
     HasSrcPos (..),
     mkScalar,
     arrayElems,
@@ -399,6 +407,39 @@ instance (Show v, Pretty v, Pretty (f (Type v)), Pretty (tp v)) => Pretty (ExpBa
   pretty (Let binds body _ _) =
     parens $ "let" <+> hsep (map pretty $ NE.toList binds) <+> pretty body
 
+-- | Top-level declarations
+data DeclBase tp f v
+  = -- | A top-level definition.
+    Def (BindBase tp f v)
+  | -- | An entry point.
+    Entry v [PatBase f v] (Maybe (TypeExp v)) (ExpBase tp f v) (f (AtomType v)) SourcePos
+
+deriving instance (Show v, Show (tp v)) => Show (DeclBase tp NoInfo v)
+
+deriving instance (Show v, Show (tp v)) => Show (DeclBase tp Info v)
+
+instance (Show v, Pretty v, Pretty (f (Type v)), Pretty (tp v)) => Pretty (DeclBase tp f v) where
+  pretty (Def b) =
+    parens $ "def" <+> pretty b
+  pretty (Entry f params mt body _ _) =
+    parens $
+      "entry"
+        <+> pretty f
+        <+> parens (hsep (map pretty params))
+        <+> pretty mt
+        <+> pretty body
+
+-- | A Remora program.
+data ProgBase tp f v = Prog
+  {progDecs :: [DeclBase tp f v]}
+
+deriving instance (Show v, Show (tp v)) => Show (ProgBase tp NoInfo v)
+
+deriving instance (Show v, Show (tp v)) => Show (ProgBase tp Info v)
+
+instance (Show v, Pretty v, Pretty (f (Type v)), Pretty (tp v)) => Pretty (ProgBase tp f v) where
+  pretty = cat . punctuate line . map pretty . progDecs
+
 -- | Make a scalar from an 'Atom'.
 mkScalar :: AtomBase tp NoInfo v -> ExpBase tp NoInfo v
 mkScalar a = Array [] (pure a) NoInfo $ posOf a
@@ -489,6 +530,10 @@ instance HasSrcPos (TypeExp v) where
   posOf (TEPi _ _ pos) = pos
   posOf (TESigma _ _ pos) = pos
 
+type UncheckedProg = ProgBase TypeParamExp NoInfo Text
+
+type UncheckedDecl = DeclBase TypeParamExp NoInfo Text
+
 type UncheckedExp = ExpBase TypeParamExp NoInfo Text
 
 type UncheckedAtom = AtomBase TypeParamExp NoInfo Text
@@ -497,6 +542,10 @@ type UncheckedBind = BindBase TypeParamExp NoInfo Text
 
 type UncheckedPat = PatBase NoInfo Text
 
+type UniqueProg = ProgBase TypeParam NoInfo VName
+
+type UniqueDecl = DeclBase TypeParam NoInfo VName
+
 type UniqueExp = ExpBase TypeParam NoInfo VName
 
 type UniqueAtom = AtomBase TypeParam NoInfo VName
@@ -504,6 +553,10 @@ type UniqueAtom = AtomBase TypeParam NoInfo VName
 type UniqueBind = BindBase TypeParam NoInfo VName
 
 type UniquePat = PatBase NoInfo VName
+
+type Prog = ProgBase TypeParam Info VName
+
+type Decl = DeclBase TypeParam Info VName
 
 type Exp = ExpBase TypeParam Info VName
 

@@ -1,8 +1,10 @@
 ;; expected: [1 2 3 4]
 ; flatten
+(entry (main)
 (let (
   (val (xss : [Int 2 2]) [[1 2] [3 4]])
   (val (xs : [Int 4]) (@flatten (Int) (2 2 []) xss))
 )
 xs
+)
 )

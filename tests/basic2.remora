@@ -1,3 +1,5 @@
 ;; expected: [4 6]
 ; add two vectors
+(entry (main)
 (+ [1 2] [3 4])
+)

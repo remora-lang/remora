@@ -1,0 +1,9 @@
+;; expected: 15
+(def (fun (add (x Int) (y Int) : Int) (+ x y)))
+(def (fun (mul (x Int) (y Int)) (* x y)))
+(def (val (x : Int) 1))
+(def (val y 2))
+
+(entry (main)
+  (mul (add x y) 5)
+)

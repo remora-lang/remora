@@ -7,7 +7,8 @@ import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Parser qualified
 import Pipeline qualified
-import System.Console.CmdArgs
+import System.Console.CmdArgs hiding (args)
+import System.Console.CmdArgs qualified as CmdArgs
 import System.FilePath (dropExtension, takeFileName, (</>))
 import System.IO
 import System.Process
@@ -23,7 +24,8 @@ data RemoraMode
   = REPL
   | Interpret
       { file :: Maybe FilePath,
-        expr :: Maybe String
+        expr :: Maybe String,
+        args :: [String]
       }
   | Futhark
       { file :: Maybe FilePath,
@@ -59,7 +61,8 @@ interpret :: RemoraMode
 interpret =
   Interpret
     { file = Nothing &= help "Interpret the passed file.",
-      expr = Nothing &= help "Interpret an expression passed as an argument."
+      expr = Nothing &= help "Interpret an expression passed as an argument.",
+      args = [] &= CmdArgs.args
     }
     &= details
       [ "Interpret a remora program or expression.",
@@ -100,7 +103,7 @@ mode :: Mode (CmdArgs RemoraMode)
 mode =
   cmdArgsMode $
     modes
-      [ REPL &= details ["DO NOT USE: remora repl is a broken WIP."],
+      [ REPL,
         interpret,
         futhark,
         parse,
@@ -113,11 +116,12 @@ main = do
   passed_mode <- cmdArgsRun mode
   case passed_mode of
     REPL -> CLI.REPL.repl
-    Interpret mfile mexpr -> do
+    Interpret mfile mexpr margs -> do
       input <- handleInput mfile mexpr
       let m = do
+            argVals <- mapM evalArg margs
             expr <- doParse mfile input
-            Pipeline.interpret expr
+            Pipeline.interpret argVals expr
       case m of
         Left err -> T.putStrLn err
         Right v -> T.putStrLn $ prettyText v
@@ -140,7 +144,11 @@ main = do
           case mbackend of
             Nothing -> T.putStrLn $ prettyText v
             Just backend -> do
-              res <- futharkCompile backend (takeFileName $ dropExtension $ fromMaybe "<cli>" mfile) v
+              res <-
+                futharkCompile
+                  backend
+                  (takeFileName $ dropExtension $ fromMaybe "<cli>" mfile)
+                  v
               putStrLn res
     Parse mfile mexpr -> do
       input <- handleInput mfile mexpr
@@ -154,6 +162,9 @@ main = do
     handleInput Nothing Nothing = T.getContents
 
     doParse mfile = Parser.parse (fromMaybe "<cli>" mfile)
+
+    evalArg s =
+      Parser.parseExp "<arg>" (T.pack s) >>= Pipeline.interpretExp
 
     futharkCompile :: FutharkBackend -> String -> Text -> IO String
     futharkCompile backend fname ir = do

@@ -1,2 +1,4 @@
 ;; expected: [0 1 2 3 4]
+(entry (main)
 (unbox ($d contents (@iota _ (1) [5])) contents)
+)
