@@ -44,7 +44,8 @@ instance Monoid Env where
 type MonadUniquify m =
   ( Monad m,
     MonadReader Env m,
-    MonadState Tag m
+    MonadState Tag m,
+    MonadVName m
   )
 
 newtype UniquifyM a = UniquifyM {runUniquifyM :: RWS Env () Tag a}
@@ -55,6 +56,10 @@ newtype UniquifyM a = UniquifyM {runUniquifyM :: RWS Env () Tag a}
       MonadReader Env,
       MonadState Tag
     )
+
+instance MonadVName UniquifyM where
+  getVarTag = get
+  putVarTag = put
 
 runUniquify :: Env -> Tag -> UniquifyM a -> (a, Tag)
 runUniquify env tag m =
