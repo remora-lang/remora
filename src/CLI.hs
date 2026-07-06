@@ -7,7 +7,6 @@ import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Parser qualified
 import Pipeline qualified
-import SExp
 import System.Console.CmdArgs
 import System.FilePath (dropExtension, takeFileName, (</>))
 import System.IO
@@ -33,8 +32,7 @@ data RemoraMode
       }
   | Parse
       { file :: Maybe FilePath,
-        expr :: Maybe String,
-        sexp :: Bool
+        expr :: Maybe String
       }
   | Monomorphize
       { file :: Maybe FilePath,
@@ -46,8 +44,7 @@ parse :: RemoraMode
 parse =
   Parse
     { file = Nothing &= help "Parse the passed file.",
-      expr = Nothing &= help "Parse an expression passed as an argument.",
-      sexp = False &= help "Print the parsed result as an s-expression."
+      expr = Nothing &= help "Parse an expression passed as an argument."
     }
     &= details
       [ "Parse a remora program or expression.",
@@ -145,13 +142,11 @@ main = do
             Just backend -> do
               res <- futharkCompile backend (takeFileName $ dropExtension $ fromMaybe "<cli>" mfile) v
               putStrLn res
-    Parse mfile mexpr sexp -> do
+    Parse mfile mexpr -> do
       input <- handleInput mfile mexpr
       case doParse mfile input of
         Left err -> T.putStrLn err
-        Right expr
-          | sexp -> T.putStrLn $ prettyText (toSExp expr :: SExp Text)
-          | otherwise -> T.putStrLn $ prettyText expr
+        Right expr -> T.putStrLn $ prettyText expr
   where
     handleInput :: Maybe FilePath -> Maybe String -> IO Text
     handleInput (Just path) _ = T.readFile path

@@ -37,7 +37,6 @@ library
       Pipeline
       Primitive
       Prop
-      SExp
       Substitute
       Symbolic
       Syntax
