@@ -358,6 +358,10 @@ deriving instance (Show v, Show (tp v)) => Show (ExpBase tp Info v)
 
 instance (Show v, Pretty v, Pretty (f (Type v)), Pretty (tp v)) => Pretty (ExpBase tp f v) where
   pretty (Var v _ _) = pretty v
+  -- We should probably be more clever here and use Prop.@=, but I don't want to
+  -- deal with the circular import right now.
+  pretty (Array [] (a NE.:| []) _ _) =
+    pretty a
   pretty (Array shape as _ _) =
     group $
       parens $
@@ -370,6 +374,8 @@ instance (Show v, Pretty v, Pretty (f (Type v)), Pretty (tp v)) => Pretty (ExpBa
         "empty-array"
           <+> brackets (hsep (map pretty shape))
           <+> pretty t
+  pretty (Frame [] (e NE.:| []) _ _) =
+    pretty e
   pretty (Frame shape es _ _) =
     group $
       parens $
