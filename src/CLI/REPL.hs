@@ -18,8 +18,8 @@ repl = runInputT defaultSettings loop
         Nothing -> loop
         Just input -> do
           let m = do
-                expr <- parse "" (T.pack input)
-                interpret expr
+                expr <- parseExp "" $ T.pack input
+                interpretExp expr
           case m of
             Left err -> liftIO $ T.putStrLn err
             Right v -> liftIO $ T.putStrLn $ prettyText v

@@ -35,7 +35,7 @@ mkCase name = do
   pure $ case expectedValue src of
     Nothing -> []
     Just expected ->
-      [ testCase name $ case Parser.parse path (T.pack src) >>= Pipeline.interpret of
+      [ testCase name $ case Parser.parse path (T.pack src) >>= Pipeline.interpret mempty of
           Left err ->
             assertFailure $ "evaluation failed:\n" <> T.unpack err
           Right val ->
@@ -48,7 +48,7 @@ mkCase name = do
 -- | When the expected valuable is valid Remora syntax, interpret it.
 canonical :: String -> String
 canonical expected =
-  case Parser.parse "<expected>" (T.pack expected) >>= Pipeline.interpret of
+  case Parser.parseExp "<expected>" (T.pack expected) >>= Pipeline.interpretExp of
     Right val -> normalize $ prettyString val
     Left _ -> normalize expected
 

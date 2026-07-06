@@ -1,4 +1,4 @@
-module TypeCheck (check) where
+module TypeCheck (check, checkExp) where
 
 import Control.Monad
 import Control.Monad.Error.Class
@@ -17,15 +17,41 @@ import Util
 import VName
 
 -- | Type check a program.
-check :: UniqueExp -> PassM Exp
-check e =
+check :: UniqueProg -> PassM Prog
+check p =
   liftEither $
     runReader
       ( runExceptT $
           runCheckM $
-            checkExp e
+            checkProg p
       )
       initEnv
+
+checkExp :: UniqueExp -> PassM Exp
+checkExp e =
+  liftEither $
+    runReader
+      ( runExceptT $
+          runCheckM $
+            checkExp' e
+      )
+      initEnv
+
+checkProg :: (MonadCheck m) => UniqueProg -> m Prog
+checkProg (Prog decs) = Prog <$> mapM checkDecl decs
+
+checkDecl :: (MonadCheck m) => UniqueDecl -> m Decl
+checkDecl (Def b) = withBind b $ pure . Def
+checkDecl (Entry f params mt body _ pos) = do
+  mt' <- checkMaybeTypeExp mt
+  (params', body') <-
+    binds (withPatParam checkTypeExp) params $ \params' -> do
+      body' <- checkExp' body
+      checkAnnot (arrayTypeOf body') mt' pos
+      pure (params', body')
+  let t = arrowType (map arrayTypeOf params') (arrayTypeOf body')
+  withParam' (f, mkScalarArrayType t) $ \f' ->
+    pure $ Entry f' params' mt' body' (Info t) pos
 
 -- | Check a 'Dim'.
 checkDim :: (MonadCheck m) => Dim VName -> m (Dim VName)
@@ -60,12 +86,12 @@ checkISpace :: (MonadCheck m) => ISpace VName -> m (ISpace VName)
 checkISpace = mapISpace (fmap Dim . checkDim) (fmap Shape . checkShape)
 
 -- | Type check an unchecked 'Exp'.
-checkExp :: (MonadCheck m) => UniqueExp -> m Exp
-checkExp (Var vname _ pos) = do
+checkExp' :: (MonadCheck m) => UniqueExp -> m Exp
+checkExp' (Var vname _ pos) = do
   inscopeVar vname
   t <- lookupVar vname
   pure $ Var vname (Info t) pos
-checkExp expr@(Array ns as _ pos) = do
+checkExp' expr@(Array ns as _ pos) = do
   as' <- mapM checkAtom as
   let a' = NE.head as'
   unless (all (\a'' -> typeOf a'' ~= typeOf a') as') $
@@ -76,7 +102,7 @@ checkExp expr@(Array ns as _ pos) = do
       "Array shape doesn't match number of elements: " <> prettyText expr
   let et = scalarTypeOf a'
   pure $ Array ns as' (Info $ A et (intsToShape ns)) pos
-checkExp expr@(EmptyArray ns te _ pos) = do
+checkExp' expr@(EmptyArray ns te _ pos) = do
   te' <- checkTypeExp te
   unless (product ns == 0) $
     throwErrorPos pos $
@@ -85,8 +111,8 @@ checkExp expr@(EmptyArray ns te _ pos) = do
     Nothing ->
       throwErrorPos pos "Non-scalar kinded type annotation on empty array."
     Just t -> pure $ EmptyArray ns te' (Info t) pos
-checkExp expr@(Frame ns es _ pos) = do
-  es' <- mapM checkExp es
+checkExp' expr@(Frame ns es _ pos) = do
+  es' <- mapM checkExp' es
   let e' = NE.head es'
   unless (all (\e'' -> typeOf e'' ~= typeOf e') es') $
     throwErrorPos pos $
@@ -96,7 +122,7 @@ checkExp expr@(Frame ns es _ pos) = do
       "Frame shape doesn't match number of elements: " <> prettyText expr
   let A et s = arrayTypeOf e'
   pure $ flattenExp $ Frame ns es' (Info $ A et (intsToShape ns <> s)) pos
-checkExp expr@(EmptyFrame ns te _ pos) = do
+checkExp' expr@(EmptyFrame ns te _ pos) = do
   te' <- checkTypeExp te
   unless (product ns == 0) $
     throwErrorPos pos $
@@ -105,9 +131,9 @@ checkExp expr@(EmptyFrame ns te _ pos) = do
     Nothing ->
       throwErrorPos pos "Non-scalar kinded type annotation on empty frame."
     Just t -> pure $ EmptyFrame ns te' (Info t) pos
-checkExp expr@(App f arg _ pos) = do
-  f' <- checkExp f
-  arg' <- checkExp arg
+checkExp' expr@(App f arg _ pos) = do
+  f' <- checkExp' f
+  arg' <- checkExp' arg
   case arrayifyType $ typeOf f' of
     ArrayType (A (pt :-> ret) frame_f) -> do
       let pt_elem = arrayTypeAtom pt
@@ -150,8 +176,8 @@ checkExp expr@(App f arg _ pos) = do
             prettyText expr,
             prettyText t
           ]
-checkExp expr@(TApp f t _ pos) = do
-  f' <- checkExp f
+checkExp' expr@(TApp f t _ pos) = do
+  f' <- checkExp' f
   t' <- checkTypeExp t
   case typeOf f' of
     ArrayType (A (Forall pt r) frame_f) -> do
@@ -176,8 +202,8 @@ checkExp expr@(TApp f t _ pos) = do
           [ "Expected a forall expression in type application:",
             prettyText expr
           ]
-checkExp expr@(IApp f i _ pos) = do
-  f' <- checkExp f
+checkExp' expr@(IApp f i _ pos) = do
+  f' <- checkExp' f
   i' <- mapISpace (fmap Dim . checkDim) (fmap Shape . checkShape) i
   case typeOf f' of
     ArrayType (A (Pi pt r) frame_f) -> do
@@ -207,15 +233,15 @@ checkExp expr@(IApp f i _ pos) = do
           [ "Expected a pi expression in ispace application:",
             prettyText expr
           ]
-checkExp expr@(Unbox ep x_e box body _ pos) = do
+checkExp' expr@(Unbox ep x_e box body _ pos) = do
   withISpaceParam ep $ \ep' -> do
     let i'' = unISpaceParam ep'
-    box' <- checkExp box
+    box' <- checkExp' box
     case typeOf box' of
       ArrayType (A (Sigma ps t) frame_f) -> do
         let t' = substitute (renameVar (unISpaceParam ps) i'') t
         withParam' (x_e, t') $ \x_e' -> do
-          body' <- checkExp body
+          body' <- checkExp' body
           case typeOf body' of
             ArrayType (A t_b shape_b) ->
               pure $
@@ -238,87 +264,87 @@ checkExp expr@(Unbox ep x_e box body _ pos) = do
             [ "Expected an existentially typed expression in unbox:",
               prettyText expr
             ]
-checkExp (Let bs e _ pos) = do
+checkExp' (Let bs e _ pos) = do
   binds withBind (NE.toList bs) $ \bs' -> do
-    e' <- checkExp e
+    e' <- checkExp' e
     pure $ Let (NE.fromList bs') e' (Info $ arrayTypeOf e') pos
-  where
-    checkMaybeTypeExp ::
-      (MonadCheck m) =>
-      Maybe (TypeExp VName) -> m (Maybe (TypeExp VName))
-    checkMaybeTypeExp Nothing = pure Nothing
-    checkMaybeTypeExp (Just t) = Just <$> checkTypeExp t
 
-    checkAnnot ::
-      (MonadCheck m) =>
-      ArrayType VName -> Maybe (TypeExp VName) -> m ()
-    checkAnnot t mannot =
-      case mannot of
-        Nothing -> pure ()
-        Just annot -> do
-          case convertArrayTypeExp annot of
-            Just at ->
-              unless (t ~= at) $
-                throwErrorPos pos $
-                  T.unlines
-                    [ "Type:",
-                      prettyText t,
-                      "doesn't match the annotated type:",
-                      prettyText annot
-                    ]
-            Nothing ->
-              throwErrorPos pos $
-                T.unlines
-                  [ "Type:",
-                    prettyText t,
-                    "doesn't match the annotated type:",
-                    prettyText annot
-                  ]
+checkMaybeTypeExp ::
+  (MonadCheck m) =>
+  Maybe (TypeExp VName) -> m (Maybe (TypeExp VName))
+checkMaybeTypeExp Nothing = pure Nothing
+checkMaybeTypeExp (Just t) = Just <$> checkTypeExp t
 
-    withBind :: (MonadCheck m) => UniqueBind -> (Bind -> m a) -> m a
-    withBind (BindVal v mt ve pos') m = do
-      ve' <- checkExp ve
-      let t = arrayTypeOf ve'
-      mt' <- checkMaybeTypeExp mt
-      checkAnnot t mt'
-      withParam' (v, t) $ \vname ->
-        m $ BindVal vname mt' ve' pos'
-    withBind (BindFun f params mt body _ pos') m = do
-      mt' <- checkMaybeTypeExp mt
-      (params', body') <-
-        binds (withPatParam checkTypeExp) params $ \params' -> do
-          body' <- checkExp body
-          checkAnnot (arrayTypeOf body') mt'
-          pure (params', body')
-      let t = arrowType (map arrayTypeOf params') (arrayTypeOf body')
-      withParam' (f, mkScalarArrayType t) $ \f' ->
-        m $ BindFun f' params' mt' body' (Info t) pos'
-    withBind (BindTFun f params mt body _ pos') m =
-      binds withTypeParam params $ \params' -> do
-        body' <- checkExp body
-        mt' <- checkMaybeTypeExp mt
-        let body_t = arrayTypeOf body'
-        checkAnnot body_t mt'
-        let t = forallType params' body_t
-        withParam' (f, mkScalarArrayType t) $ \f' ->
-          m $ BindTFun f' params' mt' body' (Info t) pos'
-    withBind (BindIFun f params mt body _ pos') m =
-      binds withISpaceParam params $ \params' -> do
-        body' <- checkExp body
-        mt' <- checkMaybeTypeExp mt
-        let body_t = arrayTypeOf body'
-        checkAnnot body_t mt'
-        let t = piType params' body_t
-        withParam' (f, mkScalarArrayType t) $ \f' ->
-          m $ BindIFun f' params' mt' body' (Info t) pos'
-    withBind (BindType tvar t _ pos') m =
-      withType checkTypeExp (tvar, t) $ \(tvar', t') ->
-        case convertTypeExp t' of
-          Nothing -> throwErrorPos pos' "Invalid type."
-          Just t'' -> m $ BindType tvar' t' (Info t'') pos'
-    withBind (BindISpace ivar ispace pos') m =
-      withISpace checkISpace pos' (ivar, ispace) $ \(ivar', ispace') ->
-        m $ BindISpace ivar' ispace' pos'
+checkAnnot ::
+  (MonadCheck m) =>
+  ArrayType VName -> Maybe (TypeExp VName) -> SourcePos -> m ()
+checkAnnot t mannot pos =
+  case mannot of
+    Nothing -> pure ()
+    Just annot -> do
+      case convertArrayTypeExp annot of
+        Just at ->
+          unless (t ~= at) $
+            throwErrorPos pos $
+              T.unlines
+                [ "Type:",
+                  prettyText t,
+                  "doesn't match the annotated type:",
+                  prettyText annot
+                ]
+        Nothing ->
+          throwErrorPos pos $
+            T.unlines
+              [ "Type:",
+                prettyText t,
+                "doesn't match the annotated type:",
+                prettyText annot
+              ]
+
+withBind :: (MonadCheck m) => UniqueBind -> (Bind -> m a) -> m a
+withBind (BindVal v mt ve pos) m = do
+  ve' <- checkExp' ve
+  let t = arrayTypeOf ve'
+  mt' <- checkMaybeTypeExp mt
+  checkAnnot t mt' pos
+  withParam' (v, t) $ \vname ->
+    m $ BindVal vname mt' ve' pos
+withBind (BindFun f params mt body _ pos) m = do
+  mt' <- checkMaybeTypeExp mt
+  (params', body') <-
+    binds (withPatParam checkTypeExp) params $ \params' -> do
+      body' <- checkExp' body
+      checkAnnot (arrayTypeOf body') mt' pos
+      pure (params', body')
+  let t = arrowType (map arrayTypeOf params') (arrayTypeOf body')
+  withParam' (f, mkScalarArrayType t) $ \f' ->
+    m $ BindFun f' params' mt' body' (Info t) pos
+withBind (BindTFun f params mt body _ pos) m =
+  binds withTypeParam params $ \params' -> do
+    body' <- checkExp' body
+    mt' <- checkMaybeTypeExp mt
+    let body_t = arrayTypeOf body'
+    checkAnnot body_t mt' pos
+    let t = forallType params' body_t
+    withParam' (f, mkScalarArrayType t) $ \f' ->
+      m $ BindTFun f' params' mt' body' (Info t) pos
+withBind (BindIFun f params mt body _ pos) m =
+  binds withISpaceParam params $ \params' -> do
+    body' <- checkExp' body
+    mt' <- checkMaybeTypeExp mt
+    let body_t = arrayTypeOf body'
+    checkAnnot body_t mt' pos
+    let t = piType params' body_t
+    withParam' (f, mkScalarArrayType t) $ \f' ->
+      m $ BindIFun f' params' mt' body' (Info t) pos
+withBind (BindType tvar t _ pos) m =
+  withType checkTypeExp (tvar, t) $ \(tvar', t') ->
+    case convertTypeExp t' of
+      Nothing -> throwErrorPos pos "Invalid type."
+      Just t'' -> m $ BindType tvar' t' (Info t'') pos
+withBind (BindISpace ivar ispace pos) m =
+  withISpace checkISpace pos (ivar, ispace) $ \(ivar', ispace') ->
+    m $ BindISpace ivar' ispace' pos
 
 -- | Type check an unchecked 'Atom'.
 checkAtom :: (MonadCheck m) => UniqueAtom -> m Atom
@@ -326,22 +352,22 @@ checkAtom (Base b _ pos) =
   pure $ Base b (Info $ baseTypeOf b) pos
 checkAtom (Lambda param e _ pos) =
   withPatParam checkTypeExp param $ \param' -> do
-    e' <- checkExp e
+    e' <- checkExp' e
     let r = arrayTypeOf e'
     pure $ Lambda param' e' (Info $ arrayTypeOf param' :-> r) pos
 checkAtom (TLambda p e _ pos) =
   withTypeParam p $ \p' -> do
-    e' <- checkExp e
+    e' <- checkExp' e
     let r = arrayTypeOf e'
     pure $ TLambda p' e' (Info $ Forall p' r) pos
 checkAtom (ILambda p e _ pos) =
   withISpaceParam p $ \p' -> do
-    e' <- checkExp e
+    e' <- checkExp' e
     let r = arrayTypeOf e'
     pure $ ILambda p' e' (Info $ Pi p' r) pos
 checkAtom atom@(Box ispace e box_t _ pos) = do
   ispace' <- checkISpace ispace
-  e' <- checkExp e
+  e' <- checkExp' e
   box_t' <- checkTypeExp box_t
   case convertAtomTypeExp box_t' of
     Just bt@(Sigma is t) -> do

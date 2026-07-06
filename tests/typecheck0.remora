@@ -1,2 +1,4 @@
 ; type error
+(entry (main)
 (+ #t 5)
+)

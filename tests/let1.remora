@@ -1,5 +1,6 @@
 ;; expected: 20
 ; let vals
+(entry (main)
 (let (
   (val (x : Int) 5)
   (val (y : Int) 10)
@@ -7,4 +8,5 @@
   (val (a : Int) 20)
    )
 a
+)
 )

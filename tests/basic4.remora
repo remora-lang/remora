@@ -1,9 +1,11 @@
 ;; expected: [3 6]
 ; add two length-2 vectors
+(entry (main)
 (let (
 
 (fun (vec-+ (x (A Int (dims 2))) (y (A Int (dims 2))) : (A Int (dims 2)))
    (+ x y)))
 
 (vec-+ [1 2] [2 4])
+)
 )
