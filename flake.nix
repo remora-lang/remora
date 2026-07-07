@@ -103,6 +103,17 @@
               export LIBRARY_PATH="${pkgs.cudaPackages.cudatoolkit}/lib/stubs''${LIBRARY_PATH:+:}$LIBRARY_PATH"
             '';
           };
+
+          # Pared-down version of the development shell.
+          ci = pkgs.mkShell {
+            nativeBuildInputs = [
+              hpkgs.ghc
+              hpkgs.cabal-install
+              pkgs.pkg-config
+              pkgs.zlib
+              pkgs.z3
+            ];
+          };
         }
       );
     };

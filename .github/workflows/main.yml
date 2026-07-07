@@ -24,13 +24,8 @@ jobs:
     steps:
     - uses: actions/checkout@v7
 
-    - name: Workaround runner image issue
-      # https://github.com/actions/runner-images/issues/7061
-      run: sudo chown -R $USER /usr/local/.ghcup
-
-    - uses: haskell-actions/setup@v2
-      with:
-        ghc-version: '9.10.3'
+    - name: Install Nix
+      uses: cachix/install-nix-action@v27
 
     - uses: actions/cache@v4
       name: Cache ~/.cabal/packages, ~/.cabal/store and dist-newstyle
@@ -43,8 +38,8 @@ jobs:
 
     - name: Build Remora
       run: |
-        cabal --version
-        ghc --version
-        cabal configure
-        cabal build
-        cabal test
+        nix develop .#ci --command bash -c '
+          cabal update
+          cabal build
+          cabal test
+        '
