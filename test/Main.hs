@@ -35,7 +35,7 @@ mkCase name = do
   pure $ case expectedValue src of
     Nothing -> []
     Just expected ->
-      [ testCase name $ case Parser.parse path (T.pack src) >>= Pipeline.interpret mempty of
+      [ testCase name $ case Parser.parse path (T.pack src) >>= Pipeline.interpret mempty . snd of
           Left err ->
             assertFailure $ "evaluation failed:\n" <> T.unpack err
           Right val ->
