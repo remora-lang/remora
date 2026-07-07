@@ -127,39 +127,51 @@ main = do
     run :: RemoraMode -> ExceptT Error IO ()
     run REPL = liftIO CLI.REPL.repl
     run (Interpret mfile mexpr margs) = do
-      prog <- parseInput mfile mexpr
-      argVals <- except $ mapM evalArg margs
-      v <- except $ Pipeline.interpret argVals prog
+      input <- parseInput mfile mexpr
+      v <-
+        except $
+          either
+            Pipeline.interpretExp
+            (\prog -> flip Pipeline.interpret prog =<< mapM evalArg margs)
+            input
       liftIO $ T.putStrLn $ prettyText v
     run (Monomorphize mfile mexpr) = do
-      prog <- parseInput mfile mexpr
-      e <- except $ Pipeline.monomorphize prog
-      liftIO $ T.putStrLn $ prettyText e
+      input <- parseInput mfile mexpr
+      out <-
+        except $
+          either
+            (fmap prettyText . Pipeline.monomorphizeExp)
+            (fmap prettyText . Pipeline.monomorphize)
+            input
+      liftIO $ T.putStrLn out
     run (Futhark mfile mexpr mbackend) = do
-      prog <- parseInput mfile mexpr
-      v <- except $ Pipeline.compile prog
+      input <- parseInput mfile mexpr
+      ir <- except $ either Pipeline.compileExp Pipeline.compile input
       case mbackend of
-        Nothing -> liftIO $ T.putStrLn $ prettyText v
+        Nothing -> liftIO $ T.putStrLn $ prettyText ir
         Just backend ->
           liftIO $
             putStrLn
               =<< futharkCompile
                 backend
                 (takeFileName $ dropExtension $ fromMaybe "<cli>" mfile)
-                v
+                ir
     run (Parse mfile mexpr) = do
-      prog <- parseInput mfile mexpr
-      liftIO $ T.putStrLn $ prettyText prog
+      input <- parseInput mfile mexpr
+      liftIO $ T.putStrLn $ either prettyText prettyText input
 
-    parseInput :: Maybe FilePath -> Maybe String -> ExceptT Error IO UncheckedProg
-    parseInput mfile mexpr =
-      parseWithImports mfile
-        =<< liftIO (handleInput mfile mexpr)
+    parseInput ::
+      Maybe FilePath ->
+      Maybe String ->
+      ExceptT Error IO (Either UncheckedExp UncheckedProg)
+    parseInput Nothing (Just s) =
+      Left <$> except (Parser.parseExp "<cli>" (T.pack s))
+    parseInput mfile _ =
+      fmap Right . parseWithImports mfile =<< liftIO (handleInput mfile)
 
-    handleInput :: Maybe FilePath -> Maybe String -> IO Text
-    handleInput (Just path) _ = T.readFile path
-    handleInput Nothing (Just s) = pure $ T.pack s
-    handleInput Nothing Nothing = T.getContents
+    handleInput :: Maybe FilePath -> IO Text
+    handleInput (Just path) = T.readFile path
+    handleInput Nothing = T.getContents
 
     evalArg s =
       Pipeline.interpretExp

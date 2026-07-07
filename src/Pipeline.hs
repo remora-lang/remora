@@ -1,6 +1,7 @@
 module Pipeline
   ( typeCheck,
     monomorphize,
+    monomorphizeExp,
     compile,
     compileExp,
     interpret,
@@ -25,6 +26,9 @@ typeCheck = runPass . typeCheckM
 monomorphize :: UncheckedProg -> Either Error Prog
 monomorphize = runPass . monomorphizeM
 
+monomorphizeExp :: UncheckedExp -> Either Error Exp
+monomorphizeExp = runPass . monomorphizeExpM
+
 compile :: UncheckedProg -> Either Error Text
 compile = runPass . compileM
 
@@ -46,6 +50,12 @@ monomorphizeM :: UncheckedProg -> PassM Prog
 monomorphizeM =
   typeCheckM
     >=> Monomorphize.monomorphize
+
+monomorphizeExpM :: UncheckedExp -> PassM Exp
+monomorphizeExpM =
+  Uniquify.uniquifyExp
+    >=> TypeCheck.checkExp
+    >=> Monomorphize.monomorphizeExp
 
 compileM :: UncheckedProg -> PassM Text
 compileM =
