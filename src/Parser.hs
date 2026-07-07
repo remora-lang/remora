@@ -45,6 +45,7 @@ import Text.Megaparsec.Char
     string,
   )
 import Text.Megaparsec.Char.Lexer qualified as L
+import Util
 
 type Parser = Parsec Void Text
 
@@ -60,13 +61,13 @@ type ISpaceParam = Syntax.ISpaceParam Text
 
 type ISpace = Syntax.ISpace Text
 
-parse :: FilePath -> Text -> Either Text UncheckedProg
+parse :: FilePath -> Text -> Either Error UncheckedProg
 parse = parseWith pProg
 
-parseExp :: FilePath -> Text -> Either Text UncheckedExp
+parseExp :: FilePath -> Text -> Either Error UncheckedExp
 parseExp = parseWith pExp
 
-parseWith :: Parser a -> FilePath -> Text -> Either Text a
+parseWith :: Parser a -> FilePath -> Text -> Either Error a
 parseWith p fname s =
   case Text.Megaparsec.parse (spaceConsumer *> p <* eof) fname s of
     Left err -> Left $ T.pack $ errorBundlePretty err
