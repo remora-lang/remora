@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-    - uses: actions/checkout
+    - uses: actions/checkout@v7
 
     - name: Workaround runner image issue
       # https://github.com/actions/runner-images/issues/7061
@@ -32,7 +32,7 @@ jobs:
       with:
         ghc-version: '9.10.3'
 
-    - uses: actions/cache
+    - uses: actions/cache@v4
       name: Cache ~/.cabal/packages, ~/.cabal/store and dist-newstyle
       with:
         path: |
