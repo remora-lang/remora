@@ -7,7 +7,7 @@ author: |
   \
   Original authors:\
   Olin Shivers, Justin Slepak, and Panagiotis Manolios (2019)
-date: Version 2.1 — June 21, 2026
+date: Version 2.2 — July 6, 2026
 abstract: |
   Remora is a higher-order, rank-polymorphic array-processing
   language, in the same general class of languages as APL and J,
@@ -62,7 +62,7 @@ polymorphism information is written explicitly — there is no type
 inference and no dynamic dialect.
 
 **Every example in this document has been machine-verified** against the
-implementation at commit `a72fcd4` (2026-06-21).  Examples are shown as
+implementation at commit `68631fb` (2026-07-06).  Examples are shown as
 a fenced code block whose last line is a comment giving the verified
 result:
 
@@ -71,11 +71,14 @@ result:
 ; ⇒ [4 6]
 ```
 
-A small script (Appendix A) extracts each block, strips the `; ⇒` line,
-runs the rest through `remora interpret`, and compares.  If the
-implementation drifts, the doctest fails, and this document gets fixed —
-the defect this edition most wants to avoid is the one its predecessor
-suffers from: examples that stop being true.
+Examples are *expressions*.  A runnable program wraps one in an
+entry-point declaration (§5.3), so to paste an example into
+`remora interpret -e`, write `(entry (main) example)`.  A small script
+(Appendix A) does exactly that for each block — extracts it, strips the
+`; ⇒` line, wraps it, runs it, and compares.  If the implementation
+drifts, the doctest fails, and this document gets fixed — the defect
+this edition most wants to avoid is the one its predecessor suffers
+from: examples that stop being true.
 
 ### Running Remora
 
@@ -86,21 +89,25 @@ to install Remora.  The implementation builds with nix; from a checkout:
 $ nix shell .#remora-wrapped             # Puts 'remora' (plus z3, futhark) on PATH,
                                          # in a subshell. Including '.#remora-wrapped'
                                          # is faster because it doesn't build docs.
-$ remora interpret -e "(+ [1 2] [3 4])"
+$ remora interpret -e "(entry (main) (+ [1 2] [3 4]))"
 [4 6]
-$ remora interpret -f program.remora     # run a file
-$ remora parse -e "[0 3]"                # parse, print desugared form
-(frame [2] (array [] 0) (array [] 3))
-$ remora parse -e "(+ 1 [2 3])" -s       # fully elaborated s-expression
+$ remora interpret -f program.remora     # run a file (trailing arguments
+                                         # bind to main's parameters — §5.3)
+$ remora parse -e "(entry (main) [0 3])" # parse, print desugared form
+(entry main ()  (array [2] 0 3))
 $ remora repl                            # interactive REPL (>> prompt)
 ```
 
-Notes: `remora repl` works interactively but hangs on piped input
-(the CLI source labels it a work in progress) — use `interpret -e` for
-scripting.  The `futhark` subcommand compiles to Futhark instead of
-interpreting; this tutorial uses only the interpreter.  On macOS, use
-`nix shell .#remora-wrapped` rather than `nix develop` (the dev shell
-references CUDA packages that do not evaluate on Darwin).
+Notes: `interpret` and `parse` take a whole *program* — a sequence of
+declarations with a `main` entry point (§5.3) — while the REPL
+evaluates bare expressions.  `remora repl` works interactively but
+misbehaves on piped input (the CLI source labels it a work in
+progress) — use `interpret -e` for scripting.  The `futhark` subcommand
+compiles to Futhark instead of interpreting (and `monomorphize` prints
+the result of the monomorphization pass); this tutorial uses only the
+interpreter.  On macOS, use `nix shell .#remora-wrapped` rather than
+`nix develop` (the dev shell references CUDA packages that do not
+evaluate on Darwin).
 
 Comments run from `;` to end of line.  Keywords with Greek letters
 (`λ`, `Π`, …) all have ASCII spellings (`fn`, `Pi`, …); both are used
@@ -217,9 +224,8 @@ Remora's type system is a restricted dependent type system,
 parameterized two ways: over other types, and over **ispaces** ("index
 spaces") — the static dimensions and shapes of arrays.  (The 2019
 tutorial and the published papers call these *indices*; *ispace* is the
-current term, and not every corner of the implementation has caught up —
-the Haskell AST calls them `Extent`, which is where §5's `extent`
-keyword comes from.)  Restricting the dependency to this little ispace
+current term throughout the language, including the `ispace` binding
+keyword of §5.)  Restricting the dependency to this little ispace
 language (rather than arbitrary run-time values) is what makes shape
 checking purely static; the price is that you can only say things about
 shapes that the ispace language can express.  (One would like to add
@@ -254,7 +260,10 @@ notation's sugar absorbs most of what you'll actually write:
 
 Base atom types are `Int`, `Float`, and `Bool`.  Function types are
 also *atom* types — `(-> (T1 ... Tn) R)` (ASCII) or `(→ ...)` — which is
-precisely why arrays of functions make sense.  The remaining atom types
+precisely why arrays of functions make sense.  The multi-argument form
+is sugar: functions are *curried*, so `(-> (T1 T2) R)` abbreviates
+`(-> T1 (-> T2 R))`, and a single argument type needs no inner
+parentheses — `(-> Int Int)` (§3.6).  The remaining atom types
 are the binders `Forall`/`∀`, `Pi`/`Π`, and `Sigma`/`Σ`, which get all
 of §4.
 
@@ -295,6 +304,9 @@ parameter carries its full type:
 are the engine of the whole language, because they declare the **cell
 shape** the function consumes.  A parameter `(x Int)` consumes scalar
 cells.  A parameter `(v [Int 2])` consumes cells of shape `[2]`.
+(Multi-parameter functions are sugar for nested one-parameter
+functions, and `(f a b)` for `((f a) b)` — functions can be partially
+applied; §3.6.)
 
 ### 3.2 Frames and cells
 
@@ -326,6 +338,13 @@ taken.*
 (+ [1 2] [3 4])      ; + has scalar cells; frame [2] on both sides
 ; ⇒ [4 6]
 ```
+
+One boundary case is worth stating now, because it looks like nothing
+is happening: when the argument is *exactly one cell*, the frame is
+empty (`[]`), the function applies once, and collecting one result into
+an empty frame adds no axes — the result cell **is** the result, with
+no extra layer of brackets around it.  A scalar frame is invisible in
+the output.
 
 ### 3.3 Frame agreement and the principal frame
 
@@ -373,13 +392,13 @@ first argument has frame `[2]` and the second has frame `[2 3]`:
 Replication only ever supplies *entire cells*; an argument must always
 contribute at least one complete cell.  And a frame that is not a
 prefix of the principal frame is an error (the message you get is shown
-in §3.6).
+in §3.7).
 
 ### 3.4 The same data, two different splits
 
 Everything above was driven by the parameter types, so changing the
 types changes the behavior — *with the same argument data*.  This pair
-of verified examples is worth staring at:
+of examples is worth staring at:
 
 ```remora
 (+ [10 100] [[1 2]
@@ -447,23 +466,63 @@ producing a 2-frame *of functions*, which is then applied:
 ; ⇒ [4 6]
 ```
 
-### 3.6 Reading the two shape errors
+### 3.6 Partial application: every function takes one argument
+
+Underneath the sugar, every Remora function takes exactly *one*
+argument.  A multi-parameter `fn` abbreviates nested single-parameter
+functions, and `(f a b)` abbreviates `((f a) b)` — the language is
+**curried**, like ML or Haskell.  (Likewise the arrow type
+`(-> (T1 T2) R)` abbreviates `(-> T1 (-> T2 R))`.)  So supplying fewer
+arguments than parameters is not an error; it produces a function:
+
+```remora
+((+ 1) 41)          ; (+ 1) is the add-one function
+; ⇒ 42
+```
+
+Partial application composes with lifting, and the combination is worth
+a pause.  What is `(+ [1 2])`?  `+` wants a scalar cell, so the
+`[2]`-framed argument lifts the application — yielding a `[2]`-frame
+**of partially-applied functions**: precisely an array of functions in
+the §3.5 sense.  Applying that array finishes the job, with the usual
+frame agreement between the function array's frame and the argument's:
+
+```remora
+((+ [1 2]) [3 4])
+; ⇒ [4 6]
+```
+
+```remora
+((+ [10 20]) [[8 1 3]
+              [5 0 9]])    ; §3.3's example, one argument at a time:
+                           ; the [2]-frame of functions is replicated
+                           ; across the matrix's [2 3] frame
+; ⇒ [[18 11 13] [25 20 29]]
+```
+
+An n-ary application *means* this one-at-a-time story, so §3.3's
+simultaneous account and this one always agree — replication happens on
+whichever side has the shorter frame, function or argument.
+
+### 3.7 Reading the two shape errors
 
 You will meet exactly two complaints from the lifting machinery, both
-reported on the *desugared* form (so `[1 2]` prints as
-`(frame [2] (array [] 1) (array [] 2))`).  First, cells that cannot be
-carved out — or frames that disagree:
+reported on the *desugared, curried* form: bracket literals print as
+`array` forms, names carry internal renaming suffixes (`+_13`),
+application is shown one argument at a time (§3.6), and a
+source-position line (omitted here) points into your text.  First,
+cells that cannot be carved out — or frames that disagree:
 
 ```text
 >> (+ [1 2] [1 2 3])
 error: Ill-shaped application:
-(+ (frame [2] ...) (frame [3] ...))
+((+_13 (array [2] 1 2)) (array [3] 1 2 3))
 ```
 
 ```text
 >> (+ [1 2 3] [[1 2] [3 4]])      ; [3] is not a prefix of [2 2]
 error: Ill-shaped application:
-(+ (frame [3] ...) (frame [2] (frame [2] ...) ...))
+((+_13 (array [3] 1 2 3)) (array [2 2] 1 2 3 4))
 ```
 
 Second, the error that — by sheer frequency — deserves its own section
@@ -486,6 +545,11 @@ abstraction form, application form, and type constructor:
 
 (The fourth binder, `Sigma`/`Σ`, is not a function but a *package*;
 §7.)
+
+All three columns are curried (§3.6): multi-argument applications and
+multi-parameter binders abbreviate nested single-argument,
+single-parameter forms, so each kind of function can be applied one
+argument at a time.
 
 ### 4.1 `∀` — polymorphism over types
 
@@ -580,27 +644,36 @@ is an error — the single most common error in current Remora:
 ```text
 >> (append [[0 1 2] [3 4 5]] [[10 20 30] [40 50 60]])
 error: Expected an array of functions in application:
-(append (frame [2] ...) (frame [2] ...))
-(A (∀ (&t_13) (A (Π ($m_14 $n_15 @s_16)
-   (A (-> ((A &t_13 (++ $m_14 @s_16)) (A &t_13 (++ $n_15 @s_16)))
-          (A &t_13 (++ (+ 0 $m_14 $n_15) @s_16)))
-      (++))) (++))) (++))
+(append_61 (array [2 3] 0 1 2 3 4 5))
+(A (∀ &t_62 (A (Π $m_63 (A (Π $n_64 (A (Π @s_65
+   (A (-> (A &t_62 [$m_63 @s_65])
+          (A (-> (A &t_62 [$n_64 @s_65])
+                 (A &t_62 [(+ 0 $m_63 $n_64) @s_65]))
+             []))
+      [])) [])) [])) [])) [])
 ```
 
-Do not scroll past that type — it is the documentation.  Annotated:
+(The implementation prints the type on one line; it is re-wrapped here
+to fit the page.)  Do not scroll past that type — it is the
+documentation.  Annotated, one binder per line:
 
 ```
-(∀ (&t)                                  ← needs a t-app to choose &t
-   (Π ($m $n @s)                         ← needs an i-app to choose $m $n @s
-      (-> ((A &t (++ $m @s))             ← arg 1: shape  $m ++ @s
-           (A &t (++ $n @s)))            ← arg 2: shape  $n ++ @s
-          (A &t (++ (+ $m $n) @s)))))    ← result: (m+n) ++ @s
+(∀ &t                                 ← needs a t-app to choose &t
+  (Π $m (Π $n (Π @s                   ← needs i-apps to choose $m $n @s
+    (-> (A &t [$m @s])                ← arg 1: shape  $m ++ @s
+        (-> (A &t [$n @s])            ← arg 2: shape  $n ++ @s
+            (A &t [(+ $m $n) @s])))))) ← result: (m+n) ++ @s
 ```
 
-(Incidental notation: `(++)` is the empty shape — every `∀`/`Π` value is
-itself a scalar array, hence the `(A ... (++))` wrappers; the `_13`
-suffixes are internal renaming; the `(+ 0 $m $n)` zero is a harmless
-artifact of ispace normalization.)
+(Incidental notation: every binder and arrow is unary — currying, §3.6
+— so the printer nests one `Π` per parameter and one `->` per argument.
+`[]` is the empty shape, and every `∀`/`Π` value is itself a scalar
+array, hence the `(A ... [])` wrappers; shapes print in the splice
+notation `[$m @s]`; the `_62` suffixes are internal renaming; the
+`(+ 0 $m $n)` zero is a harmless artifact of ispace normalization.
+And the reported application shows only the *first* argument —
+`(append m1)` — because that innermost unary application is where the
+error is detected.)
 
 The fix is to instantiate, outside-in — `t-app` first, then `i-app`,
 then values:
@@ -612,9 +685,15 @@ then values:
 ; ⇒ [[0 1 2] [3 4 5] [10 20 30] [40 50 60]]
 ```
 
+(Each argument here is exactly one `$m ++ @s` cell — the frame is empty
+— so the result is a single bare `[4 3]` array, not an array of
+results; §6.1 shows what changes when the frame is non-empty.)
+
 This triple application is so common it has **combined application
 sugar**: `(@f (T ...) (i ...) arg ...)`, with `_` standing for an empty
-list:
+list.  The trailing `arg`s may also be omitted altogether, leaving just
+the instantiation — `(@iota/static _ ([5]))` is
+`(i-app iota/static [5])`:
 
 ```remora
 (@append (Int) (2 2 [3])
@@ -657,11 +736,16 @@ but with `@s = [3]` you must hand it a function on `[3]`-cells —
 
 ---
 
-## 5. `let` and the six binding forms
+## 5. `let` and the six binding keywords
 
-A Remora *program* is one expression.  `let` is how you build anything
-bigger: `(let (bind ..) body)`, where each binding is one of six
-forms:
+Inside an expression, `let` is how you build anything bigger:
+`(let (bind ..) body)`.  (The *top level* of a program file is a
+different, much smaller world — declarations — covered in §5.3.)  Each
+binding starts with one of six keywords — `val`, `fun`, `t-fun`,
+`i-fun`, `type`, `ispace`, the same six the parse error in §5.1
+recites — and two of them come in two variants (`val` with or without
+ascription, `fun` plain or `∀`/`Π`-wrapped), giving the eight shapes
+below:
 
 | Form | Binds | Example |
 | --- | --- | --- |
@@ -672,14 +756,14 @@ forms:
 | `(t-fun (f (&t ..) [: R]) e)` | a type function | §4.1 |
 | `(i-fun (f ($i ..) [: R]) e)` | an ispace function | §6, §9 |
 | `(type &n T)` / `(type *n T)` | a type alias | below |
-| `(extent $n d)` / `(extent @n s)` | an ispace alias | below |
+| `(ispace $n d)` / `(ispace @n s)` | an ispace alias | below |
 
-A flavor of most of them at once — aliases, `extent`, and a typed
-`fun`, all in one verified program:
+A flavor of most of them at once — aliases, `ispace`, and a typed
+`fun`, all in one program:
 
 ```remora
 (let ((type &MyInt Int)
-      (extent $d 3)
+      (ispace $d 3)
       (type *IntVec3 [&MyInt $d])
       (fun (add-int-vec (x *IntVec3) (y *IntVec3) : *IntVec3) (+ x y)))
   (add-int-vec [1 2 3] [4 5 6]))
@@ -705,10 +789,12 @@ self-referential `(fun (f ...) ... (f ...))` fails with `Unknown text
 var: f`.  (With no `if` in the language, recursion would have little
 to do anyway.)
 
-`extent` aliases live in the ispace world, so dimension arithmetic works
-there — `(extent $d (+ 5 (- 3)))` binds `$d` to 2.  Note the sigil
-discipline: `type` names get `&` (atom) or `*` (array) sigils; `extent`
-names get `$` (dim) or `@` (shape).
+`ispace` aliases live in the ispace world, so dimension arithmetic works
+there — `(ispace $d (+ 5 (- 3)))` binds `$d` to 2.  Note the sigil
+discipline: `type` names get `&` (atom) or `*` (array) sigils; `ispace`
+names get `$` (dim) or `@` (shape).  The type sigils are *enforced*: a
+`&` alias must name an atom type and a `*` alias an array type — so an
+alias for a `Σ` type (an atom type, §2) is `&`-sigiled, as §7.1 shows.
 
 ### 5.1 The parenthesis pitfall
 
@@ -719,11 +805,11 @@ learn to recognize:
 ```text
 >> (let ((val v [10 100]) (val m [[1 2] [3 4]]) (+ m v))
 error: unexpected "+ m v)"
-expecting "extent", "fun", "i-fun", "t-fun", "type", or "val"
+expecting "fun", "i-fun", "ispace", "t-fun", "type", or "val"
 ```
 
 The parser is still *inside* the bindings list, so it expects another
-binding keyword — that "expecting extent, fun, i-fun, t-fun, type, or
+binding keyword — that "expecting fun, i-fun, ispace, t-fun, type, or
 val" list is the fingerprint.  Close the bindings, then write the body:
 
 ```remora
@@ -748,6 +834,43 @@ will dissect in §9.1:
   (@replicate (Int) ([3] []) 7))
 ; ⇒ [7 7 7]
 ```
+
+### 5.3 The top level: `entry` (and `def`)
+
+A file handed to `remora interpret` (or the text given to `-e`) is not
+an expression but a **program**: a sequence of top-level declarations.
+
+```text
+program ::= decl ...
+decl    ::= (entry (name (x T) ... [: R]) exp)   ; an entry point
+          | (def bind)                           ; any §5 binding form
+```
+
+The interpreter requires exactly one entry named `main` and evaluates
+its body.  `main`'s parameters are bound from the command line: each
+trailing argument to `interpret` is parsed and evaluated as an
+expression and passed in order.
+
+```remora
+(entry (main) (* 6 7))
+; ⇒ 42
+```
+
+```text
+$ remora interpret -e "(entry (main (x Int) (y Int)) (+ x (* 100 y)))" 7 3
+307
+```
+
+(The example blocks in the rest of this tutorial are bare expressions;
+the doctest harness wraps each one as `(entry (main) ...)` — Appendix
+A.)
+
+`def` lifts any §5 binding form to the top level, in principle letting
+several entries share definitions.  In the implementation verified here
+(commit `68631fb`) it does not yet work: a `def`-bound name is not in
+scope anywhere — not even in a later `def` — so every use fails with
+`Unknown text var`.  Until that is fixed, put shared definitions in a
+`let` inside each entry.
 
 ---
 
@@ -794,6 +917,10 @@ Case A:  $m=2 $n=2 @s=[3]   — cell shapes [2 3]: each WHOLE matrix is a cell
         ├────────────┤
         │ [10 20 30] │    (stacked vertically)
         └ [40 50 60] ┘
+
+  collect: frame [] ++ cell [4 3] = [4 3]
+           (an empty frame adds no axes — the lone result cell IS the
+            whole result, not a one-element array of results)
 
 Case B:  $m=3 $n=3 @s=[]    — cell shapes [3]: each ROW is a cell
 ─────────────────────────────────────────────────────────────────────
@@ -909,22 +1036,23 @@ The 2019 tutorial's plural `boxes` form is gone, but you don't need it:
 `box` is an atom, so a bracket of boxes is an array of them.  The
 weekdays example, modernized — with day names as strings (Int vectors!)
 of *different lengths* behind a uniform `Σ` type, and a lifted function
-unboxing each:
+unboxing each.  (The alias is `&str`, not `*str`: a `Σ` type is an
+*atom* type, and type aliases enforce their sigil's kind — §5.)
 
 ```remora
-(let ((type *str (Sigma ($n) [Int $n]))
-      (fun (strlen (s *str) : Int)
+(let ((type &str (Sigma ($n) [Int $n]))
+      (fun (strlen (s &str) : Int)
         (unbox ($n cs s) (@length (Int) ($n []) cs))))
-  (== (strlen [(box (6) "Monday" *str)
-               (box (7) "Tuesday" *str)
-               (box (9) "Wednesday" *str)
-               (box (8) "Thursday" *str)
-               (box (6) "Friday" *str)])
+  (== (strlen [(box (6) "Monday" &str)
+               (box (7) "Tuesday" &str)
+               (box (9) "Wednesday" &str)
+               (box (8) "Thursday" &str)
+               (box (6) "Friday" &str)])
       6))
 ; ⇒ [#t #f #f #f #t]
 ```
 
-`strlen` consumes scalar `*str` cells, so it lifts over the `[5]`-frame
+`strlen` consumes scalar `&str` cells, so it lifts over the `[5]`-frame
 of boxes — each application opens its own box with its own private
 witness `$n` — giving the lengths `[6 7 9 8 6]`.  Comparing those with
 `6` (the scalar `6` is replicated across the frame by `==`) reproduces
@@ -935,8 +1063,9 @@ letters long.
 
 ## 8. The prelude
 
-The entire prelude — every name the interpreter actually provides —
-with verified examples.  Types are written with the sugar of §2;
+The entire prelude — every name the interpreter actually provides (the
+implementation calls them *intrinsics*) — with examples.  Types are
+written with the sugar of §2;
 remember every entry is `∀`-then-`Π` nested, eliminated as
 `(@name (types) (ispaces) args ...)`.
 
@@ -949,15 +1078,27 @@ lift over any frame.
 
 | Name | Type |
 | --- | --- |
-| `+` `-` `*` `div` `mod` `max` `min` | `(-> (Int Int) Int)` |
+| `+` `-` `*` `/` `^` `mod` `max` `min` | `(-> (Int Int) Int)` |
 | `f.+` `f.-` `f.*` `f./` `f.^` `f.max` `f.min` | `(-> (Float Float) Float)` |
-| `sqrt` | `(-> (Float) Float)` |
+| `sqrt` `f.sqrt` | `(-> (Float) Float)` |
 | `truncate` `round` `ceiling` `floor` | `(-> (Float) Int)` |
 
-`div`/`mod` are integer division and remainder, floor convention
-(`(div -17 5)` is `-4`).  There is no integer exponentiation — only
-`f.^` raises floats.  Int and Float are disjoint families: no
-overloading, no implicit coercion (convert explicitly, below).
+Integer division is written `/`, and `mod` is its remainder; both
+follow the floor convention, so `(/ -17 5)` is `-4` and `(mod -17 5)`
+is `3`.  `^` is integer exponentiation; a negative exponent is a
+run-time error.  (`sqrt` and `f.sqrt` are one function under two
+names.)  Int and Float are disjoint families: no overloading, no
+implicit coercion (convert explicitly, below).
+
+```remora
+(/ -17 5)           ; floor division
+; ⇒ -4
+```
+
+```remora
+(^ 2 10)
+; ⇒ 1024
+```
 
 **Comparison** — each returns a `Bool`.
 
@@ -1088,8 +1229,6 @@ fold    : ∀ (&t &t2) Π ($d @s @s2)
 sum     : Π (@s) (-> ([Int @s]) Int)               ; no ∀ — Int only
 
 index2d : ∀ (&t) Π ($m $n) (-> ([&t $m $n] [Int 2]) &t)
-
-f.reduce3 : (-> ((-> (Float Float) Float) [Float 3]) Float)
 ```
 
 `reduce` combines the items of the leading axis with an associative
@@ -1161,29 +1300,23 @@ read-file   : ∀ (&t) Π ($d @s)
                                              ;   you assert the result type
 ```
 
-### 8.5 Names that typecheck but never run
+### 8.5 Names that no longer exist
 
-Source files in the wild (the darknet examples especially) mention
-names like `replicate/i/3x3-2`, `iota/608`, `flatten/f/3-9-_`,
+Older source files in the repository (the darknet examples especially)
+mention names like `replicate/i/3x3-2`, `iota/608`, `flatten/f/3-9-_`,
 `append/f/608-1-610`, `reduce/f/26`, `transpose2d/f/m-n`,
-`undefined-input/...`.  These are *name-encoded monomorphic hacks*: a
-helper in the type checker (`hackyPrelude` in `src/TypeCheck.hs`,
-marked `FIXME: delete once monomorphization done`) assigns any such
-name a type parsed out of the name itself, and the Futhark backend
-lowers them — but the interpreter only knows the handful with real
-prelude entries (`iota/3`, `iota/608`, `iota/610`, `reduce/f/26`,
-`index2d/f/610`, four `append/f/...`, five `flatten/f/...`,
-`transpose/f/27-32`).  Everything else in that family typechecks and
-then dies at evaluation.  For interpreter work, treat the whole family
-as off-limits; there is no general `replicate` builtin at all — define
-your own (§9.1).
+`undefined-input/...`.  These were *name-encoded monomorphic hacks*: a
+type-checker helper (`hackyPrelude`, marked `FIXME: delete once
+monomorphization done`) assigned each such name a type parsed out of
+the name itself.  Monomorphization is now done, and the hack — along
+with the handful of special-case prelude entries that backed it — has
+been deleted; a file that uses those names no longer typechecks.
+There is still no general `replicate` builtin — define your own
+(§9.1).
 
 ---
 
 ## 9. Worked examples
-
-All verified, all self-contained — paste any block into
-`remora interpret`.
 
 ### 9.1 `replicate`, from nothing
 
@@ -1317,7 +1450,8 @@ current implementation.
 
 | 2019 tutorial | Current language |
 | --- | --- |
-| `(define x e)` | `(let ((val x e)) ...)` |
+| *(whole program)* | declarations + a `main` entry (§5.3) |
+| `(define x e)` | `(let ((val x e)) ...)` ⁰ |
 | `(define (f [x 1] [y 0]) e)` | `(fun (f (x [Int $n]) ...) e)` ¹ |
 | `(λ ([x 1] [y 1]) e)` | `(λ ((x [Int n]) (y [Int n])) e)` |
 | `~(r1 r2)f` rerank sugar | η-expansion (§6.2) or ispace choice (§6.1) |
@@ -1331,7 +1465,9 @@ current implementation.
 | `(unbox arr (x len) body)` | `(unbox ($len x arr) body)` ⁶ |
 | `iota0`…`iota9`, `indices-of/N` | not provided ⁷ |
 
-Notes: **¹** rank annotations become full types, and a leading `i-fun`
+Notes: **⁰** top-level `(def (val x e))` exists in the grammar but does
+not yet work (§5.3) — use `let`.  **¹** rank annotations become full
+types, and a leading `i-fun`
 adds length-polymorphism; the whole thing lives in a `let`.  **²**
 nesting flipped — `∀` is now outermost.  **³** combined-application
 sugar (new); no 2019 equivalent.  **⁴** and `@` as a variable sigil now
@@ -1348,7 +1484,7 @@ github.com/jrslepak/Remora): `if`/`cond` and all conditional code;
 `filter`, `partition`, `select`, count-`replicate`, `grade`,
 `sort`; `rotate`, `index`, `index-item`, `subarray` and friends;
 `scan`/`iscan`/`open-scan` (all scans), `fold-right`, `reduce/zero`,
-`with-shape`, `expt`, `zero?`; characters and real strings.  Where the
+`with-shape`, `zero?`; characters and real strings.  Where the
 original leans on these (its §§ on conditionals, indexing, sorting, and
 the scan-based poly-eval), read for the concepts and expect to write
 the data-flow differently — or not at all — today.
@@ -1363,15 +1499,24 @@ the current language makes you write everywhere.
 
 ---
 
+```{=latex}
+\newpage
+```
+
 ## Appendix A. The doctest harness
 
-Every `remora`-fenced block in this file is executable.  The harness:
+Every `remora`-fenced block in this file is executable.  Blocks are
+bare expressions unless they already contain an `entry` declaration;
+the harness wraps the bare ones as `(entry (main) ...)` (§5.3) before
+running them:
 
 ```sh
 #!/usr/bin/env bash
 # remora-doctest.sh FILE.md — verify every ```remora block.
 # A block's expected output is its trailing "; ⇒ ..." comment lines
 # (continuation lines start "; ").
+# A block that does not already contain an entry declaration is
+# wrapped as (entry (main) ...) before running.
 set -u
 md=${1:?usage: remora-doctest.sh FILE.md}
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
@@ -1386,7 +1531,13 @@ awk -v dir="$tmp" '
 fail=0
 for f in "$tmp"/*.remora; do
   base=${f%.remora}
-  got=$(remora interpret -f "$f" 2>&1)
+  if grep -q "(entry" "$f"; then
+    run=$f
+  else
+    run=$base.run
+    { printf '(entry (main)\n'; cat "$f"; printf '\n)\n'; } > "$run"
+  fi
+  got=$(remora interpret -f "$run" 2>&1)
   want=$(tr "\n" " " < "$base.want" 2>/dev/null | tr -s " " | sed 's/ $//')
   gotn=$(printf "%s" "$got" | tr "\n" " " | tr -s " " | sed 's/ $//')
   if [ "$gotn" != "$want" ]; then
@@ -1401,6 +1552,10 @@ Run as `nix shell ~/remora#remora-wrapped --command ./remora-doctest.sh
 remora-tutorial-2.md`.  (Blocks whose expected output spans multiple
 `;`-continuation lines are compared with whitespace normalized.)
 
+```{=latex}
+\newpage
+```
+
 ## Appendix B. Surface grammar, condensed
 
 The authoritative grammar is the ABNF at
@@ -1408,7 +1563,9 @@ The authoritative grammar is the ABNF at
 (derived from `src/Parser.hs`); this is the working subset:
 
 ```
-program  ::= exp
+program  ::= decl ...
+decl     ::= (entry (id (id type) ... [: type]) exp)
+           | (def bind)                          ; not yet usable (§5.3)
 exp      ::= atom | [exp ...] | id | "string"
            | (array shape-lit atom ...) | (array shape-lit type)
            | (frame shape-lit exp ...)  | (frame shape-lit type)
@@ -1426,11 +1583,11 @@ bind     ::= (val id exp) | (val (id : type) exp)
            | (fun (@id (tvar ...)|_ (ispace-var ...)|_ (id type) ... : type) exp)
            | (t-fun (id (tvar ...) [: type]) exp)
            | (i-fun (id (ispace-var ...) [: type]) exp)
-           | (type tvar type) | (extent ispace-var ispace)
+           | (type tvar type) | (ispace ispace-var ispace)
 type     ::= &id | *id | Int | Bool | Float
            | [type ispace ...]                       ; (A type [ispace ...])
            | (A type ispace)                         ; ispace: a dim or a shape
-           | (->|→ (type ...) type)
+           | (->|→ (type ...) type) | (->|→ type type)
            | (Forall|∀ (tvar ...) type)
            | (Pi|Π (ispace-var ...) type) | (Sigma|Σ (ispace-var ...) type)
 dim      ::= $id | nat | (+ dim ...) | (* dim ...) | (- dim ...)
@@ -1439,3 +1596,51 @@ ispace   ::= dim | shape
 tvar     ::= &id | *id
 ispace-var ::= $id | @id
 ```
+
+Multi-argument applications (`(f a b)`, `t-app`, `i-app`),
+multi-parameter `fn`/`t-fn`/`i-fn`, multi-witness `box`/`unbox`, and
+the multi-parameter `->`/`∀`/`Π`/`Σ` types are all sugar for nested
+unary forms — the core language is curried (§3.6).
+
+```{=latex}
+\newpage
+```
+
+## Appendix C. Change log
+
+**Version 2.2 (July 6, 2026)** — re-verified against commit `68631fb`.
+Language changes since v2.1:
+
+- A program is now a sequence of top-level declarations; the
+  interpreter runs the `main` entry, whose parameters bind command-line
+  arguments (new §5.3).  `interpret`/`parse` no longer accept bare
+  expressions; the doctest harness wraps each example accordingly
+  (Appendix A).
+- The language is curried: application, the three lambda forms, and the
+  `->`/`∀`/`Π`/`Σ` types are unary at core with n-ary sugar, so partial
+  application works and interacts with lifting (new §3.6).
+- The `extent` binding keyword was renamed `ispace` (§5).
+- Type aliases enforce their sigil's kind — `&` for atom types, `*` for
+  array types — so a `Σ` alias is now `&`-sigiled (§5, §7.1).
+- `div` was renamed `/`; integer exponentiation `^` was added; `f.sqrt`
+  was added as a second name for `sqrt` (§8.1).  `f.reduce3` and the
+  name-encoded monomorphic hacks were removed, superseded by a real
+  monomorphization pass (§8.5).
+- Printing: scalars print bare, shapes print in splice notation
+  (`[$m @s]`, not `(++ $m @s)`), error messages carry source positions
+  and show curried applications with renamed (`_NN`) identifiers
+  (§3.7, §4.4, §5.1).  The `parse -s` s-expression output was removed.
+- Clarity edits from reader feedback: the empty-frame boundary case
+  (§3.2, §4.4, §6.1), keyword-vs-table-row counting (§5), redundant
+  "verified" mentions removed.
+
+**Version 2.1 (June 21, 2026)** — re-verified against commit `a72fcd4`.
+Comparison, boolean, bitwise, and conversion operators added
+(comparisons return `Bool`, §8.1); non-scalar `fold` fixed upstream
+(§8.3); array types take an ispace, with bare dimensions raised
+(`(A Int 3)`, §2).
+
+**Version 2.0 (June 10, 2026)** — initial rewrite of the 2019 tutorial
+for the explicitly typed language of the Haskell implementation
+(commit `ebca13b`), with the doctest harness and all examples
+machine-verified.
