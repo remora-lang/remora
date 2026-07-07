@@ -11,16 +11,10 @@ import Data.Text qualified as T
 import Data.Void
 import Syntax hiding
   ( ArrayType,
-    Atom,
     AtomType,
-    Bind,
-    Decl,
     Dim,
-    Exp,
     ISpace,
     ISpaceParam,
-    Pat,
-    Prog,
     Shape,
     Type,
     TypeParam,
@@ -54,10 +48,6 @@ import Text.Megaparsec.Char.Lexer qualified as L
 
 type Parser = Parsec Void Text
 
-type Exp = UncheckedExp
-
-type Atom = UncheckedAtom
-
 type Dim = Syntax.Dim Text
 
 type Shape = Syntax.Shape Text
@@ -70,18 +60,10 @@ type ISpaceParam = Syntax.ISpaceParam Text
 
 type ISpace = Syntax.ISpace Text
 
-type Pat = UncheckedPat
-
-type Decl = UncheckedDecl
-
-type Prog = UncheckedProg
-
-type Bind = UncheckedBind
-
-parse :: FilePath -> Text -> Either Text Prog
+parse :: FilePath -> Text -> Either Text UncheckedProg
 parse = parseWith pProg
 
-parseExp :: FilePath -> Text -> Either Text Exp
+parseExp :: FilePath -> Text -> Either Text UncheckedExp
 parseExp = parseWith pExp
 
 parseWith :: Parser a -> FilePath -> Text -> Either Text a
@@ -258,7 +240,7 @@ pBase =
             IntVal . fromIntegral <$> L.signed (pure ()) pDecimal
           ]
 
-pAtom :: Parser Atom
+pAtom :: Parser UncheckedAtom
 pAtom =
   choice
     [ withSrcPos $ withNoInfo $ Base <$> pBase,
@@ -297,14 +279,14 @@ pISpace =
       Syntax.Shape <$> pShape
     ]
 
-pPat :: Parser Pat
+pPat :: Parser UncheckedPat
 pPat =
   withSrcPos $
     withNoInfo $
       parens $
         PatId <$> lId <*> pType
 
-pExp :: Parser Exp
+pExp :: Parser UncheckedExp
 pExp =
   choice
     [ try $ withNoInfoPos $ Array mempty . pure <$> pAtom,
@@ -386,7 +368,7 @@ pExp =
         tApp pos (Just ts) m =
           foldl' (\fun a -> TApp fun a NoInfo pos) m ts
 
-pBind :: Parser Bind
+pBind :: Parser UncheckedBind
 pBind =
   withSrcPos $
     parens $
@@ -472,7 +454,7 @@ pShape =
       brackets pShapeSplice
     ]
 
-pDecl :: Parser Decl
+pDecl :: Parser UncheckedDecl
 pDecl =
   parens $
     choice
@@ -485,5 +467,5 @@ pDecl =
           Entry f params t <$> pExp
       ]
 
-pProg :: Parser Prog
+pProg :: Parser UncheckedProg
 pProg = Syntax.Prog <$> many pDecl
