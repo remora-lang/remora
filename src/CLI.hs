@@ -151,7 +151,7 @@ main = do
             putStrLn
               =<< futharkCompile
                 backend
-                (takeFileName $ dropExtension $ fromMaybe "<cli>" mfile)
+                (takeFileName $ dropExtension $ sourceName mfile)
                 ir
     run (Parse mfile mexpr) = do
       input <- parseInput mfile mexpr
@@ -162,12 +162,15 @@ main = do
       Maybe String ->
       ExceptT Error IO (Either UncheckedExp UncheckedProg)
     parseInput Nothing (Just s) =
-      Left <$> except (Parser.parseExp "<cli>" (T.pack s))
+      Left <$> except (Parser.parseExp (sourceName Nothing) (T.pack s))
     parseInput mfile _ = do
       input <- liftIO $ handleInput mfile
       Right
         <$> ExceptT
-          (runPassIO $ Imports.resolveImports (fromMaybe "<cli>" mfile) input)
+          (runPassIO $ Imports.resolveImports (sourceName mfile) input)
+
+    sourceName :: Maybe FilePath -> FilePath
+    sourceName = fromMaybe "<cli>"
 
     handleInput :: Maybe FilePath -> IO Text
     handleInput (Just path) = T.readFile path
