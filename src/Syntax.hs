@@ -46,6 +46,7 @@ module Syntax
     UniqueDecl,
     ProgBase (..),
     Prog,
+    Import (..),
     UncheckedProg,
     UniqueProg,
     HasSrcPos (..),
@@ -428,6 +429,12 @@ instance (Show v, Pretty v, Pretty (f (Type v)), Pretty (tp v)) => Pretty (DeclB
         <+> parens (hsep (map pretty params))
         <+> pretty mt
         <+> pretty body
+
+data Import = Import FilePath SourcePos
+  deriving (Show, Eq, Ord)
+
+instance Pretty Import where
+  pretty (Import file _) = parens $ "import" <+> pretty file
 
 -- | A Remora program.
 data ProgBase tp f v = Prog

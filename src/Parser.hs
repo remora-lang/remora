@@ -61,8 +61,8 @@ type ISpaceParam = Syntax.ISpaceParam Text
 
 type ISpace = Syntax.ISpace Text
 
-parse :: FilePath -> Text -> Either Error UncheckedProg
-parse = parseWith pProg
+parse :: FilePath -> Text -> Either Error ([Import], UncheckedProg)
+parse = parseWith $ (,) <$> pImports <*> pProg
 
 parseExp :: FilePath -> Text -> Either Error UncheckedExp
 parseExp = parseWith pExp
@@ -125,7 +125,8 @@ keywords =
       "i-fun",
       "val",
       "def",
-      "entry"
+      "entry",
+      "import"
     ]
 
 lKeyword :: Text -> Parser ()
@@ -470,3 +471,13 @@ pDecl =
 
 pProg :: Parser UncheckedProg
 pProg = Syntax.Prog <$> many pDecl
+
+pImports :: Parser [Import]
+pImports = many pImport
+  where
+    -- Need a try because this sucker consumes a paren.
+    -- Well, "need" is harsh...but "need" until someone writes the parser better. :^)
+    pImport = try $ withSrcPos $ parens $ do
+      lKeyword "import"
+      Import
+        <$> lexeme (char '"' >> manyTill L.charLiteral (char '"'))
