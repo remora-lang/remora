@@ -4,7 +4,9 @@ import Data.Char (isSpace)
 import Data.List (isPrefixOf, sort, stripPrefix)
 import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Text qualified as T
+import Imports qualified
 import Parser qualified
+import Pass (runPassIO)
 import Pipeline qualified
 import System.Directory (listDirectory)
 import System.FilePath (takeExtension, (</>))
@@ -35,14 +37,16 @@ mkCase name = do
   pure $ case expectedValue src of
     Nothing -> []
     Just expected ->
-      [ testCase name $ case Parser.parse path (T.pack src) >>= Pipeline.interpret mempty . snd of
-          Left err ->
-            assertFailure $ "evaluation failed:\n" <> T.unpack err
-          Right val ->
-            let actual = prettyString val
-             in assertBool
-                  ("expected: " <> expected <> "\nbut got:  " <> actual)
-                  (normalize actual == canonical expected)
+      [ testCase name $ do
+          result <- runPassIO $ Imports.resolveImports path $ T.pack src
+          case result >>= Pipeline.interpret mempty of
+            Left err ->
+              assertFailure $ "evaluation failed:\n" <> T.unpack err
+            Right val ->
+              let actual = prettyString val
+               in assertBool
+                    ("expected: " <> expected <> "\nbut got:  " <> actual)
+                    (normalize actual == canonical expected)
       ]
 
 -- | When the expected valuable is valid Remora syntax, interpret it.

@@ -2,22 +2,19 @@ module CLI (main) where
 
 import CLI.REPL qualified
 import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT (..), except, runExceptT)
-import Control.Monad.Trans.State.Lazy (StateT, evalStateT, get, modify)
 import Data.Maybe
-import Data.Set (Set)
-import Data.Set qualified as S
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
+import Imports qualified
 import Parser qualified
+import Pass (runPassIO)
 import Pipeline qualified
 import Syntax
 import System.Console.CmdArgs hiding (args)
 import System.Console.CmdArgs qualified as CmdArgs
-import System.Directory (makeAbsolute)
-import System.FilePath (dropExtension, takeDirectory, takeFileName, (</>))
+import System.FilePath (dropExtension, takeFileName, (</>))
 import System.IO
 import System.Process
 import Util
@@ -166,8 +163,11 @@ main = do
       ExceptT Error IO (Either UncheckedExp UncheckedProg)
     parseInput Nothing (Just s) =
       Left <$> except (Parser.parseExp "<cli>" (T.pack s))
-    parseInput mfile _ =
-      fmap Right . parseWithImports mfile =<< liftIO (handleInput mfile)
+    parseInput mfile _ = do
+      input <- liftIO $ handleInput mfile
+      Right
+        <$> ExceptT
+          (runPassIO $ Imports.resolveImports (fromMaybe "<cli>" mfile) input)
 
     handleInput :: Maybe FilePath -> IO Text
     handleInput (Just path) = T.readFile path
@@ -197,39 +197,3 @@ main = do
           [ "--gpu-mem",
             "--backend=cuda"
           ]
-
-parseWithImports :: Maybe FilePath -> Text -> ExceptT Error IO UncheckedProg
-parseWithImports mfile =
-  flip evalStateT mempty
-    . parseWithImports' (fromMaybe "<cli>" mfile)
-  where
-    parseWithImports' ::
-      FilePath ->
-      Text ->
-      StateT (Set FilePath) (ExceptT Error IO) UncheckedProg
-    parseWithImports' fname input = do
-      (imports, prog) <- lift $ except $ Parser.parse fname input
-      resolveImports fname imports prog
-
-    resolveImports ::
-      FilePath ->
-      [Import] ->
-      UncheckedProg ->
-      StateT (Set FilePath) (ExceptT Error IO) UncheckedProg
-    resolveImports importer imports prog = do
-      dss <- traverse (resolveImport importer) imports
-      pure $ Prog $ concat dss <> progDecs prog
-
-    resolveImport ::
-      FilePath ->
-      Import ->
-      StateT (Set FilePath) (ExceptT Error IO) [UncheckedDecl]
-    resolveImport importer (Import path _) = do
-      seen <- get
-      path' <- liftIO $ makeAbsolute $ takeDirectory importer </> path
-      if path' `S.member` seen
-        then pure mempty
-        else do
-          modify $ S.insert path'
-          contents <- liftIO $ T.readFile path'
-          progDecs <$> parseWithImports' path' contents

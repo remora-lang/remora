@@ -25,6 +25,7 @@ library
       CLI
       CLI.REPL
       Futhark
+      Imports
       Interpreter
       Interpreter.Intrinsics
       Interpreter.Value
