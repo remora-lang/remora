@@ -1,3 +1,5 @@
 ;; expected: 3
 ; add two integers
+(entry (main)
 (+ 1 2)
+)

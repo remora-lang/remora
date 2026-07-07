@@ -1,4 +1,4 @@
-module Monomorphize (monomorphize) where
+module Monomorphize (monomorphize, monomorphizeExp) where
 
 import Control.Monad
 import Control.Monad.Error.Class
@@ -16,18 +16,37 @@ import Syntax hiding (ArrayType, AtomType, ISpace, Type, TypeExp)
 import Util
 import VName
 
-monomorphize :: Exp -> PassM Exp
-monomorphize e =
+monomorphize :: Prog -> PassM Prog
+monomorphize p =
+  liftEither
+    =<< state (\tag -> runMono tag (monoProg p >>= insertMonoBinds))
+  where
+    insertMonoBinds p =
+      withMonoBinds p $ \bs -> Prog $ map Def (NE.toList bs) <> progDecs p
+
+monomorphizeExp :: Exp -> PassM Exp
+monomorphizeExp e =
   liftEither
     =<< state (\tag -> runMono tag (monoExp e >>= insertMonoBinds))
+  where
+    insertMonoBinds e =
+      withMonoBinds e $ \bs -> Let bs e (Info $ arrayTypeOf e) (posOf e)
 
-insertMonoBinds :: Exp -> MonoM Exp
-insertMonoBinds e = do
+withMonoBinds :: a -> (NonEmpty Bind -> a) -> MonoM a
+withMonoBinds none some = do
   binds <- gets stateMonoBinds
-  pure $
-    case NE.nonEmpty (reverse binds) of
-      Nothing -> e
-      Just bs -> Let bs e (Info $ arrayTypeOf e) noSrcPos
+  pure $ maybe none some $ NE.nonEmpty $ reverse binds
+
+monoProg :: Prog -> MonoM Prog
+monoProg (Prog decs) = Prog . catMaybes <$> mapM monoDecl decs
+
+monoDecl :: Decl -> MonoM (Maybe Decl)
+monoDecl (Def b) = do
+  mb <- addBind b
+  traverse (fmap Def . monoBind) mb
+monoDecl (Entry f ps mt body t pos) = do
+  body' <- monoExp body
+  pure $ Just $ Entry f ps mt body' t pos
 
 monoAtom :: Atom -> MonoM Atom
 monoAtom a@Base {} = pure a

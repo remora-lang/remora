@@ -38,11 +38,59 @@ type TypeExp = Syntax.TypeExp VName
 
 type ArrayType = Syntax.ArrayType VName
 
--- | Interpret a program.
-interpret :: Exp -> PassM Val
-interpret e =
+interpret :: [Val] -> Prog -> PassM Val
+interpret args (Prog decls) =
+  liftEither $
+    runReader (runExceptT $ runInterpM $ intProg args decls) initEnv
+
+interpretExp :: Exp -> PassM Val
+interpretExp e =
   liftEither $
     runReader (runExceptT $ runInterpM $ intExp e) initEnv
+
+intProg :: [Val] -> [Decl] -> InterpM Val
+intProg args decls = foldr intDecl runMain decls
+  where
+    runMain =
+      case [(params, body) | Entry v params _ body _ _ <- decls, varName v == "main"] of
+        [] -> throwError "interpret: program has no main entry"
+        [(params, body)]
+          | length params == length args -> do
+              env <- ask
+              f <- curryBind ValFun (bindEnv . patVar) body env params
+              foldM apply f args
+          | otherwise ->
+              throwError $
+                T.unlines
+                  [ "interpret: main expects ",
+                    T.show $ length params,
+                    "arguments but got",
+                    T.show $ length args
+                  ]
+        _ -> throwError "interpret: multiple main entries"
+    apply (ValFun g) arg = g arg
+    apply _ _ = throwError "interpret: main over-applied"
+
+intDecl :: Decl -> InterpM a -> InterpM a
+intDecl (Def b) m = intBind b m
+intDecl (Entry v params _ body _ _) m = do
+  env <- ask
+  flip (bind v) m =<< curryBind ValFun (bindEnv . patVar) body env params
+
+intBind :: Bind -> InterpM a -> InterpM a
+intBind (BindVal v _ e' _) m = do
+  val <- intExp e'
+  bind v val m
+intBind (BindFun f params _ body _ _) m = do
+  env <- ask
+  flip (bind f) m =<< curryBind ValFun (bindEnv . patVar) body env params
+intBind (BindTFun f params _ body _ _) m = do
+  env <- ask
+  flip (bind f) m =<< curryBind ValTFun (tbindEnv . unTypeParam) body env params
+intBind (BindIFun f params _ body _ _) m = do
+  env <- ask
+  flip (bind f) m =<< curryBind ValIFun (ibindEnv . unISpaceParam) body env params
+intBind _ m = m
 
 -- | The interpreter environment.
 data Env = Env
@@ -87,11 +135,11 @@ initEnv = Env m tm mempty mempty
                in pure $ unsafePerformIO $ do
                     input <- TIO.readFile file
                     let mv = do
-                          parsed <- P.parse "<read-file>" input
+                          parsed <- P.parseExp "<read-file>" input
                           Pass.runPass $
-                            U.uniquify parsed
-                              >>= TC.check
-                              >>= interpret
+                            U.uniquifyExp parsed
+                              >>= TC.checkExp
+                              >>= interpretExp
                     case mv of
                       Left err -> error $ "read-file: " <> T.unpack err
                       Right v -> pure v
@@ -276,21 +324,6 @@ intExp expr@(Unbox ep x_e box e _ _) = do
           ]
 intExp (Let bs e _ _) =
   foldr intBind (intExp e) (NE.toList bs)
-  where
-    intBind :: Bind -> InterpM a -> InterpM a
-    intBind (BindVal v _ e' _) m = do
-      val <- intExp e'
-      bind v val m
-    intBind (BindFun f params _ body _ _) m = do
-      env <- ask
-      flip (bind f) m =<< curryBind ValFun (bindEnv . patVar) body env params
-    intBind (BindTFun f params _ body _ _) m = do
-      env <- ask
-      flip (bind f) m =<< curryBind ValTFun (tbindEnv . unTypeParam) body env params
-    intBind (BindIFun f params _ body _ _) m = do
-      env <- ask
-      flip (bind f) m =<< curryBind ValIFun (ibindEnv . unISpaceParam) body env params
-    intBind _ m = m
 
 -- | Interpret a 'Dim'. Variables are looked up in the environment; the result
 -- must be non-negative (subtraction may produce negatives in subterms).

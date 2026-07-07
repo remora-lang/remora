@@ -1,3 +1,5 @@
 ;; expected: 1
 ;; @f sugar
+(entry (main)
 (@head (Int) (2 (dims)) [1 2 3])
+)

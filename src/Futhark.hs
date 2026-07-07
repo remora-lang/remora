@@ -1,4 +1,4 @@
-module Futhark (FutharkM, compile) where
+module Futhark (FutharkM, compile, compileExp) where
 
 import Control.Monad
 import Control.Monad.Error.Class
@@ -91,7 +91,7 @@ liftLambda params (Array [] (Lambda p body (Info t) _ NE.:| []) _ _) _ =
   liftLambda (params ++ [p]) body t
 liftLambda params body t = do
   params' <- mapM compileParam params
-  body' <- mkBody $ pure <$> compileExp body
+  body' <- mkBody $ pure <$> compileExp' body
   ret' <- compileArrayType $ findRet t
   fname <- F.nameFromText . F.prettyText <$> newVar
   addFunction $
@@ -248,15 +248,15 @@ int2Const n = F.Constant $ F.IntValue $ F.intValue F.Int32 n
 int2Const64 :: Int -> F.SubExp
 int2Const64 n = F.Constant $ F.IntValue $ F.intValue F.Int64 n
 
-compileExp :: Exp -> FutharkM F.SubExp
-compileExp (Array [] (x NE.:| []) _ _) = compileAtom x
-compileExp e@(Array [_] elems (Info (A elem_t _)) _) = do
+compileExp' :: Exp -> FutharkM F.SubExp
+compileExp' (Array [] (x NE.:| []) _ _) = compileAtom x
+compileExp' e@(Array [_] elems (Info (A elem_t _)) _) = do
   elems' <- NE.toList <$> mapM compileAtom elems
   t <- compileType $ typeOf e
   elem_t' <- compileAtomType elem_t
   F.Var <$> bind t (F.BasicOp $ F.ArrayLit elems' elem_t')
-compileExp e@(Frame ds es (Info (A _ _)) _) = do
-  es' <- NE.toList <$> mapM compileExp es
+compileExp' e@(Frame ds es (Info (A _ _)) _) = do
+  es' <- NE.toList <$> mapM compileExp' es
   nestArrayLits ds es' (arrayTypeOf e)
   where
     nestArrayLits :: [Int] -> [F.SubExp] -> ArrayType -> FutharkM F.SubExp
@@ -272,7 +272,7 @@ compileExp e@(Frame ds es (Info (A _ _)) _) = do
     split :: [a] -> Int -> [[a]]
     split [] _ = []
     split as n = take n as : split (drop n as) n
-compileExp (Var v _ _)
+compileExp' (Var v _ _)
   | Just rest <- stripPrefix "iota/" (T.unpack (varName v)),
     Just n <- readMaybe rest =
       compileIota n
@@ -291,10 +291,10 @@ compileExp (Var v _ _)
     compileRealWorld ds = do
       t <- compileArrayType $ A Float $ Concat $ map (ShapeDim . DimN) ds
       F.Var <$> bind t (F.BasicOp $ F.Replicate (F.Shape $ map int2Const64 ds) (F.Constant $ F.FloatValue $ F.floatValue F.Float32 (37 :: Double)))
-compileExp (Var v _ _) =
+compileExp' (Var v _ _) =
   let v' = F.VName (F.nameFromText (varName v)) (getTag (varTag v))
    in pure $ F.Var v'
-compileExp (App (App (Var v _ _) op _ _) arg (Info (t, pframe)) _)
+compileExp' (App (App (Var v _ _) op _ _) arg (Info (t, pframe)) _)
   | Just rest <- stripPrefix "reduce/f/" (T.unpack (varName v)),
     Just (_ :: Int) <- readMaybe rest,
     isScalar op = do
@@ -313,11 +313,11 @@ compileExp (App (App (Var v _ _) op _ _) arg (Info (t, pframe)) _)
                     red <- F.Op <$> compileReduce op innerArg
                     innerT' <- compileArrayType innerT
                     F.Var <$> bind innerT' red
-                  _ -> error "compileExp: reduce expects a single argument"
+                  _ -> error "compileExp': reduce expects a single argument"
               )
           F.Var <$> bind t' (F.BasicOp $ F.SubExp res)
-        _ -> error "compileExp: the typechecker has problems, man."
-compileExp e@(App _ _ (Info (t, pframe)) _) = do
+        _ -> error "compileExp': the typechecker has problems, man."
+compileExp' e@(App _ _ (Info (t, pframe)) _) = do
   let (f, allArgs) = unrollApp e
   case intShape pframe of
     ds | isScalar (typeOf f) -> do
@@ -327,10 +327,10 @@ compileExp e@(App _ _ (Info (t, pframe)) _) = do
       t' <- compileArrayType t
       res <- withMapNest ds t args (compileApp fname)
       F.Var <$> bind t' (F.BasicOp $ F.SubExp res)
-    _ -> error $ "compileExp: unhandled lifted apply with func array:\n" ++ show e
-compileExp (Let bs e _ _) =
-  mapM_ compileBind (NE.toList bs) >> compileExp e
-compileExp e = error $ "compileExp: unhandled:\n" ++ show e
+    _ -> error $ "compileExp': unhandled lifted apply with func array:\n" ++ show e
+compileExp' (Let bs e _ _) =
+  mapM_ compileBind (NE.toList bs) >> compileExp' e
+compileExp' e = error $ "compileExp': unhandled:\n" ++ show e
 
 intDim :: Dim -> Int
 intDim =
@@ -355,7 +355,7 @@ data Arg
 
 mkArg :: ArrayType -> Exp -> FutharkM Arg
 mkArg t_param x = do
-  x' <- compileExp x
+  x' <- compileExp' x
   pure $
     Arg
       { argFrame =
@@ -528,7 +528,7 @@ compileBind BindType {} = pure ()
 compileBind BindISpace {} = pure ()
 compileBind (BindFun f params _ body (Info ret) _) = do
   params' <- mapM compileParam params
-  body' <- mkBody $ pure <$> compileExp body
+  body' <- mkBody $ pure <$> compileExp' body
   ret' <- compileArrayType $ findRet ret
   let mkEntryParam p =
         F.EntryParam
@@ -555,7 +555,7 @@ compileBind (BindFun f params _ body (Info ret) _) = do
     \s -> s {stateFunBinds = M.insert f fun $ stateFunBinds s}
 compileBind (BindVal v _ e _) = do
   t <- compileArrayType $ arrayTypeOf e
-  e' <- F.BasicOp . F.SubExp <$> compileExp e
+  e' <- F.BasicOp . F.SubExp <$> compileExp' e
   let v' = F.VName (F.nameFromText (varName v)) (getTag (varTag v))
   emit $ F.Let (F.Pat [F.PatElem v' t]) (F.defAux ()) e'
 compileBind b = error $ "compileBind: unhandled " ++ show b
@@ -598,27 +598,36 @@ wrapInMain (e, ret) (State stms counter funs _) =
             }
       ]
 
--- | Turn Remora into Futhark.
-compile :: Exp -> PassM T.Text
-compile e = do
+runCompile :: FutharkM (F.SubExp, F.Type) -> PassM T.Text
+runCompile action = do
   tag <- getVarTag
   let initialState = State mempty tag mempty mempty
       result =
         runExcept
-          ( runReaderT
-              ( runStateT
-                  ( runFutharkM
-                      ( (,)
-                          <$> compileExp e
-                          <*> compileType (typeOf e)
-                      )
-                  )
-                  initialState
-              )
-              Env
-          )
+          (runReaderT (runStateT (runFutharkM action) initialState) Env)
   case result of
     Left err -> throwError err
     Right (res, s) -> do
       putVarTag $ stateTag s
       pure $ wrapInMain res s
+
+-- | Turn a Remora exp into Futhark.
+compileExp :: Exp -> PassM T.Text
+compileExp e =
+  runCompile $
+    (,) <$> compileExp' e <*> compileType (typeOf e)
+
+-- | Turn a Remora program into Futhark.
+compile :: Prog -> PassM T.Text
+compile (Prog decls) =
+  case [body | Entry v _ _ body _ _ <- decls, varName v == "main"] of
+    [] -> throwError "compile: program has no main entry"
+    [body] ->
+      runCompile $ do
+        mapM_ compileDecl decls
+        (,) <$> compileExp' body <*> compileType (typeOf body)
+    _ -> throwError "compile: multiple main entries"
+
+compileDecl :: Decl -> FutharkM ()
+compileDecl (Def b) = compileBind b
+compileDecl Entry {} = pure ()

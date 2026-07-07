@@ -1,6 +1,8 @@
 ;; expected: 1
+(entry (main)
 (let (
   (t-fun (id (&t)) (fn ((x &t)) x))
 )
   (((t-app id (-> Int Int)) (t-app id Int)) 1)
+)
 )
