@@ -159,6 +159,20 @@ intrinsics' =
                    scalar $
                      piType [ShapeParam "s"] (A (AtomTypeVar "t") (ShapeVar "s"))
              ),
+             ( "index",
+               scalar $
+                 forallType [AtomTypeParam "t"] $
+                   scalar $
+                     piType [DimParam "m"] $
+                       scalar $
+                         arrowType
+                           [ A
+                               (AtomTypeVar "t")
+                               (ShapeDim (DimVar "m")),
+                             scalar Int
+                           ]
+                           (A (AtomTypeVar "t") mempty)
+             ),
              ( "index2d",
                scalar $
                  forallType [AtomTypeParam "t"] $

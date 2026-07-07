@@ -228,6 +228,13 @@ intrinsics =
               ([m, n], elts) -> pure $ ValArray [n, m] (concat $ L.transpose $ split n elts)
               _ -> error "transpose2d: not a 2d array"
     intrinsic "undefined" = undefined
+    intrinsic "index" =
+      tFun1 $ \_ ->
+        pure $ iFun1 $ \_ ->
+          pure $ vFun2 $ \arr idx ->
+            case asArray arr of
+              ([_], elts) -> pure $ elts L.!! asInt idx
+              _ -> error "index: bad arguments"
     intrinsic "index2d" =
       tFun1 $ \_ ->
         pure $ iFun2 $ \_ _ ->
