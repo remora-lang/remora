@@ -1,15 +1,23 @@
 module CLI (main) where
 
 import CLI.REPL qualified
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT (..), except, runExceptT)
+import Control.Monad.Trans.State.Lazy (StateT, evalStateT, get, modify)
 import Data.Maybe
+import Data.Set (Set)
+import Data.Set qualified as S
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Parser qualified
 import Pipeline qualified
+import Syntax
 import System.Console.CmdArgs hiding (args)
 import System.Console.CmdArgs qualified as CmdArgs
-import System.FilePath (dropExtension, takeFileName, (</>))
+import System.Directory (makeAbsolute)
+import System.FilePath (dropExtension, takeDirectory, takeFileName, (</>))
 import System.IO
 import System.Process
 import Util
@@ -114,57 +122,48 @@ mode =
 main :: IO ()
 main = do
   passed_mode <- cmdArgsRun mode
-  case passed_mode of
-    REPL -> CLI.REPL.repl
-    Interpret mfile mexpr margs -> do
-      input <- handleInput mfile mexpr
-      let m = do
-            argVals <- mapM evalArg margs
-            expr <- doParse mfile input
-            Pipeline.interpret argVals expr
-      case m of
-        Left err -> T.putStrLn err
-        Right v -> T.putStrLn $ prettyText v
-    Monomorphize mfile mexpr -> do
-      input <- handleInput mfile mexpr
-      let m = do
-            expr <- doParse mfile input
-            Pipeline.monomorphize expr
-      case m of
-        Left err -> T.putStrLn err
-        Right e -> T.putStrLn $ prettyText e
-    Futhark mfile mexpr mbackend -> do
-      input <- handleInput mfile mexpr
-      let m = do
-            expr <- doParse mfile input
-            Pipeline.compile expr
-      case m of
-        Left err -> T.putStrLn err
-        Right v ->
-          case mbackend of
-            Nothing -> T.putStrLn $ prettyText v
-            Just backend -> do
-              res <-
-                futharkCompile
-                  backend
-                  (takeFileName $ dropExtension $ fromMaybe "<cli>" mfile)
-                  v
-              putStrLn res
-    Parse mfile mexpr -> do
-      input <- handleInput mfile mexpr
-      case doParse mfile input of
-        Left err -> T.putStrLn err
-        Right expr -> T.putStrLn $ prettyText expr
+  either T.putStrLn pure =<< runExceptT (run passed_mode)
   where
+    run :: RemoraMode -> ExceptT Error IO ()
+    run REPL = liftIO CLI.REPL.repl
+    run (Interpret mfile mexpr margs) = do
+      prog <- parseInput mfile mexpr
+      argVals <- except $ mapM evalArg margs
+      v <- except $ Pipeline.interpret argVals prog
+      liftIO $ T.putStrLn $ prettyText v
+    run (Monomorphize mfile mexpr) = do
+      prog <- parseInput mfile mexpr
+      e <- except $ Pipeline.monomorphize prog
+      liftIO $ T.putStrLn $ prettyText e
+    run (Futhark mfile mexpr mbackend) = do
+      prog <- parseInput mfile mexpr
+      v <- except $ Pipeline.compile prog
+      case mbackend of
+        Nothing -> liftIO $ T.putStrLn $ prettyText v
+        Just backend ->
+          liftIO $
+            putStrLn
+              =<< futharkCompile
+                backend
+                (takeFileName $ dropExtension $ fromMaybe "<cli>" mfile)
+                v
+    run (Parse mfile mexpr) = do
+      prog <- parseInput mfile mexpr
+      liftIO $ T.putStrLn $ prettyText prog
+
+    parseInput :: Maybe FilePath -> Maybe String -> ExceptT Error IO UncheckedProg
+    parseInput mfile mexpr =
+      parseWithImports mfile
+        =<< liftIO (handleInput mfile mexpr)
+
     handleInput :: Maybe FilePath -> Maybe String -> IO Text
     handleInput (Just path) _ = T.readFile path
     handleInput Nothing (Just s) = pure $ T.pack s
     handleInput Nothing Nothing = T.getContents
 
-    doParse mfile = Parser.parse (fromMaybe "<cli>" mfile)
-
     evalArg s =
-      Parser.parseExp "<arg>" (T.pack s) >>= Pipeline.interpretExp
+      Pipeline.interpretExp
+        =<< Parser.parseExp "<arg>" (T.pack s)
 
     futharkCompile :: FutharkBackend -> String -> Text -> IO String
     futharkCompile backend fname ir = do
@@ -186,3 +185,39 @@ main = do
           [ "--gpu-mem",
             "--backend=cuda"
           ]
+
+parseWithImports :: Maybe FilePath -> Text -> ExceptT Error IO UncheckedProg
+parseWithImports mfile =
+  flip evalStateT mempty
+    . parseWithImports' (fromMaybe "<cli>" mfile)
+  where
+    parseWithImports' ::
+      FilePath ->
+      Text ->
+      StateT (Set FilePath) (ExceptT Error IO) UncheckedProg
+    parseWithImports' fname input = do
+      (imports, prog) <- lift $ except $ Parser.parse fname input
+      resolveImports fname imports prog
+
+    resolveImports ::
+      FilePath ->
+      [Import] ->
+      UncheckedProg ->
+      StateT (Set FilePath) (ExceptT Error IO) UncheckedProg
+    resolveImports importer imports prog = do
+      dss <- traverse (resolveImport importer) imports
+      pure $ Prog $ concat dss <> progDecs prog
+
+    resolveImport ::
+      FilePath ->
+      Import ->
+      StateT (Set FilePath) (ExceptT Error IO) [UncheckedDecl]
+    resolveImport importer (Import path _) = do
+      seen <- get
+      path' <- liftIO $ makeAbsolute $ takeDirectory importer </> path
+      if path' `S.member` seen
+        then pure mempty
+        else do
+          modify $ S.insert path'
+          contents <- liftIO $ T.readFile path'
+          progDecs <$> parseWithImports' path' contents

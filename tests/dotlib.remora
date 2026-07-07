@@ -1,0 +1,6 @@
+(def
+  (fun (@dot (&t) ($n)
+         (plus (-> (&t &t) &t))
+         (mul (-> (&t &t) &t))
+         (x [&t $n]) (y [&t $n]) : &t)
+    (@reduce (&t) ((- $n 1) []) plus (mul x y))))
