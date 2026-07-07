@@ -13,6 +13,7 @@ import Control.Monad
 import Data.Text (Text)
 import Futhark qualified
 import Interpreter qualified
+import LiftLambdas qualified
 import Monomorphize qualified
 import Pass
 import Syntax
@@ -60,6 +61,7 @@ monomorphizeExpM =
 compileM :: UncheckedProg -> PassM Text
 compileM =
   typeCheckM
+    >=> LiftLambdas.liftLambdas
     >=> Monomorphize.monomorphize
     >=> Futhark.compile
 
@@ -67,6 +69,7 @@ compileExpM :: UncheckedExp -> PassM Text
 compileExpM =
   Uniquify.uniquifyExp
     >=> TypeCheck.checkExp
+    >=> LiftLambdas.liftLambdasExp
     >=> Monomorphize.monomorphizeExp
     >=> Futhark.compileExp
 
