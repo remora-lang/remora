@@ -47,5 +47,4 @@ jobs:
         ghc --version
         cabal configure
         cabal build
-        # Tests currently fail.
-        # cabal test
+        cabal test
