@@ -57,8 +57,8 @@ instance HasArrayType Pat where
   arrayTypeOf_ (PatId _ _ (Info t) _) = t
 
 instance HasArrayType (Type VName) where
-  arrayTypeOf (AtomType et) = A et mempty
-  arrayTypeOf (ArrayType t) = t
+  arrayTypeOf_ (AtomType et) = A et mempty
+  arrayTypeOf_ (ArrayType t) = t
 
 scalarTypeOf :: Atom -> AtomType VName
 scalarTypeOf = normType . scalarTypeOf_
@@ -158,6 +158,9 @@ instance IsType (Type VName) where
   AtomType t ~= AtomType r = t ~= r
   ArrayType t ~= ArrayType r = t ~= r
   _ ~= _ = False
+
+  atomType (AtomType t) = atomType t
+  atomType (ArrayType t) = atomType t
 
 -- | Naive shape equality.
 (@=) :: (Ord v) => Shape v -> Shape v -> Bool

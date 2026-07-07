@@ -1,3 +1,5 @@
+{-# LANGUAGE MonoLocalBinds #-}
+
 module Uniquify.Monad where
 
 import Control.Monad.RWS

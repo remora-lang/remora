@@ -21,16 +21,16 @@ monomorphize p =
   liftEither
     =<< state (\tag -> runMono tag (monoProg p >>= insertMonoBinds))
   where
-    insertMonoBinds p =
-      withMonoBinds p $ \bs -> Prog $ map Def (NE.toList bs) <> progDecs p
+    insertMonoBinds =
+      flip withMonoBinds $ \bs -> Prog $ map Def (NE.toList bs) <> progDecs p
 
 monomorphizeExp :: Exp -> PassM Exp
 monomorphizeExp e =
   liftEither
     =<< state (\tag -> runMono tag (monoExp e >>= insertMonoBinds))
   where
-    insertMonoBinds e =
-      withMonoBinds e $ \bs -> Let bs e (Info $ arrayTypeOf e) (posOf e)
+    insertMonoBinds =
+      flip withMonoBinds $ \bs -> Let bs e (Info $ arrayTypeOf e) (posOf e)
 
 withMonoBinds :: a -> (NonEmpty Bind -> a) -> MonoM a
 withMonoBinds none some = do
