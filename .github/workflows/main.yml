@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  pull_request:
+
+  push:
+    branches: [ main ]
+jobs:
+  build-linux-nix:
+    runs-on: ubuntu-24.04
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Install Nix
+      uses: cachix/install-nix-action@v27
+
+    - name: Build everything
+      run: nix build
+
+  build-linux-cabal:
+    runs-on: ubuntu-24.04
+
+    steps:
+    - uses: actions/checkout
+
+    - name: Workaround runner image issue
+      # https://github.com/actions/runner-images/issues/7061
+      run: sudo chown -R $USER /usr/local/.ghcup
+
+    - uses: haskell-actions/setup@v2
+      with:
+        ghc-version: '9.10.3'
+
+    - uses: actions/cache
+      name: Cache ~/.cabal/packages, ~/.cabal/store and dist-newstyle
+      with:
+        path: |
+          ~/.cabal/packages
+          ~/.cabal/store
+          dist-newstyle
+        key: ${{ runner.os }}-cabal-${{ hashFiles('remora.cabal', 'cabal.project') }}
+
+    - name: Build Remora
+      run: |
+        cabal --version
+        ghc --version
+        cabal configure
+        cabal build
+        # Tests currently fail.
+        # cabal test
