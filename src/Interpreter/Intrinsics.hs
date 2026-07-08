@@ -20,6 +20,7 @@ import Syntax hiding (Add, Mul, Sub)
 import System.IO.Unsafe (unsafePerformIO)
 import Util
 import VName
+import Text.Megaparsec.Char (numberChar)
 
 type Intrinsics m = [IntrinsicVal m]
 
@@ -209,6 +210,20 @@ intrinsics =
       tFun1 $ \_ ->
         pure $ iFun3 $ \_ _ _ ->
           pure $ vFun1 $ \v -> pure $ valConcat v
+    -- intrinsic "reshape" =
+    --   tFun1 $ \_ ->
+    --     pure $ iFun2 $ \(Right oldShp) (Right newShp) ->
+    --       pure $ vFun1 $ \(ValArray _ vs) -> pure $ assert () $ ValArray newShp vs
+    intrinsic "reshape" =
+      tFun1 $ \_ ->
+        pure $ iFun2 $ \s1 s2 ->
+          case (s1, s2) of
+            (Right oldShp, Right newShp) | product oldShp == product newShp  ->
+              pure $ vFun1 $ \v -> case v of
+                  ValArray _ vs -> pure $ ValArray newShp vs
+                  _ -> error "reshape: not an array"
+            (Right _, Right _) -> error "reshape: two shapes contain diff # of elements"
+            _ -> error "reshape: one of the indices is not a shape"
     intrinsic "iota" =
       iFun1 $ \_ ->
         pure $ vFun1 $ \shapeval ->

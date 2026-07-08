@@ -126,6 +126,15 @@ intrinsics' =
                            [A (AtomTypeVar "t") (Concat [ShapeDim (DimVar "m"), ShapeDim (DimVar "n"), ShapeVar "s"])]
                            (A (AtomTypeVar "t") (Concat [ShapeDim (Mul [DimVar "m", DimVar "n"]), ShapeVar "s"]))
              ),
+             ( "reshape",
+               scalar $
+                 forallType [AtomTypeParam "t"] $
+                   scalar $
+                     piType [ShapeParam "s1", ShapeParam "s2"] $
+                       scalar $
+                         arrowType [A (AtomTypeVar "t") (ShapeVar "s1")]
+                                   (A (AtomTypeVar "t") (ShapeVar "s2"))
+             ),
              ( "iota",
                scalar $
                  piType [DimParam "d"] $
