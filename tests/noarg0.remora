@@ -1,0 +1,4 @@
+;; expected : [6 3]
+(def (fun (@foo _ _ : [Int 2]) [1 2]))
+(entry (main)
+       ((fn ((f [Int 2])) (+ f [5 1])) (@foo _ _)))

@@ -316,9 +316,17 @@ withBind (BindFun f params mt body _ pos) m = do
       body' <- checkExp' body
       checkAnnot (arrayTypeOf body') mt' pos
       pure (params', body')
-  let t = arrowType (map arrayTypeOf params') (arrayTypeOf body')
-  withParam' (f, mkScalarArrayType t) $ \f' ->
-    m $ BindFun f' params' mt' body' (Info t) pos
+  case params' of
+    -- with empty param list, the arrow type does not do the right thing
+    [] ->
+      let bodyType = arrayTypeOf body' in
+      withParam' (f, bodyType) $ \f' ->
+        m $ BindFun f' params' mt' body' (Info $ arrayTypeAtom bodyType) pos
+    _ ->
+      do 
+        let t = arrowType (map arrayTypeOf params') (arrayTypeOf body')
+        withParam' (f, mkScalarArrayType t) $ \f' ->
+            m $ BindFun f' params' mt' body' (Info t) pos
 withBind (BindTFun f params mt body _ pos) m =
   binds withTypeParam params $ \params' -> do
     body' <- checkExp' body
