@@ -18,9 +18,9 @@ import Intrinsics qualified
 import Primitive
 import Syntax hiding (Add, Mul, Sub)
 import System.IO.Unsafe (unsafePerformIO)
+import Text.Megaparsec.Char (numberChar)
 import Util
 import VName
-import Text.Megaparsec.Char (numberChar)
 
 type Intrinsics m = [IntrinsicVal m]
 
@@ -218,10 +218,10 @@ intrinsics =
       tFun1 $ \_ ->
         pure $ iFun2 $ \s1 s2 ->
           case (s1, s2) of
-            (Right oldShp, Right newShp) | product oldShp == product newShp  ->
+            (Right oldShp, Right newShp) | product oldShp == product newShp ->
               pure $ vFun1 $ \v -> case v of
-                  ValArray _ vs -> pure $ ValArray newShp vs
-                  _ -> error "reshape: not an array"
+                ValArray _ vs -> pure $ ValArray newShp vs
+                _ -> error "reshape: not an array"
             (Right _, Right _) -> error "reshape: two shapes contain diff # of elements"
             _ -> error "reshape: one of the indices is not a shape"
     intrinsic "iota" =
@@ -270,4 +270,13 @@ intrinsics =
               appendFile (valToString filename) (prettyString msg ++ "\n")
               pure v
     intrinsic "read-file" = undefined
+    intrinsic "reify-dim" =
+      iFun1 $ pure . ValBase . IntVal . asDim
+    intrinsic "reify-shape" =
+      iFun1 $ \s ->
+        let ds = asShape s
+            rank = length ds
+         in pure $
+              ValBox [Left rank] $
+                ValArray [rank] (ValBase . IntVal <$> ds)
     intrinsic x = error $ "intrinsic: " <> T.unpack x

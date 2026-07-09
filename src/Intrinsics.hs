@@ -132,8 +132,9 @@ intrinsics' =
                    scalar $
                      piType [ShapeParam "s1", ShapeParam "s2"] $
                        scalar $
-                         arrowType [A (AtomTypeVar "t") (ShapeVar "s1")]
-                                   (A (AtomTypeVar "t") (ShapeVar "s2"))
+                         arrowType
+                           [A (AtomTypeVar "t") (ShapeVar "s1")]
+                           (A (AtomTypeVar "t") (ShapeVar "s2"))
              ),
              ( "iota",
                scalar $
@@ -244,6 +245,18 @@ intrinsics' =
                          arrowType
                            [A Int (ShapeDim (DimVar "d"))]
                            (A (AtomTypeVar "t") (ShapeVar "s"))
+             ),
+             ( "reify-dim",
+               scalar $
+                 piType [DimParam "d"] $
+                   scalar Int
+             ),
+             ( "reify-shape",
+               scalar $
+                 piType [ShapeParam "s"] $
+                   scalar $
+                     sigmaType [DimParam "r"] $
+                       A Int (ShapeDim $ DimVar "r")
              )
            ]
     scalar = mkScalarArrayType
