@@ -209,10 +209,6 @@ intrinsics =
       tFun1 $ \_ ->
         pure $ iFun3 $ \_ _ _ ->
           pure $ vFun1 $ \v -> pure $ valConcat v
-    -- intrinsic "reshape" =
-    --   tFun1 $ \_ ->
-    --     pure $ iFun2 $ \(Right oldShp) (Right newShp) ->
-    --       pure $ vFun1 $ \(ValArray _ vs) -> pure $ assert () $ ValArray newShp vs
     intrinsic "reshape" =
       tFun1 $ \_ ->
         pure $ iFun2 $ \s1 s2 ->
