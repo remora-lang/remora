@@ -98,7 +98,7 @@ withBind (BindVal v mt ve pos) m = do
 withBind (BindFun f params mt body _ pos) m = do
   mt' <- uniquifyMaybeTypeExp mt
   (params', body') <-
-    binds (withPatParam uniquifyTypeExp) params $ \params' -> do
+    bindsNE (withPatParam uniquifyTypeExp) params $ \params' -> do
       body' <- uniquifyExp' body
       pure (params', body')
   withParam f $ \f' ->
@@ -111,7 +111,7 @@ withBind (BindTFun f params mt body _ pos) m =
     withParam f $ \f' ->
       m $ pure $ BindTFun f' atoms mt' body'' NoInfo pos
 withBind (BindIFun f params mt body _ pos) m =
-  binds withISpaceParam params $ \params' -> do
+  bindsNE withISpaceParam params $ \params' -> do
     body' <- uniquifyExp' body
     mt' <- uniquifyMaybeTypeExp mt
     withParam f $ \f' ->

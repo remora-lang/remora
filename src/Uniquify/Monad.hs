@@ -135,7 +135,9 @@ withParam v m = do
     m vname
 
 -- | Bind a source type parameter into a local environment.
-withTypeParam :: (MonadUniquify m) => TypeParam Text -> (TypeParam VName -> m a) -> m a
+withTypeParam ::
+  (MonadUniquify m) =>
+  TypeParam Text -> (TypeParam VName -> m a) -> m a
 withTypeParam (AtomTypeParam v) m = do
   vname <- newVName v
   local
@@ -148,7 +150,9 @@ withTypeParam (AtomTypeParam v) m = do
     $ m (AtomTypeParam vname)
 
 -- | Bind a source-level term type parameter.
-withSourceTypeParam :: (MonadUniquify m) => TypeParamExp Text -> (TypeParam VName -> m a) -> m a
+withSourceTypeParam ::
+  (MonadUniquify m) =>
+  TypeParamExp Text -> (TypeParam VName -> m a) -> m a
 withSourceTypeParam (TEAtomTypeParam v) m = do
   vname <- newVName v
   local
@@ -163,14 +167,22 @@ withSourceTypeParam (TEArrayTypeParam _) _ =
   error "Uniquify.withSourceTypeParam: array type parameter binders not yet desugared"
 
 -- | Bind a list of source term type parameters.
-withSourceTypeParams :: (MonadUniquify m) => [TypeParamExp Text] -> ([TypeParam VName] -> [VName] -> m a) -> m a
-withSourceTypeParams [] k = k [] []
-withSourceTypeParams (TEArrayTypeParam v : ps) k =
-  withArrayTypeParam v $ \et s ->
-    withSourceTypeParams ps $ \atoms shapes -> k (AtomTypeParam et : atoms) (s : shapes)
-withSourceTypeParams (p : ps) k =
-  withSourceTypeParam p $ \p' ->
-    withSourceTypeParams ps $ \atoms shapes -> k (p' : atoms) shapes
+withSourceTypeParams ::
+  (MonadUniquify m) =>
+  NonEmpty (TypeParamExp Text) -> (NonEmpty (TypeParam VName) -> [VName] -> m a) -> m a
+withSourceTypeParams (p :| []) k =
+  withSourceTypeParam1 p $ \a ss -> k (a :| []) ss
+withSourceTypeParams (p :| (q : ps)) k =
+  withSourceTypeParam1 p $ \a ss ->
+    withSourceTypeParams (q :| ps) $ \as sss -> k (NE.cons a as) (ss <> sss)
+
+withSourceTypeParam1 ::
+  (MonadUniquify m) =>
+  TypeParamExp Text -> (TypeParam VName -> [VName] -> m a) -> m a
+withSourceTypeParam1 (TEArrayTypeParam v) k =
+  withArrayTypeParam v $ \et s -> k (AtomTypeParam et) [s]
+withSourceTypeParam1 p k =
+  withSourceTypeParam p $ \p' -> k p' []
 
 -- | Bind a source array type parameter.
 withArrayTypeParam :: (MonadUniquify m) => Text -> (VName -> VName -> m a) -> m a
@@ -189,7 +201,9 @@ withArrayTypeParam v m = do
     $ m et_vname s_vname
 
 -- | Bind a source type parameter expression into a local environment.
-withTypeParamExp :: (MonadUniquify m) => TypeParamExp Text -> (TypeParamExp VName -> m a) -> m a
+withTypeParamExp ::
+  (MonadUniquify m) =>
+  TypeParamExp Text -> (TypeParamExp VName -> m a) -> m a
 withTypeParamExp (TEAtomTypeParam v) m = do
   vname <- newVName v
   local
@@ -215,7 +229,9 @@ withTypeParamExp (TEArrayTypeParam v) m = do
     $ m (TEArrayTypeParam vname)
 
 -- | Bind a source type parameter into a local environment.
-withISpaceParam :: (MonadUniquify m) => ISpaceParam Text -> (ISpaceParam VName -> m a) -> m a
+withISpaceParam ::
+  (MonadUniquify m) =>
+  ISpaceParam Text -> (ISpaceParam VName -> m a) -> m a
 withISpaceParam p m = do
   vname <- newVName $ unISpaceParam p
   local

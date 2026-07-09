@@ -329,7 +329,7 @@ compileExp' e@(App _ _ (Info (t, pframe)) _) = do
       F.Var <$> bind t' (F.BasicOp $ F.SubExp res)
     _ -> error $ "compileExp': unhandled lifted apply with func array:\n" ++ show e
 compileExp' (Let bs e _ _) =
-  mapM_ compileBind (NE.toList bs) >> compileExp' e
+  mapM_ compileBind bs >> compileExp' e
 compileExp' e = error $ "compileExp': unhandled:\n" ++ show e
 
 intDim :: Dim -> Int
@@ -527,7 +527,7 @@ compileBind :: Bind -> FutharkM ()
 compileBind BindType {} = pure ()
 compileBind BindISpace {} = pure ()
 compileBind (BindFun f params _ body (Info ret) _) = do
-  params' <- mapM compileParam params
+  params' <- mapM compileParam $ NE.toList params
   body' <- mkBody $ pure <$> compileExp' body
   ret' <- compileArrayType $ findRet ret
   let mkEntryParam p =

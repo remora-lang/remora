@@ -83,13 +83,16 @@ intBind (BindVal v _ e' _) m = do
   bind v val m
 intBind (BindFun f params _ body _ _) m = do
   env <- ask
-  flip (bind f) m =<< curryBind ValFun (bindEnv . patVar) body env params
+  fun <- curryBind ValFun (bindEnv . patVar) body env $ NE.toList params
+  bind f fun m
 intBind (BindTFun f params _ body _ _) m = do
   env <- ask
-  flip (bind f) m =<< curryBind ValTFun (tbindEnv . unTypeParam) body env params
+  fun <- curryBind ValTFun (tbindEnv . unTypeParam) body env $ NE.toList params
+  bind f fun m
 intBind (BindIFun f params _ body _ _) m = do
   env <- ask
-  flip (bind f) m =<< curryBind ValIFun (ibindEnv . unISpaceParam) body env params
+  fun <- curryBind ValIFun (ibindEnv . unISpaceParam) body env $ NE.toList params
+  bind f fun m
 intBind _ m = m
 
 -- | The interpreter environment.
@@ -323,7 +326,7 @@ intExp expr@(Unbox ep x_e box e _ _) = do
             prettyString expr
           ]
 intExp (Let bs e _ _) =
-  foldr intBind (intExp e) (NE.toList bs)
+  foldr intBind (intExp e) bs
 
 -- | Interpret a 'Dim'. Variables are looked up in the environment; the result
 -- must be non-negative (subtraction may produce negatives in subterms).

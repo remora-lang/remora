@@ -59,6 +59,7 @@ module Syntax
   )
 where
 
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Text (Text)
 import ISpace
@@ -218,21 +219,20 @@ fromArrayType _ = Nothing
 mkScalarArrayType :: AtomType v -> ArrayType v
 mkScalarArrayType = flip A mempty
 
-nestedType :: (a -> ArrayType v -> AtomType v) -> [a] -> ArrayType v -> AtomType v
-nestedType _ [] r = arrayTypeAtom r
-nestedType con [x] r = con x r
-nestedType con (x : xs) r = con x $ mkScalarArrayType $ nestedType con xs r
+nestedType :: (a -> ArrayType v -> AtomType v) -> NonEmpty a -> ArrayType v -> AtomType v
+nestedType con (x :| []) r = con x r
+nestedType con (x :| (y : xs)) r = con x $ mkScalarArrayType $ nestedType con (y :| xs) r
 
-arrowType :: [ArrayType v] -> ArrayType v -> AtomType v
+arrowType :: NonEmpty (ArrayType v) -> ArrayType v -> AtomType v
 arrowType = nestedType (:->)
 
-forallType :: [TypeParam v] -> ArrayType v -> AtomType v
+forallType :: NonEmpty (TypeParam v) -> ArrayType v -> AtomType v
 forallType = nestedType Forall
 
-piType :: [ISpaceParam v] -> ArrayType v -> AtomType v
+piType :: NonEmpty (ISpaceParam v) -> ArrayType v -> AtomType v
 piType = nestedType Pi
 
-sigmaType :: [ISpaceParam v] -> ArrayType v -> AtomType v
+sigmaType :: NonEmpty (ISpaceParam v) -> ArrayType v -> AtomType v
 sigmaType = nestedType Sigma
 
 -- | Get the element type.
@@ -304,9 +304,9 @@ data BindBase tp f v
   = BindVal v (Maybe (TypeExp v)) (ExpBase tp f v) SourcePos
   | BindType (tp v) (TypeExp v) (f (Type v)) SourcePos
   | BindISpace (ISpaceParam v) (ISpace v) SourcePos
-  | BindFun v [PatBase f v] (Maybe (TypeExp v)) (ExpBase tp f v) (f (AtomType v)) SourcePos
-  | BindTFun v [tp v] (Maybe (TypeExp v)) (ExpBase tp f v) (f (AtomType v)) SourcePos
-  | BindIFun v [ISpaceParam v] (Maybe (TypeExp v)) (ExpBase tp f v) (f (AtomType v)) SourcePos
+  | BindFun v (NonEmpty (PatBase f v)) (Maybe (TypeExp v)) (ExpBase tp f v) (f (AtomType v)) SourcePos
+  | BindTFun v (NonEmpty (tp v)) (Maybe (TypeExp v)) (ExpBase tp f v) (f (AtomType v)) SourcePos
+  | BindIFun v (NonEmpty (ISpaceParam v)) (Maybe (TypeExp v)) (ExpBase tp f v) (f (AtomType v)) SourcePos
 
 deriving instance (Show v, Show (tp v)) => Show (BindBase tp NoInfo v)
 
@@ -318,19 +318,19 @@ instance (Show v, Pretty v, Pretty (f (Type v)), Pretty (tp v)) => Pretty (BindB
   pretty (BindFun f params mt body _ _) =
     parens $
       pretty f
-        <+> parens (hsep (map pretty params))
+        <+> parens (hsep (map pretty $ NE.toList params))
         <+> pretty mt
         <+> pretty body
   pretty (BindTFun f params mt body _ _) =
     parens $
       pretty f
-        <+> parens (hsep (map pretty params))
+        <+> parens (hsep (map pretty $ NE.toList params))
         <+> pretty mt
         <+> pretty body
   pretty (BindIFun f params mt body _ _) =
     parens $
       pretty f
-        <+> parens (hsep (map pretty params))
+        <+> parens (hsep (map pretty $ NE.toList params))
         <+> pretty mt
         <+> pretty body
   pretty (BindType tvar t _ _) =

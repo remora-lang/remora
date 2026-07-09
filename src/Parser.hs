@@ -393,16 +393,25 @@ pBind =
           parens $ (,) <$> (lId <* symbol ":") <*> (Just <$> pType)
         ]
 
-    pFun c kw pParams =
-      withNoInfo $ do
-        lKeyword kw
-        (f, params, t) <-
-          parens $
-            (,,) <$> lId <*> pParams <*> optional (symbol ":" *> pType)
-        c f params t <$> pExp
+    funOrVal c f params t body pos =
+      maybe
+        (BindVal f t body pos)
+        (\ps -> c f ps t body NoInfo pos)
+        (NE.nonEmpty params)
+
+    pFun c kw pParams = do
+      lKeyword kw
+      (f, params, t) <-
+        parens $
+          (,,) <$> lId <*> pParams <*> optional (symbol ":" *> pType)
+      body <- pExp
+      pure $ funOrVal c f params t body
     nestFunBind c f ps prevBind pos =
-      let v = Var f NoInfo pos
-       in c f ps Nothing (Let (pure (prevBind pos)) v NoInfo pos) NoInfo pos
+      case NE.nonEmpty ps of
+        Nothing -> prevBind pos
+        Just ps' ->
+          let v = Var f NoInfo pos
+           in c f ps' Nothing ((Let $ pure $ prevBind pos) v NoInfo pos) NoInfo pos
     pAtFnBind = do
       lKeyword "fun"
       (f, mts, mispaces, params, t) <- parens $ do
@@ -414,7 +423,7 @@ pBind =
         t <- optional $ symbol ":" *> pType
         pure (f, mts, mispaces, params, t)
       body <- pExp
-      let funBind = BindFun f params t body NoInfo
+      let funBind = funOrVal BindFun f params t body
           iBind =
             case mispaces of
               Nothing -> funBind

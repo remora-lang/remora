@@ -49,7 +49,10 @@ withDecl (Entry f params mt body _ pos) m = do
       body' <- checkExp' body
       checkAnnot (arrayTypeOf body') mt' pos
       pure (params', body')
-  let t = arrowType (map arrayTypeOf params') (arrayTypeOf body')
+  let t =
+        case NE.nonEmpty $ map arrayTypeOf params' of
+          Nothing -> arrayTypeAtom $ arrayTypeOf body'
+          Just ptys -> ptys `arrowType` arrayTypeOf body'
   withParam' (f, mkScalarArrayType t) $ \f' ->
     m $ Entry f' params' mt' body' (Info t) pos
 
@@ -265,9 +268,9 @@ checkExp' expr@(Unbox ep x_e box body _ pos) = do
               prettyText expr
             ]
 checkExp' (Let bs e _ pos) = do
-  binds withBind (NE.toList bs) $ \bs' -> do
+  bindsNE withBind bs $ \bs' -> do
     e' <- checkExp' e
-    pure $ Let (NE.fromList bs') e' (Info $ arrayTypeOf e') pos
+    pure $ Let bs' e' (Info $ arrayTypeOf e') pos
 
 checkMaybeTypeExp ::
   (MonadCheck m) =>
@@ -312,23 +315,15 @@ withBind (BindVal v mt ve pos) m = do
 withBind (BindFun f params mt body _ pos) m = do
   mt' <- checkMaybeTypeExp mt
   (params', body') <-
-    binds (withPatParam checkTypeExp) params $ \params' -> do
+    bindsNE (withPatParam checkTypeExp) params $ \params' -> do
       body' <- checkExp' body
       checkAnnot (arrayTypeOf body') mt' pos
       pure (params', body')
-  case params' of
-    -- with empty param list, the arrow type does not do the right thing
-    [] ->
-      let bodyType = arrayTypeOf body' in
-      withParam' (f, bodyType) $ \f' ->
-        m $ BindFun f' params' mt' body' (Info $ arrayTypeAtom bodyType) pos
-    _ ->
-      do 
-        let t = arrowType (map arrayTypeOf params') (arrayTypeOf body')
-        withParam' (f, mkScalarArrayType t) $ \f' ->
-            m $ BindFun f' params' mt' body' (Info t) pos
+  let t = fmap arrayTypeOf params' `arrowType` arrayTypeOf body'
+  withParam' (f, mkScalarArrayType t) $ \f' ->
+    m $ BindFun f' params' mt' body' (Info t) pos
 withBind (BindTFun f params mt body _ pos) m =
-  binds withTypeParam params $ \params' -> do
+  bindsNE withTypeParam params $ \params' -> do
     body' <- checkExp' body
     mt' <- checkMaybeTypeExp mt
     let body_t = arrayTypeOf body'
@@ -337,7 +332,7 @@ withBind (BindTFun f params mt body _ pos) m =
     withParam' (f, mkScalarArrayType t) $ \f' ->
       m $ BindTFun f' params' mt' body' (Info t) pos
 withBind (BindIFun f params mt body _ pos) m =
-  binds withISpaceParam params $ \params' -> do
+  bindsNE withISpaceParam params $ \params' -> do
     body' <- checkExp' body
     mt' <- checkMaybeTypeExp mt
     let body_t = arrayTypeOf body'
@@ -414,11 +409,11 @@ checkTypeExp (TEArray t s pos) =
 checkTypeExp (TEArrow t1 t2 pos) =
   TEArrow <$> checkTypeExp t1 <*> checkTypeExp t2 <*> pure pos
 checkTypeExp (TEForall params t pos) =
-  binds withTypeParamExp (NE.toList params) $ \params' ->
-    TEForall (NE.fromList params') <$> checkTypeExp t <*> pure pos
+  bindsNE withTypeParamExp params $ \params' ->
+    TEForall params' <$> checkTypeExp t <*> pure pos
 checkTypeExp (TEPi params t pos) =
-  binds withISpaceParam (NE.toList params) $ \params' ->
-    TEPi (NE.fromList params') <$> checkTypeExp t <*> pure pos
+  bindsNE withISpaceParam params $ \params' ->
+    TEPi params' <$> checkTypeExp t <*> pure pos
 checkTypeExp (TESigma params t pos) =
-  binds withISpaceParam (NE.toList params) $ \params' ->
-    TESigma (NE.fromList params') <$> checkTypeExp t <*> pure pos
+  bindsNE withISpaceParam params $ \params' ->
+    TESigma params' <$> checkTypeExp t <*> pure pos

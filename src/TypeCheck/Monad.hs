@@ -22,12 +22,15 @@ module TypeCheck.Monad
     withType,
     withISpace,
     binds,
+    bindsNE,
   )
 where
 
 import Control.Monad.Error.Class
 import Control.Monad.Reader
 import Control.Monad.Trans.Except
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NE
 import Data.Map (Map)
 import Data.Map qualified as M
 import Data.Set (Set)
@@ -347,3 +350,6 @@ binds bind ps m = binds' ps mempty
     binds' [] cs = m $ reverse cs
     binds' (a : as) cs =
       bind a $ \c -> binds' as (c : cs)
+
+bindsNE :: (a -> (c -> x) -> x) -> NonEmpty a -> (NonEmpty c -> x) -> x
+bindsNE bind ps m = binds bind (NE.toList ps) (m . NE.fromList)

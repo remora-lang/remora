@@ -150,11 +150,11 @@ instance Substitutable v (TypeExp v) where
   substitute s (TEArrow a b pos) =
     TEArrow (substitute s a) (substitute s b) pos
   substitute s (TEForall ps t pos) =
-    TEForall ps (substitute (foldl without s $ map unTypeParamExp $ NE.toList ps) t) pos
+    TEForall ps (substitute (foldl without s $ fmap unTypeParamExp ps) t) pos
   substitute s (TEPi ps t pos) =
-    TEPi ps (substitute (foldl without s $ map unISpaceParam $ NE.toList ps) t) pos
+    TEPi ps (substitute (foldl without s $ fmap unISpaceParam ps) t) pos
   substitute s (TESigma ps t pos) =
-    TESigma ps (substitute (foldl without s $ map unISpaceParam $ NE.toList ps) t) pos
+    TESigma ps (substitute (foldl without s $ fmap unISpaceParam ps) t) pos
 
 instance Substitutable v (PatBase Info v) where
   substitute s (PatId x te t pos) =
@@ -190,10 +190,10 @@ instance Substitutable v (BindBase TypeParam Info v) where
   substitute s (BindFun x pats mte body t pos) =
     BindFun x (substitute s pats) (substitute s mte) (substitute s body) (substitute s t) pos
   substitute s (BindTFun x tps mte body t pos) =
-    let s' = foldl without s $ map unTypeParam tps
+    let s' = foldl without s $ fmap unTypeParam tps
      in BindTFun x tps (substitute s' mte) (substitute s' body) (substitute s t) pos
   substitute s (BindIFun x ips mte body t pos) =
-    let s' = foldl without s $ map unISpaceParam ips
+    let s' = foldl without s $ fmap unISpaceParam ips
      in BindIFun x ips (substitute s' mte) (substitute s' body) (substitute s t) pos
 
 instance Substitutable v (ExpBase TypeParam Info v) where

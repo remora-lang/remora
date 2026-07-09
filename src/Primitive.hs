@@ -6,6 +6,7 @@ module Primitive
   )
 where
 
+import Data.List.NonEmpty qualified as NE
 import Prettyprinter
 import Syntax (ArrayType, AtomType (..), arrowType, mkScalarArrayType)
 
@@ -57,7 +58,7 @@ unOps =
     (Floor, unT Float Int)
   ]
   where
-    unT a r = mkScalarArrayType $ arrowType [mkScalarArrayType a] (mkScalarArrayType r)
+    unT a r = mkScalarArrayType $ mkScalarArrayType a :-> mkScalarArrayType r
 
 data BinOp
   = Add
@@ -178,4 +179,4 @@ binOps =
   where
     binT a r =
       mkScalarArrayType $
-        arrowType [mkScalarArrayType a, mkScalarArrayType a] (mkScalarArrayType r)
+        NE.fromList [mkScalarArrayType a, mkScalarArrayType a] `arrowType` mkScalarArrayType r
