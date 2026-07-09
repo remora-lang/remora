@@ -18,7 +18,6 @@ import Intrinsics qualified
 import Primitive
 import Syntax hiding (Add, Mul, Sub)
 import System.IO.Unsafe (unsafePerformIO)
-import Text.Megaparsec.Char (numberChar)
 import Util
 import VName
 
