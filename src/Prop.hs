@@ -57,7 +57,7 @@ instance HasArrayType Pat where
   arrayTypeOf_ (PatId _ _ (Info t) _) = t
 
 instance HasArrayType (Type VName) where
-  arrayTypeOf_ (AtomType et) = A et mempty
+  arrayTypeOf_ (AtomType et) = et :@ mempty
   arrayTypeOf_ (ArrayType t) = t
 
 scalarTypeOf :: Atom -> AtomType VName
@@ -105,7 +105,7 @@ instance HasShape (AtomBase tp f VName) where
   shapeOf_ _ = mempty
 
 instance HasShape (ArrayType VName) where
-  shapeOf_ (A _ s) = s
+  shapeOf_ (_ :@ s) = s
 
 instance HasShape (Type VName) where
   shapeOf_ (ArrayType t) = shapeOf t
@@ -144,9 +144,9 @@ instance IsType (AtomType VName) where
   atomType = id
 
 instance IsType (ArrayType VName) where
-  normType (A t s) = A (normType t) (normShape s)
+  normType (t :@ s) = normType t :@ normShape s
 
-  A t s ~= A y x =
+  (t :@ s) ~= (y :@ x) =
     (t ~= y) && (s Symbolic.@= x)
 
   atomType = arrayTypeAtom
@@ -173,16 +173,16 @@ infix 4 @=
 
 -- | Unroll a curried function type into its parameter types and return type.
 unrollArrow :: (Ord v) => ArrayType v -> ([ArrayType v], ArrayType v)
-unrollArrow (A (param :-> ret) s)
+unrollArrow ((param :-> ret) :@ s)
   | s @= mempty = first (param :) (unrollArrow ret)
 unrollArrow t = ([], t)
 
 peelArrayType :: (Ord v) => ArrayType v -> ArrayType v
-peelArrayType (A a s) = A a $ peelShape s
+peelArrayType (a :@ s) = a :@ peelShape s
 
 arrayOf :: Type v -> Shape v -> ArrayType v
-arrayOf (AtomType et) s = A et s
-arrayOf (ArrayType (A et s')) s = A et (s <> s')
+arrayOf (AtomType et) s = et :@ s
+arrayOf (ArrayType (et :@ s')) s = et :@ (s <> s')
 
 findRet :: (Ord v) => AtomType v -> ArrayType v
 findRet = snd . unrollArrow . mkScalarArrayType
@@ -255,6 +255,6 @@ convertArrayTypeExp (TEArray t s _) = do
   t' <- convertArrayTypeExp t
   pure $ arrayOf (ArrayType t') s
 convertArrayTypeExp (TEArrayVar v _) =
-  pure $ A (AtomTypeVar v) (ShapeVar v)
+  pure $ AtomTypeVar v :@ ShapeVar v
 convertArrayTypeExp t =
-  A <$> convertAtomTypeExp t <*> pure mempty
+  (:@) <$> convertAtomTypeExp t <*> pure mempty

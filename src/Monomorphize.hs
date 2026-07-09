@@ -114,7 +114,7 @@ addBind b@(BindVal v _ e _)
 addBind b = pure $ Just b
 
 asPoly :: Exp -> Maybe Poly
-asPoly (Array s as (Info (A et _)) _)
+asPoly (Array s as (Info (et :@ _)) _)
   | isPolymorphic et =
       Just $ PolyArray s (atomToPoly <$> as)
 asPoly _ = Nothing
@@ -198,7 +198,7 @@ specialize (PolyFun mv body t) arg
           )
         (Pi ip r, Right is) -> (substISpaceVar (unISpaceParam ip) is, r)
         _ -> error "specialize: abstraction/argument kind mismatch"
-    A et s = substitute subst rt
+    et :@ s = substitute subst rt
     body' = substitute subst body
 specialize (PolyArray s ps) arg = do
   results <- mapM (`specialize` arg) ps
@@ -209,8 +209,8 @@ specialize (PolyArray s ps) arg = do
       _ -> error "specialize: mix of argument types"
   where
     frame es@(e :| _) =
-      let A et sh = arrayTypeOf e
-       in flattenExp $ Frame s es (Info $ A et $ intsToShape s <> sh) (posOf e)
+      let et :@ sh = arrayTypeOf e
+       in flattenExp $ Frame s es (Info $ et :@ (intsToShape s <> sh)) (posOf e)
 
 atomToPoly :: Atom -> Poly
 atomToPoly (TLambda _ body (Info t) _) = PolyFun Nothing body t

@@ -104,7 +104,7 @@ checkExp' expr@(Array ns as _ pos) = do
     throwErrorPos pos $
       "Array shape doesn't match number of elements: " <> prettyText expr
   let et = scalarTypeOf a'
-  pure $ Array ns as' (Info $ A et (intsToShape ns)) pos
+  pure $ Array ns as' (Info $ et :@ intsToShape ns) pos
 checkExp' expr@(EmptyArray ns te _ pos) = do
   te' <- checkTypeExp te
   unless (product ns == 0) $
@@ -123,8 +123,8 @@ checkExp' expr@(Frame ns es _ pos) = do
   unless (product ns == length es') $
     throwErrorPos pos $
       "Frame shape doesn't match number of elements: " <> prettyText expr
-  let A et s = arrayTypeOf e'
-  pure $ flattenExp $ Frame ns es' (Info $ A et (intsToShape ns <> s)) pos
+  let et :@ s = arrayTypeOf e'
+  pure $ flattenExp $ Frame ns es' (Info $ et :@ (intsToShape ns <> s)) pos
 checkExp' expr@(EmptyFrame ns te _ pos) = do
   te' <- checkTypeExp te
   unless (product ns == 0) $
@@ -138,7 +138,7 @@ checkExp' expr@(App f arg _ pos) = do
   f' <- checkExp' f
   arg' <- checkExp' arg
   case arrayifyType $ typeOf f' of
-    ArrayType (A (pt :-> ret) frame_f) -> do
+    ArrayType ((pt :-> ret) :@ frame_f) -> do
       let pt_elem = arrayTypeAtom pt
           arg_elem = elemType $ typeOf arg'
       unless (pt_elem ~= arg_elem) $
@@ -170,7 +170,7 @@ checkExp' expr@(App f arg _ pos) = do
                 prettyText expr
               ]
         Just principal ->
-          let ret' = A (arrayTypeAtom ret) (principal <> arrayTypeShape ret)
+          let ret' = arrayTypeAtom ret :@ (principal <> arrayTypeShape ret)
            in pure $ App f' arg' (Info (ret', principal)) pos
     t ->
       throwErrorPos pos $
@@ -183,7 +183,7 @@ checkExp' expr@(TApp f t _ pos) = do
   f' <- checkExp' f
   t' <- checkTypeExp t
   case typeOf f' of
-    ArrayType (A (Forall pt r) frame_f) -> do
+    ArrayType (Forall pt r :@ frame_f) -> do
       atom_subst <- case (pt, convertTypeExp t') of
         (AtomTypeParam v, Just (AtomType et)) ->
           pure (M.singleton v et :: M.Map VName (AtomType VName))
@@ -196,8 +196,8 @@ checkExp' expr@(TApp f t _ pos) = do
                 "in",
                 prettyText expr
               ]
-      let A rt rshape = substitute (substAtomVars atom_subst) r
-          r' = A rt (frame_f <> rshape)
+      let rt :@ rshape = substitute (substAtomVars atom_subst) r
+          r' = rt :@ (frame_f <> rshape)
       pure $ TApp f' t' (Info r') pos
     _ ->
       throwErrorPos pos $
@@ -209,7 +209,7 @@ checkExp' expr@(IApp f i _ pos) = do
   f' <- checkExp' f
   i' <- mapISpace (fmap Dim . checkDim) (fmap Shape . checkShape) i
   case typeOf f' of
-    ArrayType (A (Pi pt r) frame_f) -> do
+    ArrayType (Pi pt r :@ frame_f) -> do
       let check_arg (ShapeParam v) (Dim d) =
             pure (ShapeParam v, Shape $ ShapeDim d)
           check_arg (ShapeParam v) (Shape s) =
@@ -227,8 +227,8 @@ checkExp' expr@(IApp f i _ pos) = do
                   prettyText expr
                 ]
       (pt', i'') <- check_arg pt i'
-      let A rt shape = substitute (substISpaceVar (unISpaceParam pt') i'') r
-          r' = A rt (frame_f <> shape)
+      let rt :@ shape = substitute (substISpaceVar (unISpaceParam pt') i'') r
+          r' = rt :@ (frame_f <> shape)
       pure $ IApp f' i'' (Info r') pos
     _ ->
       throwErrorPos pos $
@@ -241,19 +241,19 @@ checkExp' expr@(Unbox ep x_e box body _ pos) = do
     let i'' = unISpaceParam ep'
     box' <- checkExp' box
     case typeOf box' of
-      ArrayType (A (Sigma ps t) frame_f) -> do
+      ArrayType (Sigma ps t :@ frame_f) -> do
         let t' = substitute (renameVar (unISpaceParam ps) i'') t
         withParam' (x_e, t') $ \x_e' -> do
           body' <- checkExp' body
           case typeOf body' of
-            ArrayType (A t_b shape_b) ->
+            ArrayType (t_b :@ shape_b) ->
               pure $
                 Unbox
                   ep'
                   x_e'
                   box'
                   body'
-                  (Info $ A t_b (frame_f <> shape_b))
+                  (Info $ t_b :@ (frame_f <> shape_b))
                   pos
             _ ->
               throwErrorPos pos $

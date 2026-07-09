@@ -163,6 +163,8 @@ data AtomType v
     Sigma (ISpaceParam v) (ArrayType v)
   deriving (Show, Eq, Ord)
 
+infixr 4 :->
+
 instance (Show v, Pretty v) => Pretty (AtomType v) where
   pretty (AtomTypeVar x) = "&" <> pretty x
   pretty Bool = "Bool"
@@ -186,16 +188,18 @@ instance (Show v, Pretty v) => Pretty (AtomType v) where
         <+> pretty x
         <+> pretty t
 
--- | An array type literal consisting of an atom type and a shape.
+-- | An array type.
 data ArrayType v
-  = A
+  = (:@)
   { arrayTypeAtom :: AtomType v,
     arrayTypeShape :: Shape v
   }
   deriving (Show, Eq, Ord)
 
+infix 5 :@
+
 instance (Show v, Pretty v) => Pretty (ArrayType v) where
-  pretty (A t s) = parens $ "A" <+> pretty t <+> pretty s
+  pretty (t :@ s) = brackets $ pretty t <+> pretty s
 
 -- | Types.
 data Type v
@@ -217,7 +221,7 @@ fromArrayType _ = Nothing
 
 -- | Make a scalar array.
 mkScalarArrayType :: AtomType v -> ArrayType v
-mkScalarArrayType = flip A mempty
+mkScalarArrayType = flip (:@) mempty
 
 nestedType :: (a -> ArrayType v -> AtomType v) -> NonEmpty a -> ArrayType v -> AtomType v
 nestedType con (x :| []) r = con x r
@@ -238,7 +242,7 @@ sigmaType = nestedType Sigma
 -- | Get the element type.
 elemType :: Type v -> AtomType v
 elemType (AtomType t) = t
-elemType (ArrayType (A t _)) = t
+elemType (ArrayType (t :@ _)) = t
 
 -- | Base values.
 data Base
@@ -477,11 +481,11 @@ flattenExp (Frame shape es t pos) =
 flattenExp e = e
 
 arrayifyType :: Type VName -> Type VName
-arrayifyType (AtomType t) = ArrayType $ A t mempty
+arrayifyType (AtomType t) = ArrayType $ t :@ mempty
 arrayifyType t@ArrayType {} = t
 
 arrayTypeView :: Type v -> ((AtomType v, Shape v) -> a) -> a
-arrayTypeView (ArrayType (A t s)) m = m (t, s)
+arrayTypeView (ArrayType (t :@ s)) m = m (t, s)
 arrayTypeView (AtomType t) m = m (t, mempty)
 
 instance Pretty Pos where

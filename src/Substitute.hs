@@ -114,7 +114,7 @@ instance Substitutable v (AtomType v) where
       substitute (s `without` unISpaceParam p) t
 
 instance Substitutable v (ArrayType v) where
-  substitute s (A t shape) = A (substitute s t) (substitute s shape)
+  substitute s (t :@ shape) = substitute s t :@ substitute s shape
 
 instance Substitutable v (Type v) where
   substitute s (AtomType t) = AtomType $ substitute s t

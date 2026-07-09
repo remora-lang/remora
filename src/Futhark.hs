@@ -112,7 +112,7 @@ compileAtomType Float = pure $ F.Prim $ F.FloatType F.Float32
 compileAtomType t = error $ "compileAtomType: unhandled:\n" ++ show t
 
 compileArrayType :: ArrayType -> FutharkM F.Type
-compileArrayType (A t shape) = do
+compileArrayType (t :@ shape) = do
   t' <- compileAtomType t
   shape' <- compileShape shape
   pure $ F.arrayOfShape t' shape'
@@ -250,12 +250,12 @@ int2Const64 n = F.Constant $ F.IntValue $ F.intValue F.Int64 n
 
 compileExp' :: Exp -> FutharkM F.SubExp
 compileExp' (Array [] (x NE.:| []) _ _) = compileAtom x
-compileExp' e@(Array [_] elems (Info (A elem_t _)) _) = do
+compileExp' e@(Array [_] elems (Info (elem_t :@ _)) _) = do
   elems' <- NE.toList <$> mapM compileAtom elems
   t <- compileType $ typeOf e
   elem_t' <- compileAtomType elem_t
   F.Var <$> bind t (F.BasicOp $ F.ArrayLit elems' elem_t')
-compileExp' e@(Frame ds es (Info (A _ _)) _) = do
+compileExp' e@(Frame ds es (Info (_ :@ _)) _) = do
   es' <- NE.toList <$> mapM compileExp' es
   nestArrayLits ds es' (arrayTypeOf e)
   where
@@ -285,11 +285,11 @@ compileExp' (Var v _ _)
   where
     compileIota :: Int -> FutharkM F.SubExp
     compileIota n = do
-      t <- compileArrayType $ A Int (ShapeDim $ DimN n)
+      t <- compileArrayType $ Int :@ ShapeDim (DimN n)
       F.Var <$> bind t (F.BasicOp $ F.Iota (int2Const64 n) (int2Const 0) (int2Const 1) F.Int32)
     compileRealWorld :: [Int] -> FutharkM F.SubExp
     compileRealWorld ds = do
-      t <- compileArrayType $ A Float $ Concat $ map (ShapeDim . DimN) ds
+      t <- compileArrayType $ Float :@ Concat (map (ShapeDim . DimN) ds)
       F.Var <$> bind t (F.BasicOp $ F.Replicate (F.Shape $ map int2Const64 ds) (F.Constant $ F.FloatValue $ F.floatValue F.Float32 (37 :: Double)))
 compileExp' (Var v _ _) =
   let v' = F.VName (F.nameFromText (varName v)) (getTag (varTag v))
@@ -300,7 +300,7 @@ compileExp' (App (App (Var v _ _) op _ _) arg (Info (t, pframe)) _)
     isScalar op = do
       let ds = intShape pframe
       case arrayTypeOf op of
-        A (_ :-> A (argParam :-> _) _) _ -> do
+        (_ :-> (argParam :-> _) :@ _) :@ _ -> do
           arg' <- mkArg argParam arg
           t' <- compileArrayType t
           res <-
@@ -455,7 +455,7 @@ compileApp fName [arr, idx] t
       t_idx <- compileArrayType $ argType idx
       arr' <- bind t_arr $ F.BasicOp $ F.SubExp $ argSExp arr
       idx' <- bind t_idx $ F.BasicOp $ F.SubExp $ argSExp idx
-      singleIdxType <- compileArrayType $ A Int (Concat [])
+      singleIdxType <- compileArrayType $ Int :@ Concat []
       let singleIdxType64 = F.arrayOfShape (F.Prim $ F.IntType F.Int64) (F.Shape [])
       i <- F.Var <$> bind singleIdxType (F.BasicOp $ F.Index idx' $ F.Slice [F.DimFix $ int2Const64 0])
       j <- F.Var <$> bind singleIdxType (F.BasicOp $ F.Index idx' $ F.Slice [F.DimFix $ int2Const64 1])

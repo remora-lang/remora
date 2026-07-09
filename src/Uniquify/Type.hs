@@ -31,8 +31,8 @@ uniquifyType = uniquifyType'
     uniquifyType' (AtomType t) = AtomType <$> uniquifyAtomType t
 
 uniquifyArrayType :: (MonadUniquify m) => ArrayType Text -> m (ArrayType VName)
-uniquifyArrayType (A t shape) =
-  A <$> uniquifyAtomType t <*> uniquifyShape shape
+uniquifyArrayType (t :@ shape) =
+  (:@) <$> uniquifyAtomType t <*> uniquifyShape shape
 
 uniquifyAtomType :: (MonadUniquify m) => AtomType Text -> m (AtomType VName)
 uniquifyAtomType (AtomTypeVar v) =
