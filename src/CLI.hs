@@ -3,6 +3,8 @@ module CLI (main) where
 import CLI.REPL qualified
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (ExceptT (..), except, runExceptT)
+import Data.Aeson.Encode.Pretty (encodePretty)
+import Data.ByteString.Lazy qualified as B
 import Data.Maybe
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -11,6 +13,7 @@ import Imports qualified
 import Parser qualified
 import Pass (runPassIO)
 import Pipeline qualified
+import Serializer ()
 import Syntax
 import System.Console.CmdArgs hiding (args)
 import System.Console.CmdArgs qualified as CmdArgs
@@ -39,7 +42,8 @@ data RemoraMode
       }
   | Parse
       { file :: Maybe FilePath,
-        expr :: Maybe String
+        expr :: Maybe String,
+        serialize :: Maybe FilePath
       }
   | Dev
       { file :: Maybe FilePath,
@@ -53,7 +57,8 @@ parse :: RemoraMode
 parse =
   Parse
     { file = Nothing &= help "Parse the passed file.",
-      expr = Nothing &= help "Parse an expression passed as an argument."
+      expr = Nothing &= help "Parse an expression passed as an argument.",
+      serialize = Nothing &= help "Encode the parsed input as JSON to passed file."
     }
     &= details
       [ "Parse a remora program or expression.",
@@ -61,7 +66,9 @@ parse =
         "Expressions may be passed directly as an argument using the -e flag, e.g.:",
         "> remora parse -e \"[[1 2] [3 4]]\"",
         "",
-        "If neither -f nor -e is passed, will read input from stdin."
+        "If neither -f nor -e is passed, will read input from stdin.",
+        "",
+        "Parsed input may be encoded as JSON to file using the -s flag."
       ]
 
 interpret :: RemoraMode
@@ -164,8 +171,9 @@ main = do
                 backend
                 (takeFileName $ dropExtension $ sourceName mfile)
                 ir
-    run (Parse mfile mexpr) = do
+    run (Parse mfile mexpr mjsonfile) = do
       input <- parseInput mfile mexpr
+      liftIO $ serializeAST mjsonfile input
       liftIO $ T.putStrLn $ either prettyText prettyText input
 
     parseInput ::
@@ -179,6 +187,13 @@ main = do
       Right
         <$> ExceptT
           (runPassIO $ Imports.resolveImports (sourceName mfile) input)
+
+    serializeAST ::
+      Maybe FilePath ->
+      Either UncheckedExp UncheckedProg ->
+      IO ()
+    serializeAST Nothing _ = pure ()
+    serializeAST (Just jsonFile) input = B.writeFile jsonFile (either encodePretty encodePretty input)
 
     sourceName :: Maybe FilePath -> FilePath
     sourceName = fromMaybe "<cli>"
