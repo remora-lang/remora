@@ -1,112 +1,114 @@
-(let ((fun (times (x [Float 2]) (y [Float 2]): [Float 2])
-        [(@reduce (Float) (1 []) f.- (f.* x y))
-         (@reduce (Float) (1 []) f.+ (f.* x (@reverse (Float) (2 []) y)))])
-      (val ws [
-           [1.0  0.0]
-           [0.9238795325112867  0.3826834323650898]
-           [0.7071067811865476  0.7071067811865475]
-           [0.38268343236508984  0.9238795325112867]
-           [0.0  1.0]
-           [-0.3826834323650897  0.9238795325112867]
-           [-0.7071067811865475  0.7071067811865476]
-           [-0.9238795325112867  0.3826834323650899]
-           [-1.0  0.0]
-           [-0.9238795325112868  -0.38268343236508967]
-           [-0.7071067811865477  -0.7071067811865475]
-           [-0.38268343236509034  -0.9238795325112865]
-           [0.0  -1.0]
-           [0.38268343236509  -0.9238795325112866]
-           [0.7071067811865474  -0.7071067811865477]
-           [0.9238795325112865  -0.3826834323650904]
-           ])
-      (fun (@fft1 (&t) ($n) (v [Float 1 2]): [Float 1 2])
-        v)
-      (fun (@fft2 (&t) ($n) (v [Float 2 2]): [Float 2 2])
-        (let ((val odds (@index2d (Float) (2 2) v
-                                  ((fn ((x [Int])) [[(+ (* 2 x) 1) 0] [(+ (* 2 x) 1) 1]])
-                                   (i-app iota/static [1]))))
-              (val evens (@index2d (Float) (2 2) v
-                                   ((fn ((x [Int])) [[(* 2 x) 0] [(* 2 x) 1]])
+(entry (main)
+  (let ((fun (times (x [Float 2]) (y [Float 2]): [Float 2])
+          [(@reduce (Float) (1 []) f.- (f.* x y))
+          (@reduce (Float) (1 []) f.+ (f.* x (@reverse (Float) (2 []) y)))])
+        (val ws [
+            [1.0  0.0]
+            [0.9238795325112867  0.3826834323650898]
+            [0.7071067811865476  0.7071067811865475]
+            [0.38268343236508984  0.9238795325112867]
+            [0.0  1.0]
+            [-0.3826834323650897  0.9238795325112867]
+            [-0.7071067811865475  0.7071067811865476]
+            [-0.9238795325112867  0.3826834323650899]
+            [-1.0  0.0]
+            [-0.9238795325112868  -0.38268343236508967]
+            [-0.7071067811865477  -0.7071067811865475]
+            [-0.38268343236509034  -0.9238795325112865]
+            [0.0  -1.0]
+            [0.38268343236509  -0.9238795325112866]
+            [0.7071067811865474  -0.7071067811865477]
+            [0.9238795325112865  -0.3826834323650904]
+            ])
+        (fun (@fft1 (&t) ($n) (v [Float 1 2]): [Float 1 2])
+          v)
+        (fun (@fft2 (&t) ($n) (v [Float 2 2]): [Float 2 2])
+          (let ((val odds (@index2d (Float) (2 2) v
+                                    ((fn ((x [Int])) [[(+ (* 2 x) 1) 0] [(+ (* 2 x) 1) 1]])
                                     (i-app iota/static [1]))))
-              (val fftodds (@fft1 (Float) (1) odds))
-              (val fftevens (@fft1 (Float) (1) evens))
-              (val omegas (@index2d (Float) (16 2)
-                                    ws
-                                    ((fn ((x [Int])) [[(* 8 x) 0] [(* 8 x) 1]])
-                                     (i-app iota/static [1]))))
-              )
-          (@append (Float) (1 1 [2])
-                   (f.+ fftevens (times omegas fftodds))
-                   (f.- fftevens (times omegas fftodds))
-                   )
-          )
-        )
-      (fun (@fft4 (&t) ($n) (v [Float 4 2]): [Float 4 2])
-        (let ((val odds (@index2d (Float) (4 2) v
-                                  ((fn ((x [Int])) [[(+ (* 2 x) 1) 0] [(+ (* 2 x) 1) 1]])
-                                   (i-app iota/static [2]))))
-              (val evens (@index2d (Float) (4 2) v
-                                   ((fn ((x [Int])) [[(* 2 x) 0] [(* 2 x) 1]])
-                                    (i-app iota/static [2]))))
-              (val fftodds (@fft2 (Float) (2) odds))
-              (val fftevens (@fft2 (Float) (2) evens))
-              (val omegas (@index2d (Float) (16 2)
-                                    ws
-                                    ((fn ((x [Int])) [[(* 4 x) 0] [(* 4 x) 1]])
-                                     (i-app iota/static [2]))))
-              )
-          (@append (Float) (2 2 [2])
-                   (f.+ fftevens (times omegas fftodds))
-                   (f.- fftevens (times omegas fftodds))
-                   )
-          )
-        )
-      (fun (@fft8 (&t) ($n) (v [Float 8 2]): [Float 8 2])
-        (let ((val odds (@index2d (Float) (8 2) v
-                                  ((fn ((x [Int])) [[(+ (* 2 x) 1) 0] [(+ (* 2 x) 1) 1]])
-                                   (i-app iota/static [4]))))
-              (val evens (@index2d (Float) (8 2) v
-                                   ((fn ((x [Int])) [[(* 2 x) 0] [(* 2 x) 1]])
-                                    (i-app iota/static [4]))))
-              (val fftodds (@fft4 (Float) (4) odds))
-              (val fftevens (@fft4 (Float) (4) evens))
-              (val omegas (@index2d (Float) (16 2)
-                                    ws
+                (val evens (@index2d (Float) (2 2) v
                                     ((fn ((x [Int])) [[(* 2 x) 0] [(* 2 x) 1]])
-                                     (i-app iota/static [4]))))
-              )
-          (@append (Float) (4 4 [2])
-                   (f.+ fftevens (times omegas fftodds))
-                   (f.- fftevens (times omegas fftodds))
-                   )
+                                      (i-app iota/static [1]))))
+                (val fftodds (@fft1 (Float) (1) odds))
+                (val fftevens (@fft1 (Float) (1) evens))
+                (val omegas (@index2d (Float) (16 2)
+                                      ws
+                                      ((fn ((x [Int])) [[(* 8 x) 0] [(* 8 x) 1]])
+                                      (i-app iota/static [1]))))
+                )
+            (@append (Float) (1 1 [2])
+                    (f.+ fftevens (times omegas fftodds))
+                    (f.- fftevens (times omegas fftodds))
+                    )
+            )
           )
-        )
-      (fun (@fft16 (&t) ($n) (v [Float 16 2]): [Float 16 2])
-        (let ((val odds (@index2d (Float) (16 2) v
-                                  ((fn ((x [Int])) [[(+ (* 2 x) 1) 0] [(+ (* 2 x) 1) 1]])
-                                   (i-app iota/static [8]))))
-              (val evens (@index2d (Float) (16 2) v
-                                   ((fn ((x [Int])) [[(* 2 x) 0] [(* 2 x) 1]])
+        (fun (@fft4 (&t) ($n) (v [Float 4 2]): [Float 4 2])
+          (let ((val odds (@index2d (Float) (4 2) v
+                                    ((fn ((x [Int])) [[(+ (* 2 x) 1) 0] [(+ (* 2 x) 1) 1]])
+                                    (i-app iota/static [2]))))
+                (val evens (@index2d (Float) (4 2) v
+                                    ((fn ((x [Int])) [[(* 2 x) 0] [(* 2 x) 1]])
+                                      (i-app iota/static [2]))))
+                (val fftodds (@fft2 (Float) (2) odds))
+                (val fftevens (@fft2 (Float) (2) evens))
+                (val omegas (@index2d (Float) (16 2)
+                                      ws
+                                      ((fn ((x [Int])) [[(* 4 x) 0] [(* 4 x) 1]])
+                                      (i-app iota/static [2]))))
+                )
+            (@append (Float) (2 2 [2])
+                    (f.+ fftevens (times omegas fftodds))
+                    (f.- fftevens (times omegas fftodds))
+                    )
+            )
+          )
+        (fun (@fft8 (&t) ($n) (v [Float 8 2]): [Float 8 2])
+          (let ((val odds (@index2d (Float) (8 2) v
+                                    ((fn ((x [Int])) [[(+ (* 2 x) 1) 0] [(+ (* 2 x) 1) 1]])
+                                    (i-app iota/static [4]))))
+                (val evens (@index2d (Float) (8 2) v
+                                    ((fn ((x [Int])) [[(* 2 x) 0] [(* 2 x) 1]])
+                                      (i-app iota/static [4]))))
+                (val fftodds (@fft4 (Float) (4) odds))
+                (val fftevens (@fft4 (Float) (4) evens))
+                (val omegas (@index2d (Float) (16 2)
+                                      ws
+                                      ((fn ((x [Int])) [[(* 2 x) 0] [(* 2 x) 1]])
+                                      (i-app iota/static [4]))))
+                )
+            (@append (Float) (4 4 [2])
+                    (f.+ fftevens (times omegas fftodds))
+                    (f.- fftevens (times omegas fftodds))
+                    )
+            )
+          )
+        (fun (@fft16 (&t) ($n) (v [Float 16 2]): [Float 16 2])
+          (let ((val odds (@index2d (Float) (16 2) v
+                                    ((fn ((x [Int])) [[(+ (* 2 x) 1) 0] [(+ (* 2 x) 1) 1]])
                                     (i-app iota/static [8]))))
-              (val fftodds (@fft8 (Float) (8) odds))
-              (val fftevens (@fft8 (Float) (8) evens))
-              (val omegas (@index2d (Float) (16 2)
-                                    ws
-                                    ((fn ((x [Int])) [[(* 1 x) 0] [(* 1 x) 1]])
-                                     (i-app iota/static [8]))))
-              )
-          (@append (Float) (8 8 [2])
-                   (f.+ fftevens (times omegas fftodds))
-                   (f.- fftevens (times omegas fftodds)))
+                (val evens (@index2d (Float) (16 2) v
+                                    ((fn ((x [Int])) [[(* 2 x) 0] [(* 2 x) 1]])
+                                      (i-app iota/static [8]))))
+                (val fftodds (@fft8 (Float) (8) odds))
+                (val fftevens (@fft8 (Float) (8) evens))
+                (val omegas (@index2d (Float) (16 2)
+                                      ws
+                                      ((fn ((x [Int])) [[(* 1 x) 0] [(* 1 x) 1]])
+                                      (i-app iota/static [8]))))
+                )
+            (@append (Float) (8 8 [2])
+                    (f.+ fftevens (times omegas fftodds))
+                    (f.- fftevens (times omegas fftodds)))
+            )
           )
-        )
-      (val xs [
-           -2.0 -1.5 -1.0 -0.5
-            0.0  0.5  1.0  1.5
-            2.0  1.5  1.0  0.5
-            0.0 -0.5 -1.0 -1.5])
+        (val xs [
+            -2.0 -1.5 -1.0 -0.5
+              0.0  0.5  1.0  1.5
+              2.0  1.5  1.0  0.5
+              0.0 -0.5 -1.0 -1.5])
 
-      )
-  (@fft16 (Float) (16) ((fn ((x [Float])) [x 0.0]) xs))
-  )
-;;
+        )
+    (@fft16 (Float) (16) ((fn ((x [Float])) [x 0.0]) xs))
+    )
+  ;;
+)
