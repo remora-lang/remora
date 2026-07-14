@@ -1,0 +1,9 @@
+;; expected: 9
+(entry (main)
+(let (
+  (val (a : Int) 2)
+  (val (b : Int) 3)
+)
+  ((fn ((x Int)) (+ (+ x a) b)) 4)
+)
+)

@@ -28,6 +28,8 @@ module Syntax
     UniquePat,
     patVar,
     unpackPat,
+    bindName,
+    declName,
     AtomBase (..),
     Atom,
     UncheckedAtom,
@@ -51,6 +53,7 @@ module Syntax
     UniqueProg,
     HasSrcPos (..),
     mkScalar,
+    asScalar,
     arrayElems,
     frameElems,
     flattenExp,
@@ -199,6 +202,7 @@ data ArrayType v
 infix 5 :@
 
 instance (Show v, Pretty v) => Pretty (ArrayType v) where
+  pretty (t :@ Concat []) = pretty t -- fix
   pretty (t :@ s) = brackets $ pretty t <+> pretty s
 
 -- | Types.
@@ -359,6 +363,14 @@ instance
   pretty (BindISpace ivar ispace _) =
     parens $ pretty ivar <+> pretty ispace
 
+bindName :: BindBase te tp f v -> Maybe v
+bindName (BindVal v _ _ _) = Just v
+bindName (BindFun v _ _ _ _ _) = Just v
+bindName (BindTFun v _ _ _ _ _) = Just v
+bindName (BindIFun v _ _ _ _ _) = Just v
+bindName BindType {} = Nothing
+bindName BindISpace {} = Nothing
+
 -- | Expressions.
 data ExpBase te tp f v
   = -- | Variables.
@@ -467,6 +479,10 @@ instance
         <+> pretty mt
         <+> pretty body
 
+declName :: DeclBase te tp f v -> Maybe v
+declName (Def b) = bindName b
+declName (Entry v _ _ _ _ _) = Just v
+
 data Import = Import FilePath SourcePos
   deriving (Show, Eq, Ord)
 
@@ -495,6 +511,11 @@ instance
 -- | Make a scalar from an 'Atom'.
 mkScalar :: AtomBase te tp NoInfo v -> ExpBase te tp NoInfo v
 mkScalar a = Array [] (pure a) NoInfo $ posOf a
+
+-- | Get the 'Atom' out of a scalar 'Array' literal.
+asScalar :: ExpBase te tp f v -> Maybe (AtomBase te tp f v)
+asScalar (Array [] (a NE.:| []) _ _) = Just a
+asScalar _ = Nothing
 
 -- | Gets the 'Atom's of an 'Array' literal.
 arrayElems :: ExpBase te tp f v -> Maybe (NE.NonEmpty (AtomBase te tp f v))

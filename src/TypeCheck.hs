@@ -238,29 +238,28 @@ checkExp' expr@(IApp f i _ pos) = do
           ]
 checkExp' expr@(Unbox ep x_e box body _ pos) = do
   withISpaceParam ep $ \ep' -> do
-    let i'' = unISpaceParam ep'
     box' <- checkExp' box
     case typeOf box' of
-      ArrayType (Sigma ps t :@ frame_f) -> do
-        let t' = substitute (renameVar (unISpaceParam ps) i'') t
-        withParam' (x_e, t') $ \x_e' -> do
-          body' <- checkExp' body
-          case typeOf body' of
-            ArrayType (t_b :@ shape_b) ->
-              pure $
-                Unbox
-                  ep'
-                  x_e'
-                  box'
-                  body'
-                  (Info $ t_b :@ (frame_f <> shape_b))
-                  pos
-            _ ->
-              throwErrorPos pos $
-                T.unlines
-                  [ "Wrong body type for unbox:",
-                    prettyText expr
-                  ]
+      ArrayType boxt
+        | Just t' <- unboxType ep' boxt ->
+            withParam' (x_e, t') $ \x_e' -> do
+              body' <- checkExp' body
+              case typeOf body' of
+                ArrayType (t_b :@ shape_b) ->
+                  pure $
+                    Unbox
+                      ep'
+                      x_e'
+                      box'
+                      body'
+                      (Info $ t_b :@ (arrayTypeShape boxt <> shape_b))
+                      pos
+                _ ->
+                  throwErrorPos pos $
+                    T.unlines
+                      [ "Wrong body type for unbox:",
+                        prettyText expr
+                      ]
       _ ->
         throwErrorPos pos $
           T.unlines

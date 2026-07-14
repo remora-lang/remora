@@ -20,7 +20,17 @@ where
 
 import Data.List qualified as L
 import Prettyprinter
-import Syntax hiding (Atom, AtomType, Exp, ISpace, ISpaceParam, Shape, Type, TypeParam)
+import Syntax hiding
+  ( Atom,
+    AtomType,
+    Exp,
+    ISpace,
+    ISpaceParam,
+    Shape,
+    Type,
+    TypeParam,
+    asScalar,
+  )
 import Syntax qualified
 import Util
 import VName

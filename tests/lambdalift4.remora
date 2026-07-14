@@ -1,0 +1,8 @@
+;; expected: [11 12 13]
+(entry (main)
+(let (
+  (val (y : Int) 10)
+)
+  ((fn ((x Int)) (+ x y)) [1 2 3])
+)
+)

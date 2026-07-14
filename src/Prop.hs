@@ -21,6 +21,11 @@ module Prop
     arrayOf,
     findRet,
     unrollApp,
+    mkLambda,
+    mkFunBind,
+    mkFunBindM,
+    mkApp,
+    unboxType,
   )
 where
 
@@ -28,11 +33,13 @@ import Control.Applicative
 import Data.Bifunctor (first, second)
 import Data.List.NonEmpty qualified as NE
 import Data.Maybe
+import Data.Text (Text)
 import ISpace
 import Prettyprinter
 import Substitute
 import Symbolic qualified
 import Syntax
+import Util
 import VName
 
 class HasArrayType x where
@@ -73,6 +80,45 @@ baseTypeOf :: Base -> AtomType VName
 baseTypeOf BoolVal {} = Bool
 baseTypeOf IntVal {} = Int
 baseTypeOf FloatVal {} = Float
+
+mkLambda :: NE.NonEmpty Pat -> Exp -> Atom
+mkLambda (p NE.:| ps) body =
+  case ps of
+    [] -> lam p body
+    (q : qs) -> lam p $ scalarize $ mkLambda (q NE.:| qs) body
+  where
+    lam pat b =
+      Lambda pat b (Info $ arrayTypeOf pat :-> arrayTypeOf b) (posOf pat)
+    scalarize a =
+      Array mempty (pure a) (Info $ mkScalarArrayType $ scalarTypeOf a) (posOf a)
+
+mkFunBind :: VName -> NE.NonEmpty Pat -> Exp -> Bind
+mkFunBind name params body =
+  BindFun
+    name
+    params
+    Nothing
+    body
+    (Info $ (arrayTypeOf <$> params) `arrowType` arrayTypeOf body)
+    noSrcPos
+
+mkFunBindM :: (MonadVName m) => Text -> NE.NonEmpty Pat -> Exp -> m Bind
+mkFunBindM name params body =
+  mkFunBind <$> newVName name <*> pure params <*> pure body
+
+mkApp :: Exp -> [Exp] -> Exp
+mkApp = foldl app
+  where
+    app f arg =
+      case arrayTypeOf f of
+        (_ :-> ra) :@ _ -> App f arg (Info (ra, mempty)) (posOf f)
+        _ -> error "mkApp: illegal non-func"
+
+unboxType :: ISpaceParam VName -> ArrayType VName -> Maybe (ArrayType VName)
+unboxType ip boxt =
+  case arrayTypeAtom boxt of
+    Sigma ps t -> Just $ substitute (renameVar (unISpaceParam ps) (unISpaceParam ip)) t
+    _ -> Nothing
 
 -- | Things that have a type.
 class HasType x where

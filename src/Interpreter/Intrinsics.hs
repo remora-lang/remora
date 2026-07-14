@@ -16,7 +16,7 @@ import Debug.Trace (trace)
 import Interpreter.Value
 import Intrinsics qualified
 import Primitive
-import Syntax hiding (Add, Mul, Sub)
+import Syntax hiding (Add, Mul, Sub, asScalar)
 import System.IO.Unsafe (unsafePerformIO)
 import Util
 import VName
