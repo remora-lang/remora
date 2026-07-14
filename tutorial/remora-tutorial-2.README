@@ -1,4 +1,4 @@
-2026-07-06
+2026-07-13
 The file remora-tutorial-2.pdf was generated from
 remora-tutorial-2.md on a Mac using pandoc, which was
 installed using homebrew.
@@ -19,6 +19,13 @@ pandoc -f gfm+yaml_metadata_block+raw_attribute -o remora-tutorial-2.pdf remora-
 #   yaml_metadata_block  — parse the title/author/date/abstract block
 #   raw_attribute        — honor the ```{=latex} block that places the
 #                          table of contents (so no --toc flag is used)
+
+# If the run above ends with "LaTeX Warning: Label(s) may have changed",
+# the table of contents needs one more pass than pandoc gives it:
+# generate a standalone .tex (add -s, output to a scratch dir) and run
+# xelatex on it three times, then take that .pdf.  A final "Label(s)
+# may have changed" warning that persists even when .aux and .toc are
+# byte-stable across runs is spurious (hyperref quirk) — ignore it.
 
 Missing glyphs can be dropped without warning.
 To check for missing characters, do:
