@@ -101,7 +101,7 @@ class HasShape x where
 
   shapeOf_ :: x -> Shape VName
 
-instance HasShape (AtomBase tp f VName) where
+instance HasShape (AtomBase te tp f VName) where
   shapeOf_ _ = mempty
 
 instance HasShape (ArrayType VName) where
@@ -188,7 +188,7 @@ findRet :: (Ord v) => AtomType v -> ArrayType v
 findRet = snd . unrollArrow . mkScalarArrayType
 
 -- | Unroll a curried app.
-unrollApp :: ExpBase tp f v -> (ExpBase tp f v, [ExpBase tp f v])
+unrollApp :: ExpBase te tp f v -> (ExpBase te tp f v, [ExpBase te tp f v])
 unrollApp (App f x _ _) = second (++ [x]) (unrollApp f)
 unrollApp x = (x, [])
 

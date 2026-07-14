@@ -54,7 +54,7 @@ withDecl (Entry f params mt body _ pos) m = do
           Nothing -> arrayTypeAtom $ arrayTypeOf body'
           Just ptys -> ptys `arrowType` arrayTypeOf body'
   withParam' (f, mkScalarArrayType t) $ \f' ->
-    m $ Entry f' params' mt' body' (Info t) pos
+    m $ Entry f' params' (convertTypeExp =<< mt') body' (Info t) pos
 
 -- | Check a 'Dim'.
 checkDim :: (MonadCheck m) => Dim VName -> m (Dim VName)
@@ -113,7 +113,7 @@ checkExp' expr@(EmptyArray ns te _ pos) = do
   case convertArrayTypeExp te' of
     Nothing ->
       throwErrorPos pos "Non-scalar kinded type annotation on empty array."
-    Just t -> pure $ EmptyArray ns te' (Info t) pos
+    Just t -> pure $ EmptyArray ns (ArrayType t) (Info t) pos
 checkExp' expr@(Frame ns es _ pos) = do
   es' <- mapM checkExp' es
   let e' = NE.head es'
@@ -133,7 +133,7 @@ checkExp' expr@(EmptyFrame ns te _ pos) = do
   case convertArrayTypeExp te' of
     Nothing ->
       throwErrorPos pos "Non-scalar kinded type annotation on empty frame."
-    Just t -> pure $ EmptyFrame ns te' (Info t) pos
+    Just t -> pure $ EmptyFrame ns (ArrayType t) (Info t) pos
 checkExp' expr@(App f arg _ pos) = do
   f' <- checkExp' f
   arg' <- checkExp' arg
@@ -184,9 +184,9 @@ checkExp' expr@(TApp f t _ pos) = do
   t' <- checkTypeExp t
   case typeOf f' of
     ArrayType (Forall pt r :@ frame_f) -> do
-      atom_subst <- case (pt, convertTypeExp t') of
-        (AtomTypeParam v, Just (AtomType et)) ->
-          pure (M.singleton v et :: M.Map VName (AtomType VName))
+      (atom_subst, targ) <- case (pt, convertTypeExp t') of
+        (AtomTypeParam v, Just at@(AtomType et)) ->
+          pure (M.singleton v et :: M.Map VName (AtomType VName), at)
         _ ->
           throwErrorPos pos $
             T.unlines
@@ -198,7 +198,7 @@ checkExp' expr@(TApp f t _ pos) = do
               ]
       let rt :@ rshape = substitute (substAtomVars atom_subst) r
           r' = rt :@ (frame_f <> rshape)
-      pure $ TApp f' t' (Info r') pos
+      pure $ TApp f' targ (Info r') pos
     _ ->
       throwErrorPos pos $
         T.unlines
@@ -311,7 +311,7 @@ withBind (BindVal v mt ve pos) m = do
   mt' <- checkMaybeTypeExp mt
   checkAnnot t mt' pos
   withParam' (v, t) $ \vname ->
-    m $ BindVal vname mt' ve' pos
+    m $ BindVal vname (convertTypeExp =<< mt') ve' pos
 withBind (BindFun f params mt body _ pos) m = do
   mt' <- checkMaybeTypeExp mt
   (params', body') <-
@@ -321,7 +321,7 @@ withBind (BindFun f params mt body _ pos) m = do
       pure (params', body')
   let t = fmap arrayTypeOf params' `arrowType` arrayTypeOf body'
   withParam' (f, mkScalarArrayType t) $ \f' ->
-    m $ BindFun f' params' mt' body' (Info t) pos
+    m $ BindFun f' params' (convertTypeExp =<< mt') body' (Info t) pos
 withBind (BindTFun f params mt body _ pos) m =
   bindsNE withTypeParam params $ \params' -> do
     body' <- checkExp' body
@@ -330,7 +330,7 @@ withBind (BindTFun f params mt body _ pos) m =
     checkAnnot body_t mt' pos
     let t = forallType params' body_t
     withParam' (f, mkScalarArrayType t) $ \f' ->
-      m $ BindTFun f' params' mt' body' (Info t) pos
+      m $ BindTFun f' params' (convertTypeExp =<< mt') body' (Info t) pos
 withBind (BindIFun f params mt body _ pos) m =
   bindsNE withISpaceParam params $ \params' -> do
     body' <- checkExp' body
@@ -339,12 +339,12 @@ withBind (BindIFun f params mt body _ pos) m =
     checkAnnot body_t mt' pos
     let t = piType params' body_t
     withParam' (f, mkScalarArrayType t) $ \f' ->
-      m $ BindIFun f' params' mt' body' (Info t) pos
+      m $ BindIFun f' params' (convertTypeExp =<< mt') body' (Info t) pos
 withBind (BindType tvar t _ pos) m =
   withType checkTypeExp (tvar, t) $ \(tvar', t') ->
     case convertTypeExp t' of
       Nothing -> throwErrorPos pos "Invalid type."
-      Just t'' -> m $ BindType tvar' t' (Info t'') pos
+      Just t'' -> m $ BindType tvar' t'' (Info t'') pos
 withBind (BindISpace ivar ispace pos) m =
   withISpace checkISpace pos (ivar, ispace) $ \(ivar', ispace') ->
     m $ BindISpace ivar' ispace' pos
@@ -384,7 +384,7 @@ checkAtom atom@(Box ispace e box_t _ pos) = do
               "But got:",
               prettyText t'
             ]
-      pure $ Box ispace' e' box_t' (Info bt) pos
+      pure $ Box ispace' e' (AtomType bt) (Info bt) pos
     _ ->
       throwErrorPos pos $
         T.unlines

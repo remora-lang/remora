@@ -119,21 +119,18 @@ asPoly (Array s as (Info (et :@ _)) _)
       Just $ PolyArray s (atomToPoly <$> as)
 asPoly _ = Nothing
 
--- Type arguments have their original source type expressions bundled with
--- them so that we can substitute into them post monomorphization so we don't
--- get gross AST nodes with out-of-sync type expressions.
-type Arg = Either (AtomType, TypeExp) ISpace
+type Arg = Either AtomType ISpace
 
 argToMonoArg :: Arg -> MonoArg
-argToMonoArg (Left (at, _)) = Left at
+argToMonoArg (Left at) = Left at
 argToMonoArg (Right is) = Right is
 
 unfoldApp :: Exp -> (Exp, [Arg])
 unfoldApp = second reverse . unfoldApp'
   where
     unfoldApp' (TApp tf te _ _) =
-      case convertAtomTypeExp te of
-        Just at -> second (Left (at, te) :) $ unfoldApp' tf
+      case fromAtomType te of
+        Just at -> second (Left at :) $ unfoldApp' tf
         Nothing -> error "unfoldApp: not atom type"
     unfoldApp' (IApp f is _ _) =
       second (Right is :) $ unfoldApp' f
@@ -191,11 +188,8 @@ specialize (PolyFun mv body t) arg
   where
     (subst, rt) =
       case (t, arg) of
-        (Forall tp r, Left (at, te)) ->
-          ( substAtomVar (unTypeParam tp) at
-              <> substTypeExpVar (unTypeParam tp) te,
-            r
-          )
+        (Forall tp r, Left at) ->
+          (substAtomVar (unTypeParam tp) at, r)
         (Pi ip r, Right is) -> (substISpaceVar (unISpaceParam ip) is, r)
         _ -> error "specialize: abstraction/argument kind mismatch"
     et :@ s = substitute subst rt
