@@ -176,10 +176,14 @@ intrinsics =
             pure $ ValArray (asDim m + asDim n : asShape s) (snd (asArray xs) ++ snd (asArray ys))
     intrinsic "reverse" =
       tFun1 $ \_ ->
-        pure $ iFun2 $ \_ _ ->
+        pure $ iFun2 $ \_ cell ->
           pure $ vFun1 $ \arr ->
-            let (shape, xs) = asArray arr
-             in pure $ ValArray shape (reverse xs)
+            case cell of
+              Right cellShp ->
+                let (shape, xs) = asArray arr in
+                let res = concat $ reverse $ split (product cellShp) xs 
+                in pure $ ValArray shape res
+              _ -> error "reverse: second iarg not shape"
     intrinsic "reduce" =
       tFun1 $ \_ ->
         pure $ iFun2 $ \_ s ->
