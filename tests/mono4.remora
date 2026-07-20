@@ -1,0 +1,8 @@
+;; expected: [5 5]
+(entry (main)
+(let (
+  (t-fun (dup (&t)) (fn ((x &t)) [x x]))
+)
+  ((t-app dup Int) 5)
+)
+)

@@ -1,0 +1,8 @@
+;; expected: [1 2 3]
+(entry (main)
+(let (
+  (t-fun (id (*t)) (fn ((x *t)) x))
+)
+  ((t-app id [Int 3]) [1 2 3])
+)
+)

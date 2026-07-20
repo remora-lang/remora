@@ -1,5 +1,6 @@
 module Monomorphize (monomorphize, monomorphizeExp) where
 
+import Binds (drainBinds, emitBind)
 import Control.Monad
 import Control.Monad.Error.Class
 import Control.Monad.State
@@ -34,8 +35,8 @@ monomorphizeExp e =
 
 withMonoBinds :: a -> (NonEmpty Bind -> a) -> MonoM a
 withMonoBinds none some = do
-  binds <- gets stateMonoBinds
-  pure $ maybe none some $ NE.nonEmpty $ reverse binds
+  binds <- drainBinds
+  pure $ maybe none some $ NE.nonEmpty binds
 
 monoProg :: Prog -> MonoM Prog
 monoProg (Prog decs) = Prog . catMaybes <$> mapM monoDecl decs
@@ -100,18 +101,34 @@ monoPolyApp e = resolveApp e >>= checkMono
     checkMono (Right e') = pure e'
 
 addBind :: Bind -> MonoM (Maybe Bind)
-addBind (BindTFun v _ _ body (Info t) _) = do
-  insertDef v (PolyFun (Just v) body t)
-  pure Nothing
-addBind (BindIFun v _ _ body (Info t) _) = do
-  insertDef v (PolyFun (Just v) body t)
-  pure Nothing
-addBind b@(BindVal v _ e _)
+addBind b
+  | Just v <- bindName b,
+    Just (ps, body) <- bindParams b = do
+      let (ps', freeBody) = unfoldAbs body
+      insertDef v (PolyFun (Just v) (ps <> ps') freeBody)
+      pure Nothing
+addBind (BindVal v _ e _)
   | Just poly <- asPoly e = do
       insertDef v poly
       pure Nothing
-  | otherwise = pure $ Just b
 addBind b = pure $ Just b
+
+bindParams :: Bind -> Maybe ([Param], Exp)
+bindParams (BindTFun _ ps _ body _ _) = Just (Left <$> NE.toList ps, body)
+bindParams (BindIFun _ ps _ body _ _) = Just (Right <$> NE.toList ps, body)
+bindParams _ = Nothing
+
+unfoldAbs :: Exp -> ([Param], Exp)
+unfoldAbs e
+  | Just (TLambda p inner _ _) <- asScalar e =
+      first (Left p :) $ unfoldAbs inner
+  | Just (ILambda p inner _ _) <- asScalar e =
+      first (Right p :) $ unfoldAbs inner
+  | Let (b :| []) (Var f _ _) _ _ <- e,
+    bindName b == Just f,
+    Just (ps, body) <- bindParams b =
+      first (ps <>) $ unfoldAbs body
+  | otherwise = ([], e)
 
 asPoly :: Exp -> Maybe Poly
 asPoly (Array s as (Info (et :@ _)) _)
@@ -119,21 +136,16 @@ asPoly (Array s as (Info (et :@ _)) _)
       Just $ PolyArray s (atomToPoly <$> as)
 asPoly _ = Nothing
 
--- Type arguments have their original source type expressions bundled with
--- them so that we can substitute into them post monomorphization so we don't
--- get gross AST nodes with out-of-sync type expressions.
-type Arg = Either (AtomType, TypeExp) ISpace
-
 argToMonoArg :: Arg -> MonoArg
-argToMonoArg (Left (at, _)) = Left at
+argToMonoArg (Left at) = Left at
 argToMonoArg (Right is) = Right is
 
 unfoldApp :: Exp -> (Exp, [Arg])
 unfoldApp = second reverse . unfoldApp'
   where
     unfoldApp' (TApp tf te _ _) =
-      case convertAtomTypeExp te of
-        Just at -> second (Left (at, te) :) $ unfoldApp' tf
+      case fromAtomType te of
+        Just at -> second (Left at :) $ unfoldApp' tf
         Nothing -> error "unfoldApp: not atom type"
     unfoldApp' (IApp f is _ _) =
       second (Right is :) $ unfoldApp' f
@@ -180,26 +192,21 @@ resolveApp e = do
     step (Right _) _ = error "resolveApp: over-applied"
 
 specialize :: Poly -> Arg -> MonoM (Either Poly Exp)
-specialize (PolyFun mv body t) arg
-  | isPolymorphic et && isScalar s =
-      pure $ Left $ PolyFun mv body' et
-  | otherwise = do
+specialize (PolyFun mv (p : ps) body) arg
+  | null ps = do
       v <- maybe (newVName "mono") (newVName . (<> "_mono") . varName) mv
       body'' <- monoExp body'
-      emitMonoBind $ BindVal v Nothing body'' noSrcPos
+      emitBind $ BindVal v Nothing body'' noSrcPos
       pure $ Right $ Var v (Info $ arrayTypeOf body'') noSrcPos
+  | otherwise = pure $ Left $ PolyFun mv ps body'
   where
-    (subst, rt) =
-      case (t, arg) of
-        (Forall tp r, Left (at, te)) ->
-          ( substAtomVar (unTypeParam tp) at
-              <> substTypeExpVar (unTypeParam tp) te,
-            r
-          )
-        (Pi ip r, Right is) -> (substISpaceVar (unISpaceParam ip) is, r)
+    subst =
+      case (p, arg) of
+        (Left tp, Left at) -> substAtomVar (unTypeParam tp) at
+        (Right ip, Right is) -> substISpaceVar (unISpaceParam ip) is
         _ -> error "specialize: abstraction/argument kind mismatch"
-    et :@ s = substitute subst rt
     body' = substitute subst body
+specialize (PolyFun _ [] _) _ = error "specialize: over-applied"
 specialize (PolyArray s ps) arg = do
   results <- mapM (`specialize` arg) ps
   pure $
@@ -213,8 +220,14 @@ specialize (PolyArray s ps) arg = do
        in flattenExp $ Frame s es (Info $ et :@ (intsToShape s <> sh)) (posOf e)
 
 atomToPoly :: Atom -> Poly
-atomToPoly (TLambda _ body (Info t) _) = PolyFun Nothing body t
-atomToPoly (ILambda _ body (Info t) _) = PolyFun Nothing body t
+atomToPoly (TLambda p body _ _) =
+  PolyFun Nothing (Left p : ps) freeBody
+  where
+    (ps, freeBody) = unfoldAbs body
+atomToPoly (ILambda p body _ _) =
+  PolyFun Nothing (Right p : ps) freeBody
+  where
+    (ps, freeBody) = unfoldAbs body
 atomToPoly _ = error "atomToPoly"
 
 isPolymorphic :: AtomType -> Bool

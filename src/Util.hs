@@ -14,6 +14,7 @@ module Util
     noSrcPos,
     (.>),
     splitOn,
+    for,
   )
 where
 
@@ -83,3 +84,6 @@ splitOn [] _ = []
 splitOn xs delim = case span (/= delim) xs of
   (m, []) -> [m]
   (m, _ : rest) -> m : splitOn rest delim
+
+for :: [a] -> (a -> b) -> [b]
+for = flip map

@@ -276,14 +276,14 @@ intExp expr@(TApp e t _ _) =
     tApply (ValVar f) = do
       f' <- lookupVal f
       case f' of
-        ValTFun func -> func (fromJust $ convertTypeExp t)
+        ValTFun func -> func t
         _ ->
           error $
             unlines
               [ "intExp: non-type function value in type application",
                 prettyString expr
               ]
-    tApply (ValTFun f) = f (fromJust $ convertTypeExp t)
+    tApply (ValTFun f) = f t
     tApply (ValArray shape fs) = do
       ValArray shape <$> mapM tApply fs
     tApply _ =

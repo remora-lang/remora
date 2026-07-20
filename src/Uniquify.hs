@@ -67,7 +67,10 @@ uniquifyExp' (App f arg _ pos) = do
 uniquifyExp' (TApp f t _ pos) = do
   f' <- uniquifyExp' f
   t' <- uniquifyTypeExp t
-  pure $ TApp f' t' NoInfo pos
+  pure $ case t' of
+    TEArray atom shape _ ->
+      IApp (TApp f' atom NoInfo pos) (Shape shape) NoInfo pos
+    _ -> TApp f' t' NoInfo pos
 uniquifyExp' (IApp f i _ pos) = do
   f' <- uniquifyExp' f
   i' <- mapISpace (fmap Dim . uniquifyDim) (fmap Shape . uniquifyShape) i

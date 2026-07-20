@@ -1,5 +1,6 @@
 module Monomorphize.Monad where
 
+import Binds
 import Control.Monad.Error.Class
 import Control.Monad.State
 import Control.Monad.Trans.Except
@@ -7,7 +8,7 @@ import Data.Bifunctor
 import Data.List.NonEmpty (NonEmpty)
 import Data.Map (Map)
 import Data.Map qualified as M
-import Syntax hiding (ArrayType, AtomType, ISpace, Type, TypeExp)
+import Syntax hiding (ArrayType, AtomType, ISpace, ISpaceParam, Type, TypeExp, TypeParam)
 import Syntax qualified
 import Util (Error)
 import VName
@@ -28,8 +29,16 @@ type ArrayType = Syntax.ArrayType VName
 
 type MonoArg = Either AtomType ISpace
 
+type Param = Either TypeParam ISpaceParam
+
+type Arg = Either AtomType ISpace
+
+-- | A polymorphic value. There are two kinds: 1) A 'PolyFun' is a polymorphic
+-- function: an optional 'VName' (for named functions), the list of polymorphic
+-- quantifier params it still expects, and a body that is free in them. 2) A
+-- 'PolyArray' is an array of 'Poly'.
 data Poly
-  = PolyFun (Maybe VName) Exp AtomType
+  = PolyFun (Maybe VName) [Param] Exp
   | PolyArray [Int] (NonEmpty Poly)
   deriving (Show)
 
@@ -42,6 +51,10 @@ data St = St
 
 initSt :: Tag -> St
 initSt = St mempty mempty mempty
+
+instance HasBinds St where
+  getBinds = stateMonoBinds
+  putBinds bs st = st {stateMonoBinds = bs}
 
 newtype MonoM a = MonoM {runMonoM :: ExceptT Error (State St) a}
   deriving
@@ -78,7 +91,3 @@ lookupMono v args =
 emitMonoVName :: (VName, [MonoArg]) -> VName -> MonoM ()
 emitMonoVName k v =
   modify $ \st -> st {stateMonoMap = M.insert k v $ stateMonoMap st}
-
-emitMonoBind :: Bind -> MonoM ()
-emitMonoBind b =
-  modify $ \st -> st {stateMonoBinds = b : stateMonoBinds st}

@@ -156,11 +156,11 @@ instance Substitutable v (TypeExp v) where
   substitute s (TESigma ps t pos) =
     TESigma ps (substitute (foldl without s $ fmap unISpaceParam ps) t) pos
 
-instance Substitutable v (PatBase Info v) where
+instance (Substitutable v (te v)) => Substitutable v (PatBase te Info v) where
   substitute s (PatId x te t pos) =
     PatId x (substitute s te) (substitute s t) pos
 
-instance Substitutable v (AtomBase TypeParam Info v) where
+instance (Substitutable v (te v)) => Substitutable v (AtomBase te TypeParam Info v) where
   substitute s (Base b t pos) =
     Base b (substitute s t) pos
   substitute s (Lambda pat body t pos) =
@@ -180,7 +180,7 @@ instance Substitutable v (AtomBase TypeParam Info v) where
   substitute s (Box isp body te t pos) =
     Box (substitute s isp) (substitute s body) (substitute s te) (substitute s t) pos
 
-instance Substitutable v (BindBase TypeParam Info v) where
+instance (Substitutable v (te v)) => Substitutable v (BindBase te TypeParam Info v) where
   substitute s (BindVal x mte e pos) =
     BindVal x (substitute s mte) (substitute s e) pos
   substitute s (BindType tp te t pos) =
@@ -196,7 +196,7 @@ instance Substitutable v (BindBase TypeParam Info v) where
     let s' = foldl without s $ fmap unISpaceParam ips
      in BindIFun x ips (substitute s' mte) (substitute s' body) (substitute s t) pos
 
-instance Substitutable v (ExpBase TypeParam Info v) where
+instance (Substitutable v (te v)) => Substitutable v (ExpBase te TypeParam Info v) where
   substitute s (Var x t pos) =
     Var x (substitute s t) pos
   substitute s (Array dims as t pos) =

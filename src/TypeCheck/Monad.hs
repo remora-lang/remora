@@ -228,7 +228,7 @@ withPatParam checkType p@(PatId vname t _ pos) m = do
       localVNames (\vnames -> vnames {vnameEnvVars = S.insert vname $ vnameEnvVars vnames}) $
         localBinds (\bs -> bs {bindEnvVars = M.insert vname at $ bindEnvVars bs}) $
           m $
-            PatId vname t' (Info at) pos
+            PatId vname (ArrayType at) (Info at) pos
 
 -- | Bind a source parameter into a local environment.
 withParam ::

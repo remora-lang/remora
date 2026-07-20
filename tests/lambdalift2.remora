@@ -1,0 +1,4 @@
+;; expected: 12
+(entry (main)
+(((fn ((x Int)) (fn ((y Int)) (+ x y))) 5) 7)
+)

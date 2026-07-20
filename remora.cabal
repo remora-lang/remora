@@ -22,8 +22,10 @@ common common
 library
     import:           common
     exposed-modules:
+      Binds
       CLI
       CLI.REPL
+      Free
       Futhark
       Imports
       Interpreter
@@ -31,6 +33,8 @@ library
       Interpreter.Value
       Intrinsics
       ISpace
+      LambdaLift
+      LambdaLift.Monad
       Monomorphize
       Monomorphize.Monad
       Parser

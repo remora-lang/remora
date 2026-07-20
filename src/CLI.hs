@@ -45,6 +45,10 @@ data RemoraMode
       { file :: Maybe FilePath,
         expr :: Maybe String
       }
+  | LambdaLift
+      { file :: Maybe FilePath,
+        expr :: Maybe String
+      }
   deriving (Data, Typeable, Show, Eq)
 
 parse :: RemoraMode
@@ -87,6 +91,18 @@ monomorphize =
         "If neither -f nor -e is passed, will read input from stdin."
       ]
 
+lambdaLift :: RemoraMode
+lambdaLift =
+  LambdaLift
+    { file = Nothing &= help "Monomorphize & lambda lift the passed file.",
+      expr = Nothing &= help "Monomorphize & lambda lift an expression passed as an argument."
+    }
+    &= details
+      [ "Monomorphize & lambda lift a remora program or expression.",
+        "",
+        "If neither -f nor -e is passed, will read input from stdin."
+      ]
+
 futhark :: RemoraMode
 futhark =
   Futhark
@@ -112,7 +128,8 @@ mode =
         interpret,
         futhark,
         parse,
-        monomorphize
+        monomorphize,
+        lambdaLift
       ]
       &= program "remora"
 
@@ -139,6 +156,15 @@ main = do
           either
             (fmap prettyText . Pipeline.monomorphizeExp)
             (fmap prettyText . Pipeline.monomorphize)
+            input
+      liftIO $ T.putStrLn out
+    run (LambdaLift mfile mexpr) = do
+      input <- parseInput mfile mexpr
+      out <-
+        except $
+          either
+            (fmap prettyText . Pipeline.lambdaLiftExp)
+            (fmap prettyText . Pipeline.lambdaLift)
             input
       liftIO $ T.putStrLn out
     run (Futhark mfile mexpr mbackend) = do

@@ -1,0 +1,8 @@
+;; expected: 13
+(entry (main)
+(let (
+  (val (n : Int) 1)
+)
+  (((fn ((x Int)) (fn ((y Int)) (+ (+ x y) n))) 5) 7)
+)
+)

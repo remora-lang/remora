@@ -2,6 +2,8 @@ module Pipeline
   ( typeCheck,
     monomorphize,
     monomorphizeExp,
+    lambdaLift,
+    lambdaLiftExp,
     compile,
     compileExp,
     interpret,
@@ -13,6 +15,7 @@ import Control.Monad
 import Data.Text (Text)
 import Futhark qualified
 import Interpreter qualified
+import LambdaLift qualified
 import Monomorphize qualified
 import Pass
 import Syntax
@@ -28,6 +31,12 @@ monomorphize = runPass . monomorphizeM
 
 monomorphizeExp :: UncheckedExp -> Either Error Exp
 monomorphizeExp = runPass . monomorphizeExpM
+
+lambdaLift :: UncheckedProg -> Either Error Prog
+lambdaLift = runPass . lambdaLiftM
+
+lambdaLiftExp :: UncheckedExp -> Either Error Exp
+lambdaLiftExp = runPass . lambdaLiftExpM
 
 compile :: UncheckedProg -> Either Error Text
 compile = runPass . compileM
@@ -57,10 +66,21 @@ monomorphizeExpM =
     >=> TypeCheck.checkExp
     >=> Monomorphize.monomorphizeExp
 
+lambdaLiftM :: UncheckedProg -> PassM Prog
+lambdaLiftM =
+  monomorphizeM
+    >=> LambdaLift.lambdaLift
+
+lambdaLiftExpM :: UncheckedExp -> PassM Exp
+lambdaLiftExpM =
+  monomorphizeExpM
+    >=> LambdaLift.lambdaLiftExp
+
 compileM :: UncheckedProg -> PassM Text
 compileM =
   typeCheckM
     >=> Monomorphize.monomorphize
+    >=> LambdaLift.lambdaLift
     >=> Futhark.compile
 
 compileExpM :: UncheckedExp -> PassM Text
@@ -68,6 +88,7 @@ compileExpM =
   Uniquify.uniquifyExp
     >=> TypeCheck.checkExp
     >=> Monomorphize.monomorphizeExp
+    >=> LambdaLift.lambdaLiftExp
     >=> Futhark.compileExp
 
 interpretM :: [Interpreter.Val] -> UncheckedProg -> PassM Interpreter.Val
