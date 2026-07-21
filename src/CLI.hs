@@ -41,13 +41,11 @@ data RemoraMode
       { file :: Maybe FilePath,
         expr :: Maybe String
       }
-  | Monomorphize
+  | Dev
       { file :: Maybe FilePath,
-        expr :: Maybe String
-      }
-  | LambdaLift
-      { file :: Maybe FilePath,
-        expr :: Maybe String
+        expr :: Maybe String,
+        monomorphize :: Bool,
+        lambdalift :: Bool
       }
   deriving (Data, Typeable, Show, Eq)
 
@@ -79,30 +77,6 @@ interpret =
         "If neither -f nor -e is passed, will read input from stdin."
       ]
 
-monomorphize :: RemoraMode
-monomorphize =
-  Monomorphize
-    { file = Nothing &= help "Monomorphize the passed file.",
-      expr = Nothing &= help "Monomorphize an expression passed as an argument."
-    }
-    &= details
-      [ "Monomorphize a remora program or expression.",
-        "",
-        "If neither -f nor -e is passed, will read input from stdin."
-      ]
-
-lambdaLift :: RemoraMode
-lambdaLift =
-  LambdaLift
-    { file = Nothing &= help "Monomorphize & lambda lift the passed file.",
-      expr = Nothing &= help "Monomorphize & lambda lift an expression passed as an argument."
-    }
-    &= details
-      [ "Monomorphize & lambda lift a remora program or expression.",
-        "",
-        "If neither -f nor -e is passed, will read input from stdin."
-      ]
-
 futhark :: RemoraMode
 futhark =
   Futhark
@@ -120,6 +94,15 @@ futhark =
         "If neither -f nor -e is passed, will read input from stdin."
       ]
 
+dev :: RemoraMode
+dev =
+  Dev
+    { file = Nothing &= help "Run the pass on the passed file.",
+      expr = Nothing &= help "Run the pass on an expression passed as an argument.",
+      monomorphize = False &= help "Monomorphize.",
+      lambdalift = False &= help "Monomorphize & lambda lift."
+    }
+
 mode :: Mode (CmdArgs RemoraMode)
 mode =
   cmdArgsMode $
@@ -128,8 +111,7 @@ mode =
         interpret,
         futhark,
         parse,
-        monomorphize,
-        lambdaLift
+        dev
       ]
       &= program "remora"
 
@@ -149,24 +131,27 @@ main = do
             (\prog -> flip Pipeline.interpret prog =<< mapM evalArg margs)
             input
       liftIO $ T.putStrLn $ prettyText v
-    run (Monomorphize mfile mexpr) = do
-      input <- parseInput mfile mexpr
-      out <-
-        except $
-          either
-            (fmap prettyText . Pipeline.monomorphizeExp)
-            (fmap prettyText . Pipeline.monomorphize)
-            input
-      liftIO $ T.putStrLn out
-    run (LambdaLift mfile mexpr) = do
-      input <- parseInput mfile mexpr
-      out <-
-        except $
-          either
-            (fmap prettyText . Pipeline.lambdaLiftExp)
-            (fmap prettyText . Pipeline.lambdaLift)
-            input
-      liftIO $ T.putStrLn out
+    run (Dev mfile mexpr mono lift)
+      | lift = do
+          input <- parseInput mfile mexpr
+          out <-
+            except $
+              either
+                (fmap prettyText . Pipeline.lambdaLiftExp)
+                (fmap prettyText . Pipeline.lambdaLift)
+                input
+          liftIO $ T.putStrLn out
+      | mono = do
+          input <- parseInput mfile mexpr
+          out <-
+            except $
+              either
+                (fmap prettyText . Pipeline.monomorphizeExp)
+                (fmap prettyText . Pipeline.monomorphize)
+                input
+          liftIO $ T.putStrLn out
+      | otherwise =
+          except $ Left "remora dev: specify --monomorphize or --lambdalift"
     run (Futhark mfile mexpr mbackend) = do
       input <- parseInput mfile mexpr
       ir <- except $ either Pipeline.compileExp Pipeline.compile input
