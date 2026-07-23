@@ -3,6 +3,8 @@ module CLI (main) where
 import CLI.REPL qualified
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (ExceptT (..), except, runExceptT)
+import Data.Aeson.Encode.Pretty (encodePretty)
+import Data.ByteString.Lazy qualified as B
 import Data.Maybe
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -11,6 +13,7 @@ import Imports qualified
 import Parser qualified
 import Pass (runPassIO)
 import Pipeline qualified
+import Serializer ()
 import Syntax
 import System.Console.CmdArgs hiding (args)
 import System.Console.CmdArgs qualified as CmdArgs
@@ -45,7 +48,8 @@ data RemoraMode
       { file :: Maybe FilePath,
         expr :: Maybe String,
         monomorphize :: Bool,
-        lambdalift :: Bool
+        lambdalift :: Bool,
+        serialize :: Bool
       }
   deriving (Data, Typeable, Show, Eq)
 
@@ -100,7 +104,8 @@ dev =
     { file = Nothing &= help "Run the pass on the passed file.",
       expr = Nothing &= help "Run the pass on an expression passed as an argument.",
       monomorphize = False &= help "Monomorphize.",
-      lambdalift = False &= help "Monomorphize & lambda lift."
+      lambdalift = False &= help "Monomorphize & lambda lift.",
+      serialize = False &= help "Serialize an input program to JSON."
     }
 
 mode :: Mode (CmdArgs RemoraMode)
@@ -131,7 +136,7 @@ main = do
             (\prog -> flip Pipeline.interpret prog =<< mapM evalArg margs)
             input
       liftIO $ T.putStrLn $ prettyText v
-    run (Dev mfile mexpr mono lift)
+    run (Dev mfile mexpr mono lift serialize)
       | lift = do
           input <- parseInput mfile mexpr
           out <-
@@ -150,6 +155,9 @@ main = do
                 (fmap prettyText . Pipeline.monomorphize)
                 input
           liftIO $ T.putStrLn out
+      | serialize = do
+          input <- parseInput mfile mexpr
+          liftIO $ serializeAST input
       | otherwise =
           except $ Left "remora dev: specify --monomorphize or --lambdalift"
     run (Futhark mfile mexpr mbackend) = do
@@ -179,6 +187,12 @@ main = do
       Right
         <$> ExceptT
           (runPassIO $ Imports.resolveImports (sourceName mfile) input)
+
+    serializeAST ::
+      Either UncheckedExp UncheckedProg ->
+      IO ()
+    serializeAST =
+      liftIO . B.putStr . either encodePretty encodePretty
 
     sourceName :: Maybe FilePath -> FilePath
     sourceName = fromMaybe "<cli>"

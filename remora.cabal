@@ -42,6 +42,7 @@ library
       Pipeline
       Primitive
       Prop
+      Serializer
       Substitute
       Symbolic
       Syntax
@@ -69,7 +70,10 @@ library
       filepath,
       sbv >= 14,
       futhark,
-      directory
+      directory,
+      aeson >= 2.0,
+      aeson-pretty,
+      bytestring
 
     hs-source-dirs:   src
 
