@@ -42,14 +42,14 @@ data RemoraMode
       }
   | Parse
       { file :: Maybe FilePath,
-        expr :: Maybe String,
-        serialize :: Maybe FilePath
+        expr :: Maybe String
       }
   | Dev
       { file :: Maybe FilePath,
         expr :: Maybe String,
         monomorphize :: Bool,
-        lambdalift :: Bool
+        lambdalift :: Bool,
+        serialize :: Bool
       }
   deriving (Data, Typeable, Show, Eq)
 
@@ -57,8 +57,7 @@ parse :: RemoraMode
 parse =
   Parse
     { file = Nothing &= help "Parse the passed file.",
-      expr = Nothing &= help "Parse an expression passed as an argument.",
-      serialize = Nothing &= help "Encode the parsed input as JSON to passed file."
+      expr = Nothing &= help "Parse an expression passed as an argument."
     }
     &= details
       [ "Parse a remora program or expression.",
@@ -66,9 +65,7 @@ parse =
         "Expressions may be passed directly as an argument using the -e flag, e.g.:",
         "> remora parse -e \"[[1 2] [3 4]]\"",
         "",
-        "If neither -f nor -e is passed, will read input from stdin.",
-        "",
-        "Parsed input may be encoded as JSON to file using the -s flag."
+        "If neither -f nor -e is passed, will read input from stdin."
       ]
 
 interpret :: RemoraMode
@@ -107,7 +104,8 @@ dev =
     { file = Nothing &= help "Run the pass on the passed file.",
       expr = Nothing &= help "Run the pass on an expression passed as an argument.",
       monomorphize = False &= help "Monomorphize.",
-      lambdalift = False &= help "Monomorphize & lambda lift."
+      lambdalift = False &= help "Monomorphize & lambda lift.",
+      serialize = False &= help "Serialize an input program to JSON."
     }
 
 mode :: Mode (CmdArgs RemoraMode)
@@ -138,7 +136,7 @@ main = do
             (\prog -> flip Pipeline.interpret prog =<< mapM evalArg margs)
             input
       liftIO $ T.putStrLn $ prettyText v
-    run (Dev mfile mexpr mono lift)
+    run (Dev mfile mexpr mono lift serialize)
       | lift = do
           input <- parseInput mfile mexpr
           out <-
@@ -157,6 +155,9 @@ main = do
                 (fmap prettyText . Pipeline.monomorphize)
                 input
           liftIO $ T.putStrLn out
+      | serialize = do
+          input <- parseInput mfile mexpr
+          liftIO $ serializeAST input
       | otherwise =
           except $ Left "remora dev: specify --monomorphize or --lambdalift"
     run (Futhark mfile mexpr mbackend) = do
@@ -171,9 +172,8 @@ main = do
                 backend
                 (takeFileName $ dropExtension $ sourceName mfile)
                 ir
-    run (Parse mfile mexpr mjsonfile) = do
+    run (Parse mfile mexpr) = do
       input <- parseInput mfile mexpr
-      liftIO $ serializeAST mjsonfile input
       liftIO $ T.putStrLn $ either prettyText prettyText input
 
     parseInput ::
@@ -189,11 +189,10 @@ main = do
           (runPassIO $ Imports.resolveImports (sourceName mfile) input)
 
     serializeAST ::
-      Maybe FilePath ->
       Either UncheckedExp UncheckedProg ->
       IO ()
-    serializeAST Nothing _ = pure ()
-    serializeAST (Just jsonFile) input = B.writeFile jsonFile (either encodePretty encodePretty input)
+    serializeAST =
+      liftIO . B.putStr . either encodePretty encodePretty
 
     sourceName :: Maybe FilePath -> FilePath
     sourceName = fromMaybe "<cli>"
