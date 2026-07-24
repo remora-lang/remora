@@ -165,10 +165,12 @@ resolveApp e = do
         Just v' -> pure $ Right $ Var v' (Info $ arrayTypeOf e) noSrcPos
         Nothing -> do
           result <- foldM step (Left poly) args
-          case (f, result) of
-            (Var v _ _, Right (Var v' _ _)) -> do
-              emitMonoVName (v, args) v'
-              pure result
+          case result of
+            Right (Var v' _ _)
+              | Var v _ _ <- f -> do
+                  emitMonoVName (v, args) v'
+                  pure result
+            -- Only happens in the 'PolyArray' case.
             _ -> pure result
   where
     (f, args) = unfoldApp e
