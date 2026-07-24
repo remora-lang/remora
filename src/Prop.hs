@@ -60,6 +60,8 @@ instance HasArrayType Exp where
   arrayTypeOf_ (IApp _ _ (Info t) _) = t
   arrayTypeOf_ (Unbox _ _ _ _ (Info t) _) = t
   arrayTypeOf_ (Let _ _ (Info t) _) = t
+  arrayTypeOf_ (Struct _ (Info (t, _)) _) = t
+  arrayTypeOf_ (FieldProj _ _ (Info t) _) = t
 
 instance HasArrayType Pat where
   arrayTypeOf_ (PatId _ _ (Info t) _) = t

@@ -90,6 +90,13 @@ monoExp (Let bs body t pos) = do
     case NE.nonEmpty binds of
       Nothing -> body'
       Just bs' -> Let bs' body' t pos
+monoExp (Struct s t pos) = do
+  let (fs, shps, es) = neUnzip3 s
+  es' <- mapM monoExp es
+  let s' = neZip3 fs shps es'
+  pure $ Struct s' t pos
+monoExp (FieldProj e f t pos) =
+  FieldProj <$> monoExp e <*> pure f <*> pure t <*> pure pos
 
 monoBind :: Bind -> MonoM Bind
 monoBind (BindVal x mt e pos) =

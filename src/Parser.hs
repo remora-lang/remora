@@ -92,6 +92,9 @@ parens = between (symbol "(") (symbol ")")
 brackets :: Parser a -> Parser a
 brackets = between (symbol "[") (symbol "]")
 
+braces :: Parser a -> Parser a
+braces = between (symbol "{") (symbol "}")
+
 keywords :: Set Text
 keywords =
   S.fromList
@@ -126,7 +129,8 @@ keywords =
       "val",
       "def",
       "entry",
-      "import"
+      "import",
+      "field"
     ]
 
 lKeyword :: Text -> Parser ()
@@ -198,6 +202,7 @@ pType =
         symbol "Int" >> pure TEInt,
         symbol "Float" >> pure TEFloat,
         brackets $ TEArray <$> pType <*> pShapeSplice,
+        braces $ TERecord <$> neListOf pFieldType,
         parens $
           choice
             [ TEArray <$> (lKeyword "A" >> pType) <*> (ispaceToShape <$> pISpace),
@@ -221,6 +226,7 @@ pType =
       params <- neListOf pParam
       body <- pType
       pure $ \pos -> c params body pos
+    pFieldType = parens $ (,) <$> lId <*> pType
 
 pBase :: Parser Base
 pBase =
@@ -293,6 +299,7 @@ pExp =
       choice
         [ withNoInfoPos $ Var <$> lId,
           withNoInfoPos pString,
+          withNoInfoPos $ braces $ Struct <$> someNE pStructField,
           parens $
             choice $
               map
@@ -305,12 +312,17 @@ pExp =
                     choice [try $ EmptyFrame shape <$> pType, Frame shape <$> someNE pExp],
                   pUnbox,
                   pLet,
-                  pAtFn
+                  pAtFn,
+                  pFieldProj
                 ]
                 ++ [pApp, pIApp, pTApp]
         ]
     ]
   where
+    pFieldProj =
+      lKeyword "field" *> (FieldProj <$> pExp <*> lId) 
+    pStructField =
+      parens $ (,,) <$> lId <*> pShape <*> pExp
     pApp = pAnyApp App pExp Nothing
     pIApp = pAnyApp IApp pISpace $ Just "i-app"
     pTApp = pAnyApp TApp pType $ Just "t-app"

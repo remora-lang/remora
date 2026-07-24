@@ -15,6 +15,9 @@ module Util
     (.>),
     splitOn,
     for,
+    neUnzip3,
+    neZipWithM,
+    neZip3
   )
 where
 
@@ -29,6 +32,7 @@ import Text.Megaparsec.Pos
   ( SourcePos (..),
     mkPos,
   )
+import qualified Data.List.NonEmpty as NE
 
 type Error = T.Text
 
@@ -67,6 +71,17 @@ allM p = foldr (\a b -> ifM (p a) b (pure False)) (pure True)
 
 asumM :: (Monad m, Traversable t, Alternative f) => t (m (f a)) -> m (f a)
 asumM = fmap asum . sequence
+
+neUnzip3 :: NE.NonEmpty (a, b, c) -> (NE.NonEmpty a, NE.NonEmpty b, NE.NonEmpty c)
+neUnzip3 ((x, y, z) NE.:| r) = (x NE.:| xs, y NE.:| ys, z NE.:| zs)
+  where (xs, ys, zs) = unzip3 r
+
+neZip3 :: NE.NonEmpty a -> NE.NonEmpty b -> NE.NonEmpty c -> NE.NonEmpty (a, b, c)
+neZip3 (x NE.:| xs) (y NE.:| ys) (z NE.:| zs) = (x, y, z) NE.:| r
+  where r = zip3 xs ys zs
+
+neZipWithM :: (Applicative m) => (a -> b -> m c) -> NE.NonEmpty a -> NE.NonEmpty b -> m (NE.NonEmpty c)
+neZipWithM f xs ys = sequenceA (NE.zipWith f xs ys)
 
 unlessM :: (Monad m) => m Bool -> m () -> m ()
 unlessM test m = do

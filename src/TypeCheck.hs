@@ -15,6 +15,8 @@ import Syntax
 import TypeCheck.Monad
 import Util
 import VName
+import Data.Foldable (find)
+import Debug.Trace (traceM)
 
 -- | Type check a program.
 check :: UniqueProg -> PassM Prog
@@ -259,6 +261,37 @@ checkExp' (Let bs e _ pos) = do
   bindsNE withBind bs $ \bs' -> do
     e' <- checkExp' e
     pure $ Let bs' e' (Info $ arrayTypeOf e') pos
+checkExp' expr@(Struct fs _ pos) = do
+  let (fnames, shps, es) = neUnzip3 fs
+  es' <- mapM checkExp' es
+  shps' <- mapM checkShape shps
+  let es'_t = arrayTypeOf <$> es'
+  let frameShapesM = neZipWithM (\(_ :@ s') s -> s' Symbolic.\\ s) es'_t shps'
+  case frameShapesM of
+    Nothing -> throwErrorPos pos $
+                T.unlines [ "The shapes of expressions could not be separated into frame and cell parts: ",
+                            prettyText expr ]
+    Just frameShapes -> do
+        let fields =  NE.map (\(t :@ _, s, f) -> (f, t :@ s)) $ neZip3 es'_t shps' fnames
+        let frameM = Symbolic.maximumShape frameShapes
+        let struct' = NE.zipWith (\(f, _ :@ s) e' -> (f, s, e')) fields es'
+        case frameM of
+            Just pframe -> pure $ Struct struct' (Info (Record fields :@ pframe, pframe)) pos
+            Nothing -> throwErrorPos pos $
+                        T.unlines [ "The expressions in record constructor have incompatible frames:",
+                                    prettyText expr ]
+checkExp' expr@(FieldProj e f _ pos) = do
+  e' <- checkExp' e
+  case typeOf e' of
+    ArrayType (Record fs :@ frame_s)
+      | Just (_, fet :@ fshp) <- find ((== f) . fst) fs ->
+       pure $ FieldProj e' f (Info $ fet :@ (frame_s <> fshp)) pos
+    _ ->
+        throwErrorPos pos $
+          T.unlines
+            [ "Expected an existentially typed expression in unbox:",
+              prettyText expr
+            ]
 
 checkMaybeTypeExp ::
   (MonadCheck m) =>
@@ -424,3 +457,7 @@ checkTypeExp (TEPi params t pos) =
 checkTypeExp (TESigma params t pos) =
   bindsNE withISpaceParam params $ \params' ->
     TESigma params' <$> checkTypeExp t <*> pure pos
+checkTypeExp (TERecord s pos) = do
+  let (fs, ts) = NE.unzip s
+  ts' <- mapM checkTypeExp ts
+  pure $ TERecord (NE.zip fs ts') pos

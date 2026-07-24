@@ -8,6 +8,7 @@ import Data.Semigroup (sconcat)
 import Data.Text (Text)
 import Intrinsics
 import Pass
+import Util
 import Syntax
 import Uniquify.Monad
 import Uniquify.Type
@@ -18,7 +19,7 @@ uniquify p =
   state $ \tag -> runUniquify initEnv tag $ uniquifyProg p
 
 uniquifyExp :: UncheckedExp -> PassM UniqueExp
-uniquifyExp e =
+uniquifyExp e = do
   state $ \tag -> runUniquify initEnv tag $ uniquifyExp' e
 
 initEnv :: Env
@@ -85,6 +86,15 @@ uniquifyExp' (Let bs e _ pos) = do
   bindsNE withBind bs $ \bss -> do
     e' <- uniquifyExp' e
     pure $ Let (sconcat bss) e' NoInfo pos
+uniquifyExp' (Struct s _ pos) = do
+  let (fs, shps, es) = neUnzip3 s
+  shps' <- mapM uniquifyShape shps
+  es' <- mapM uniquifyExp' es
+  let s' = neZip3 fs shps' es'
+  pure $ Struct s' NoInfo pos
+uniquifyExp' (FieldProj e f _ pos) = do
+  e' <- uniquifyExp' e
+  pure $ FieldProj e' f NoInfo pos
 
 uniquifyMaybeTypeExp ::
   (MonadUniquify m) =>
@@ -125,7 +135,7 @@ withBind (BindType (TEArrayTypeParam v) t _ pos) m = do
     TEArray atomTE shapeSh _ ->
       withArrayTypeParam v $ \et s ->
         m $
-          NE.fromList $
+          NE.fromList 
             [ BindType (AtomTypeParam et) atomTE NoInfo pos,
               BindISpace (ShapeParam s) (Shape shapeSh) pos
             ]
@@ -191,3 +201,7 @@ uniquifyTypeExp (TEPi params t pos) =
 uniquifyTypeExp (TESigma params t pos) =
   bindsNE withISpaceParam params $ \params' ->
     TESigma params' <$> uniquifyTypeExp t <*> pure pos
+uniquifyTypeExp (TERecord s pos) = do
+  let (fs, ts) = NE.unzip s
+  ts' <- mapM uniquifyTypeExp ts
+  pure $ TERecord (NE.zip fs ts') pos

@@ -118,6 +118,7 @@ data TypeExp v
   | TEForall (NE.NonEmpty (TypeParamExp v)) (TypeExp v) SourcePos
   | TEPi (NE.NonEmpty (ISpaceParam v)) (TypeExp v) SourcePos
   | TESigma (NE.NonEmpty (ISpaceParam v)) (TypeExp v) SourcePos
+  | TERecord (NE.NonEmpty (Text, TypeExp v)) SourcePos
   deriving (Eq, Ord, Show)
 
 instance (Show v, Pretty v) => Pretty (TypeExp v) where
@@ -145,6 +146,8 @@ instance (Show v, Pretty v) => Pretty (TypeExp v) where
       "Σ"
         <+> parens (hsep (map pretty (NE.toList xs)))
         <+> pretty t
+  pretty (TERecord fs _) =
+    braces $ hsep $ punctuate comma (map pretty (NE.toList fs))
 
 -- | Type parameters.
 newtype TypeParam v = AtomTypeParam v
@@ -174,6 +177,8 @@ data AtomType v
     Pi (ISpaceParam v) (ArrayType v)
   | -- | Dependent sum type.
     Sigma (ISpaceParam v) (ArrayType v)
+  | -- | Record type.
+    Record (NE.NonEmpty (Text, ArrayType v))
   deriving (Show, Eq, Ord)
 
 infixr 4 :->
@@ -200,6 +205,8 @@ instance (Show v, Pretty v, Ord v) => Pretty (AtomType v) where
       "Σ"
         <+> pretty x
         <+> pretty t
+  pretty (Record fs) =
+    braces $ hsep $ punctuate comma (map pretty (NE.toList fs))
 
 -- | An array type.
 data ArrayType v
@@ -409,6 +416,10 @@ data ExpBase te tp f v
     Unbox (ISpaceParam v) v (ExpBase te tp f v) (ExpBase te tp f v) (f (ArrayType v)) SourcePos
   | -- | Let
     Let (NE.NonEmpty (BindBase te tp f v)) (ExpBase te tp f v) (f (ArrayType v)) SourcePos
+  | -- | Record expression.
+    Struct (NonEmpty (Text, Shape v, ExpBase te tp f v)) (f (ArrayType v, Shape v)) SourcePos
+  | -- | Record Field Projection
+    FieldProj (ExpBase te tp f v) Text (f (ArrayType v)) SourcePos 
 
 deriving instance (Show v, Show (te v), Show (tp v)) => Show (ExpBase te tp NoInfo v)
 
@@ -471,6 +482,10 @@ instance
       "let"
         <+> parens (align (sep (map pretty $ NE.toList binds)))
         <> nested (pretty body)
+  pretty (Struct fs _ _) =
+    braces $ hsep $ punctuate comma $ map (\(f, s, e) -> pretty f <+> ":" <+> pretty s <+> " = " <+> pretty e) $ NE.toList fs
+  pretty (FieldProj e field _ _) =
+    parens $ pretty e <+> "." <+> pretty field
 
 -- | Top-level declarations
 data DeclBase te tp f v
@@ -617,6 +632,8 @@ instance HasSrcPos (ExpBase te tp f v) where
   posOf (IApp _ _ _ pos) = pos
   posOf (Unbox _ _ _ _ _ pos) = pos
   posOf (Let _ _ _ pos) = pos
+  posOf (Struct _ _ pos) = pos
+  posOf (FieldProj _ _ _ pos) = pos
 
 instance HasSrcPos (PatBase te f v) where
   posOf (PatId _ _ _ pos) = pos
@@ -632,6 +649,7 @@ instance HasSrcPos (TypeExp v) where
   posOf (TEForall _ _ pos) = pos
   posOf (TEPi _ _ pos) = pos
   posOf (TESigma _ _ pos) = pos
+  posOf (TERecord _ pos) = pos 
 
 type UncheckedProg = ProgBase TypeExp TypeParamExp NoInfo Text
 

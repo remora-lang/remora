@@ -34,6 +34,7 @@ import Syntax hiding
 import Syntax qualified
 import Util
 import VName
+import Data.Text (Text)
 
 type Type = Syntax.Type VName
 
@@ -54,6 +55,8 @@ data Val m
     ValTFun (Type -> m (Val m))
   | -- | Index function.
     ValIFun (Either Int [Int] -> m (Val m))
+  | -- | Records
+    ValRecord [(Text, Val m)]
 
 instance Show (Val m) where
   show (ValVar v) = "ValVar " <> show v
@@ -63,6 +66,7 @@ instance Show (Val m) where
   show ValFun {} = "ValFun <#fun>"
   show ValTFun {} = "ValTFun <#tfun>"
   show ValIFun {} = "ValIFun <#ifun>"
+  show (ValRecord fs) = "VarRecord " <> show fs
 
 instance Pretty (Val m) where
   pretty (ValVar v) = pretty v
@@ -83,6 +87,8 @@ instance Pretty (Val m) where
   pretty ValFun {} = "#<fun>"
   pretty ValTFun {} = "#<tfun>"
   pretty ValIFun {} = "#<ifun>"
+  pretty (ValRecord fs) =
+    braces $ hsep $ punctuate comma $ map (\(f, v) -> pretty f <+> " = " <+> pretty v) fs
 
 -- | View a value as a base value, unwrapping a scalar array if needed.
 asBase :: Val m -> Base

@@ -122,6 +122,11 @@ liftExp (Let binds body t pos) = do
     liftBinds (b : bs) = do
       b' <- liftBind b
       (b' :) <$> withBind b' (liftBinds bs)
+liftExp (Struct s t pos) = do
+  let (fs, shps, es) = neUnzip3 s
+  es' <- mapM liftExp es
+  let s' = neZip3 fs shps es'
+  pure $ Struct s' t pos
 
 liftAtom :: Atom -> LiftM Atom
 liftAtom a@Base {} = pure a
