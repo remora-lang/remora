@@ -136,10 +136,6 @@ asPoly (Array s as (Info (et :@ _)) _)
       Just $ PolyArray s (atomToPoly <$> as)
 asPoly _ = Nothing
 
-argToMonoArg :: Arg -> MonoArg
-argToMonoArg (Left at) = Left at
-argToMonoArg (Right is) = Right is
-
 unfoldApp :: Exp -> (Exp, [Arg])
 unfoldApp = second reverse . unfoldApp'
   where
@@ -171,12 +167,11 @@ resolveApp e = do
           result <- foldM step (Left poly) args
           case (f, result) of
             (Var v _ _, Right (Var v' _ _)) -> do
-              emitMonoVName (v, marg) v'
+              emitMonoVName (v, args) v'
               pure result
             _ -> pure result
   where
     (f, args) = unfoldApp e
-    marg = map argToMonoArg args
 
     resolveFun fn@(Var v _ _) =
       maybe (Right fn) Left <$> lookupDef v
@@ -185,7 +180,7 @@ resolveApp e = do
 
     lookupCached =
       case f of
-        Var v _ _ -> lookupMono v marg
+        Var v _ _ -> lookupMono v args
         _ -> pure Nothing
 
     step (Left poly) arg = specialize poly arg
