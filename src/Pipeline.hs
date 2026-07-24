@@ -78,7 +78,8 @@ lambdaLiftExpM =
 
 compileM :: UncheckedProg -> PassM Text
 compileM =
-  typeCheckM
+  Uniquify.uniquify
+    >=> TypeCheck.check
     >=> Monomorphize.monomorphize
     >=> LambdaLift.lambdaLift
     >=> Futhark.compile
