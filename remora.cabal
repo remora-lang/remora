@@ -42,6 +42,7 @@ library
       Pipeline
       Primitive
       Prop
+      Rename
       Serializer
       Substitute
       Symbolic
