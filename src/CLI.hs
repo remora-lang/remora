@@ -47,6 +47,7 @@ data RemoraMode
   | Dev
       { file :: Maybe FilePath,
         expr :: Maybe String,
+        uniquify :: Bool,
         monomorphize :: Bool,
         lambdalift :: Bool,
         serialize :: Bool
@@ -103,6 +104,7 @@ dev =
   Dev
     { file = Nothing &= help "Run the pass on the passed file.",
       expr = Nothing &= help "Run the pass on an expression passed as an argument.",
+      uniquify = False &= help "Uniquify and expand array type var syntactic sugar.",
       monomorphize = False &= help "Monomorphize.",
       lambdalift = False &= help "Monomorphize & lambda lift.",
       serialize = False &= help "Serialize an input program to JSON."
@@ -136,7 +138,7 @@ main = do
             (\prog -> flip Pipeline.interpret prog =<< mapM evalArg margs)
             input
       liftIO $ T.putStrLn $ prettyText v
-    run (Dev mfile mexpr mono lift serialize)
+    run (Dev mfile mexpr uniq mono lift serialize)
       | lift = do
           input <- parseInput mfile mexpr
           out <-
@@ -144,6 +146,15 @@ main = do
               either
                 (fmap prettyText . Pipeline.lambdaLiftExp)
                 (fmap prettyText . Pipeline.lambdaLift)
+                input
+          liftIO $ T.putStrLn out
+      | uniq = do
+          input <- parseInput mfile mexpr
+          out <-
+            except $
+              either
+                (fmap prettyText . Pipeline.uniquifyExp)
+                (fmap prettyText . Pipeline.uniquify)
                 input
           liftIO $ T.putStrLn out
       | mono = do
@@ -159,7 +170,7 @@ main = do
           input <- parseInput mfile mexpr
           liftIO $ serializeAST input
       | otherwise =
-          except $ Left "remora dev: specify --monomorphize or --lambdalift"
+          except $ Left "remora dev: specify --uniquify, --monomorphize or --lambdalift"
     run (Futhark mfile mexpr mbackend) = do
       input <- parseInput mfile mexpr
       ir <- except $ either Pipeline.compileExp Pipeline.compile input
