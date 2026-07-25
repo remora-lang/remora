@@ -188,8 +188,8 @@ withSourceTypeParam1 p k =
 withArrayTypeParam :: (MonadUniquify m) => Text -> (VName -> VName -> m a) -> m a
 withArrayTypeParam v m = do
   vname <- newVName v
-  et_vname <- newVName $ "*" <> v
-  s_vname <- newVName $ "@" <> v
+  et_vname <- newVName v
+  s_vname <- newVName v
   local
     ( \env ->
         env
@@ -216,8 +216,8 @@ withTypeParamExp (TEAtomTypeParam v) m = do
     $ m (TEAtomTypeParam vname)
 withTypeParamExp (TEArrayTypeParam v) m = do
   vname <- newVName v
-  et_vname <- newVName $ "*" <> v
-  s_vname <- newVName $ "@" <> v
+  et_vname <- newVName v
+  s_vname <- newVName v
   local
     ( \env ->
         env
