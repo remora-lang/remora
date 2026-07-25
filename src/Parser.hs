@@ -263,16 +263,11 @@ pAtom =
       pure $ c x (foldr (\p b -> mkScalar $ c p b NoInfo pos) body xs) NoInfo pos
 
     pBox pos = do
-      ispaces <- lKeyword "box" >> neListOf pISpace
+      d NE.:| ds <- lKeyword "box" >> neListOf pISpace
       e <- pExp
-      nest ispaces e <$> pType
-      where
-        nest (d NE.:| []) e t = Box d e t NoInfo pos
-        nest (d NE.:| (d' : ds)) e t =
-          Box d (mkScalar $ nest (d' NE.:| ds) e (peelSigma t)) t NoInfo pos
-        peelSigma (TESigma (_ NE.:| []) body _) = body
-        peelSigma (TESigma (_ NE.:| (p' : ps)) body tpos) = TESigma (p' NE.:| ps) body tpos
-        peelSigma t = t
+      t <- pType
+      let f d' b = mkScalar $ Box d' b Nothing NoInfo pos
+      pure $ Box d (foldr f e ds) (Just t) NoInfo pos
 
 pISpace :: Parser ISpace
 pISpace =

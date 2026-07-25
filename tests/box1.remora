@@ -1,0 +1,4 @@
+;; expected: (box 1 (box 2 100))
+(entry (main)
+  (let ((type &t (Sigma ($d $e) Int)))
+    (box (1 2) 100 &t)))

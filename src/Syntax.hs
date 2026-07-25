@@ -300,7 +300,7 @@ data AtomBase te tp f v
   | -- | Index lambda.
     ILambda (ISpaceParam v) (ExpBase te tp f v) (f (AtomType v)) SourcePos
   | -- | Boxed expression.
-    Box (ISpace v) (ExpBase te tp f v) (te v) (f (AtomType v)) SourcePos
+    Box (ISpace v) (ExpBase te tp f v) (Maybe (te v)) (f (AtomType v)) SourcePos
 
 deriving instance (Show v, Show (te v), Show (tp v)) => Show (AtomBase te tp NoInfo v)
 
@@ -324,7 +324,7 @@ instance
   pretty (ILambda arg e _ _) =
     parens $ group $ "iλ" <+> parens (pretty arg) <> nested (pretty e)
   pretty (Box i e t _ _) =
-    parens $ "box" <+> pretty i <+> pretty e <+> pretty t
+    parens $ "box" <+> pretty i <+> pretty e <> prettyAnnot t
 
 -- | Binds
 data BindBase te tp f v

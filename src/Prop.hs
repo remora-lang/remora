@@ -21,6 +21,7 @@ module Prop
     arrayOf,
     findRet,
     unrollApp,
+    scalarize,
     mkLambda,
     mkFunBind,
     mkFunBindM,
@@ -81,6 +82,10 @@ baseTypeOf BoolVal {} = Bool
 baseTypeOf IntVal {} = Int
 baseTypeOf FloatVal {} = Float
 
+scalarize :: Atom -> Exp
+scalarize a =
+  Array mempty (pure a) (Info $ mkScalarArrayType $ scalarTypeOf a) (posOf a)
+
 mkLambda :: NE.NonEmpty Pat -> Exp -> Atom
 mkLambda (p NE.:| ps) body =
   case ps of
@@ -89,8 +94,6 @@ mkLambda (p NE.:| ps) body =
   where
     lam pat b =
       Lambda pat b (Info $ arrayTypeOf pat :-> arrayTypeOf b) (posOf pat)
-    scalarize a =
-      Array mempty (pure a) (Info $ mkScalarArrayType $ scalarTypeOf a) (posOf a)
 
 mkFunBind :: VName -> NE.NonEmpty Pat -> Exp -> Bind
 mkFunBind name params body =

@@ -165,7 +165,7 @@ uniquifyAtom (ILambda p e _ pos) =
 uniquifyAtom (Box ispace e box_t _ pos) = do
   ispace' <- uniquifyISpace ispace
   e' <- uniquifyExp' e
-  box_t' <- uniquifyTypeExp box_t
+  box_t' <- uniquifyMaybeTypeExp box_t
   pure $ Box ispace' e' box_t' NoInfo pos
 
 uniquifyTypeExp :: (MonadUniquify m) => TypeExp Text -> m (TypeExp VName)

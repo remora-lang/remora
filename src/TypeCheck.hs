@@ -367,29 +367,48 @@ checkAtom (ILambda p e _ pos) =
     e' <- checkExp' e
     let r = arrayTypeOf e'
     pure $ ILambda p' e' (Info $ Pi p' r) pos
-checkAtom atom@(Box ispace e box_t _ pos) = do
-  ispace' <- checkISpace ispace
-  e' <- checkExp' e
+checkAtom box@(Box _ _ Nothing _ pos) =
+  throwErrorPos pos $
+    T.unlines
+      [ "Unannotated box:",
+        prettyText box
+      ]
+checkAtom (Box ispace e (Just box_t) _ pos) = do
   box_t' <- checkTypeExp box_t
   case convertAtomTypeExp box_t' of
-    Just bt@(Sigma is t) -> do
-      let t' = substitute (substISpaceVar (unISpaceParam is) ispace') t
-      unless (arrayTypeOf e' ~= t') $
-        throwErrorPos pos $
-          T.unlines
-            [ "Wrong box type.",
-              "Expected:",
-              prettyText $ typeOf e',
-              "But got:",
-              prettyText t'
-            ]
-      pure $ Box ispace' e' (AtomType bt) (Info bt) pos
+    Just (Sigma is t) -> checkBox ispace e is t
     _ ->
       throwErrorPos pos $
         T.unlines
           [ "Non-existential box type:",
-            prettyText atom
+            prettyText box_t'
           ]
+  where
+    checkBox ::
+      (MonadCheck m) =>
+      ISpace VName ->
+      UniqueExp ->
+      ISpaceParam VName ->
+      ArrayType VName ->
+      m Atom
+    checkBox isp body is t = do
+      isp' <- checkISpace isp
+      let bt = Sigma is t
+          t' = substitute (substISpaceVar (unISpaceParam is) isp') t
+      body' <- case (arrayTypeAtom t', asScalar body) of
+        (Sigma is' t'', Just (Box isp'' body'' Nothing _ _)) ->
+          scalarize <$> checkBox isp'' body'' is' t''
+        _ -> checkExp' body
+      unless (arrayTypeOf body' ~= t') $
+        throwErrorPos pos $
+          T.unlines
+            [ "Wrong box type.",
+              "Expected:",
+              prettyText t',
+              "But got:",
+              prettyText $ typeOf body'
+            ]
+      pure $ Box isp' body' (Just $ AtomType bt) (Info bt) pos
 
 checkTypeExp :: (MonadCheck m) => TypeExp VName -> m (TypeExp VName)
 checkTypeExp (TEAtomVar vname pos) = do

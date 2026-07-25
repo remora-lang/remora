@@ -1,0 +1,5 @@
+;; expected: [[1 2 3] [4 5 6]]
+(entry (main)
+  (let ((type &t (Sigma ($d $e) [Int $d $e]))
+        (val my-box (box (2 3) [[1 2 3] [4 5 6]] &t)))
+    (unbox ($d $e xs my-box) xs)))
