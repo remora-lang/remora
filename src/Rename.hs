@@ -49,8 +49,8 @@ useVar v = asks $ fromMaybe v . M.lookup v . envMap
 sub :: (Monad m, Substitutable VName a) => a -> RenameM m a
 sub x = asks $ \env -> substitute (envSubst env) x
 
-withBound :: (MonadVName m) => [VName] -> RenameM m a -> RenameM m a
-withBound vs m = do
+withParams :: (MonadVName m) => [VName] -> RenameM m a -> RenameM m a
+withParams vs m = do
   vs' <- mapM (newVName . varName) vs
   local (extend $ zip vs vs') m
   where
@@ -61,7 +61,7 @@ withBound vs m = do
 
 renameProg :: (MonadVName m) => Prog -> RenameM m Prog
 renameProg (Prog decs) =
-  withBound (concatMap declBinders decs) $
+  withParams (concatMap declBinders decs) $
     Prog <$> traverse renameDecl decs
 
 renameDecl :: (MonadVName m) => Decl -> RenameM m Decl
@@ -70,7 +70,7 @@ renameDecl (Entry v pats mte body t pos) = do
   v' <- useVar v
   mte' <- traverse sub mte
   t' <- sub t
-  withBound (patVar <$> pats) $
+  withParams (patVar <$> pats) $
     Entry v'
       <$> traverse renamePat pats
       <*> pure mte'
@@ -98,7 +98,7 @@ renameExp' (IApp e isp t pos) =
 renameExp' (Unbox ip x box body t pos) = do
   box' <- renameExp' box
   t' <- sub t
-  withBound [unISpaceParam ip, x] $
+  withParams [unISpaceParam ip, x] $
     Unbox
       <$> renameISpaceParam ip
       <*> useVar x
@@ -108,7 +108,7 @@ renameExp' (Unbox ip x box body t pos) = do
       <*> pure pos
 renameExp' (Let bs body t pos) = do
   t' <- sub t
-  withBound (binderVar <$> NE.toList bs) $
+  withParams (binderVar <$> NE.toList bs) $
     Let
       <$> traverse renameBind bs
       <*> renameExp' body
@@ -129,15 +129,15 @@ renameAtom (Base b t pos) =
   Base b <$> sub t <*> pure pos
 renameAtom (Lambda pat body t pos) = do
   t' <- sub t
-  withBound [patVar pat] $
+  withParams [patVar pat] $
     Lambda <$> renamePat pat <*> renameExp' body <*> pure t' <*> pure pos
 renameAtom (TLambda tp body t pos) = do
   t' <- sub t
-  withBound [unTypeParam tp] $
+  withParams [unTypeParam tp] $
     TLambda <$> renameTypeParam tp <*> renameExp' body <*> pure t' <*> pure pos
 renameAtom (ILambda ip body t pos) = do
   t' <- sub t
-  withBound [unISpaceParam ip] $
+  withParams [unISpaceParam ip] $
     ILambda <$> renameISpaceParam ip <*> renameExp' body <*> pure t' <*> pure pos
 renameAtom (Box isp body te t pos) =
   Box <$> sub isp <*> renameExp' body <*> sub te <*> sub t <*> pure pos
@@ -149,7 +149,7 @@ renameBind (BindFun v pats mte body t pos) = do
   v' <- useVar v
   mte' <- traverse sub mte
   t' <- sub t
-  withBound (patVar <$> NE.toList pats) $
+  withParams (patVar <$> NE.toList pats) $
     BindFun v'
       <$> traverse renamePat pats
       <*> pure mte'
@@ -159,7 +159,7 @@ renameBind (BindFun v pats mte body t pos) = do
 renameBind (BindTFun v tps mte body t pos) = do
   v' <- useVar v
   t' <- sub t
-  withBound (unTypeParam <$> NE.toList tps) $
+  withParams (unTypeParam <$> NE.toList tps) $
     BindTFun v'
       <$> traverse renameTypeParam tps
       <*> traverse sub mte
@@ -169,7 +169,7 @@ renameBind (BindTFun v tps mte body t pos) = do
 renameBind (BindIFun v ips mte body t pos) = do
   v' <- useVar v
   t' <- sub t
-  withBound (unISpaceParam <$> NE.toList ips) $
+  withParams (unISpaceParam <$> NE.toList ips) $
     BindIFun v'
       <$> traverse renameISpaceParam ips
       <*> traverse sub mte
