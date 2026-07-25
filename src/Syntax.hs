@@ -56,6 +56,7 @@ module Syntax
     asScalar,
     arrayElems,
     frameElems,
+    unfoldApp,
     flattenExp,
     arrayifyType,
     arrayTypeView,
@@ -84,6 +85,15 @@ newtype Info a = Info a
 
 instance (Pretty a) => Pretty (Info a) where
   pretty (Info a) = pretty a
+
+indentation :: Int
+indentation = 2
+
+nested :: Doc ann -> Doc ann
+nested d = nest indentation $ line <> d
+
+prettyAnnot :: (Pretty a) => Maybe a -> Doc ann
+prettyAnnot = maybe mempty ((space <>) . pretty)
 
 -- | Source-level type parameters. Different from `TypeParam` because they allow
 -- array type parameters.
@@ -308,11 +318,11 @@ instance
   where
   pretty (Base b _ _) = pretty b
   pretty (Lambda arg e _ _) =
-    parens $ "λ" <+> parens (pretty arg) <+> pretty e
+    parens $ group $ "λ" <+> parens (pretty arg) <> nested (pretty e)
   pretty (TLambda arg e _ _) =
-    parens $ "tλ" <+> parens (pretty arg) <+> pretty e
+    parens $ group $ "tλ" <+> parens (pretty arg) <> nested (pretty e)
   pretty (ILambda arg e _ _) =
-    parens $ "iλ" <+> parens (pretty arg) <+> pretty e
+    parens $ group $ "iλ" <+> parens (pretty arg) <> nested (pretty e)
   pretty (Box i e t _ _) =
     parens $ "box" <+> pretty i <+> pretty e <+> pretty t
 
@@ -339,25 +349,28 @@ instance
   Pretty (BindBase te tp f v)
   where
   pretty (BindVal v t e _) =
-    parens $ pretty v <+> pretty t <+> pretty e
+    parens $ group $ pretty v <> prettyAnnot t <> nested (pretty e)
   pretty (BindFun f params mt body _ _) =
     parens $
-      pretty f
-        <+> parens (hsep (map pretty $ NE.toList params))
-        <+> pretty mt
-        <+> pretty body
+      group $
+        pretty f
+          <+> parens (hsep (map pretty $ NE.toList params))
+          <> prettyAnnot mt
+          <> nested (pretty body)
   pretty (BindTFun f params mt body _ _) =
     parens $
-      pretty f
-        <+> parens (hsep (map pretty $ NE.toList params))
-        <+> pretty mt
-        <+> pretty body
+      group $
+        pretty f
+          <+> parens (hsep (map pretty $ NE.toList params))
+          <> prettyAnnot mt
+          <> nested (pretty body)
   pretty (BindIFun f params mt body _ _) =
     parens $
-      pretty f
-        <+> parens (hsep (map pretty $ NE.toList params))
-        <+> pretty mt
-        <+> pretty body
+      group $
+        pretty f
+          <+> parens (hsep (map pretty $ NE.toList params))
+          <> prettyAnnot mt
+          <> nested (pretty body)
   pretty (BindType tvar t _ _) =
     parens $ pretty tvar <+> pretty t
   pretty (BindISpace ivar ispace _) =
@@ -438,16 +451,23 @@ instance
         "empty-frame"
           <+> brackets (hsep (map pretty shape))
           <+> pretty t
-  pretty (App f e _ _) =
-    parens $ pretty f <+> pretty e
+  pretty e@App {} =
+    let (f, args) = unfoldApp e
+     in parens $ align $ sep $ pretty f : map pretty args
   pretty (TApp e t _ _) =
     parens $ "t-app" <+> pretty e <+> pretty t
   pretty (IApp e i _ _) =
     parens $ "i-app" <+> pretty e <+> pretty i
   pretty (Unbox ep v e b _ _) =
-    parens $ "unbox" <+> parens (pretty ep <+> pretty v <+> pretty e) <+> pretty b
+    parens $
+      "unbox"
+        <+> parens (pretty ep <+> pretty v <+> pretty e)
+        <> nested (pretty b)
   pretty (Let binds body _ _) =
-    parens $ "let" <+> hsep (map pretty $ NE.toList binds) <+> pretty body
+    parens $
+      "let"
+        <+> parens (align (sep (map pretty $ NE.toList binds)))
+        <> nested (pretty body)
 
 -- | Top-level declarations
 data DeclBase te tp f v
@@ -476,8 +496,8 @@ instance
       "entry"
         <+> pretty f
         <+> parens (hsep (map pretty params))
-        <+> pretty mt
-        <+> pretty body
+        <> prettyAnnot mt
+        <> nested (pretty body)
 
 declName :: DeclBase te tp f v -> Maybe v
 declName (Def b) = bindName b
@@ -506,7 +526,7 @@ instance
   ) =>
   Pretty (ProgBase te tp f v)
   where
-  pretty = cat . punctuate line . map pretty . progDecs
+  pretty = vsep . punctuate line . map pretty . progDecs
 
 -- | Make a scalar from an 'Atom'.
 mkScalar :: AtomBase te tp NoInfo v -> ExpBase te tp NoInfo v
@@ -526,6 +546,13 @@ arrayElems _ = Nothing
 frameElems :: ExpBase te tp f v -> Maybe (NE.NonEmpty (ExpBase te tp f v))
 frameElems (Frame _ es _ _) = pure es
 frameElems _ = Nothing
+
+-- | Peels an 'App' into its function and its arguments.
+unfoldApp :: ExpBase te tp f v -> (ExpBase te tp f v, [ExpBase te tp f v])
+unfoldApp = flip unfoldApp' []
+  where
+    unfoldApp' (App f arg _ _) args = unfoldApp' f (arg : args)
+    unfoldApp' f args = (f, args)
 
 -- | Flattens nested 'Frame's and 'Array's.
 flattenExp :: ExpBase te tp f v -> ExpBase te tp f v

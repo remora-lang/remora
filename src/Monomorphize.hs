@@ -14,7 +14,14 @@ import Pass (PassM)
 import Prop
 import Rename (renameExp)
 import Substitute
-import Syntax hiding (ArrayType, AtomType, ISpace, Type, TypeExp)
+import Syntax hiding
+  ( ArrayType,
+    AtomType,
+    ISpace,
+    Type,
+    TypeExp,
+    unfoldApp,
+  )
 import Util
 import VName
 
