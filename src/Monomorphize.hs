@@ -12,6 +12,7 @@ import Data.Maybe
 import Monomorphize.Monad
 import Pass (PassM)
 import Prop
+import Rename (renameExp)
 import Substitute
 import Syntax hiding (ArrayType, AtomType, ISpace, Type, TypeExp)
 import Util
@@ -192,7 +193,7 @@ specialize :: Poly -> Arg -> MonoM (Either Poly Exp)
 specialize (PolyFun mv (p : ps) body) arg
   | null ps = do
       v <- maybe (newVName "mono") (newVName . (<> "_mono") . varName) mv
-      body'' <- monoExp body'
+      body'' <- monoExp =<< renameExp body'
       emitBind $ BindVal v Nothing body'' noSrcPos
       pure $ Right $ Var v (Info $ arrayTypeOf body'') noSrcPos
   | otherwise = pure $ Left $ PolyFun mv ps body'
