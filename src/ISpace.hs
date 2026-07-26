@@ -14,6 +14,7 @@ module ISpace
     normDim,
     normShape,
     peelShape,
+    flattenShape,
     intsToShape,
     dimToInt,
     shapeToInts,
@@ -72,10 +73,6 @@ instance (Show v, Pretty v) => Pretty (Shape v) where
   pretty (ShapeVar v) = "@" <> pretty v
   pretty (ShapeDim d) = pretty d
   pretty s@Concat {} = brackets $ hsep $ map pretty $ flattenShape s
-    where
-      flattenShape :: Shape v -> [Shape v]
-      flattenShape (Concat ss) = concatMap flattenShape ss
-      flattenShape s' = pure s'
 
 -- | An 'ISpace', which is either a 'Dim' or a 'Shape'.
 data ISpace v
@@ -200,6 +197,10 @@ peelShape = peelShape' . normShape
   where
     peelShape' (Concat (_ : ss)) = Concat ss
     peelShape' _ = mempty
+
+flattenShape :: Shape v -> [Shape v]
+flattenShape (Concat ss) = concatMap flattenShape ss
+flattenShape s = pure s
 
 -- | Turns n list of integer dimensions into a 'Shape'.
 intsToShape :: [Int] -> Shape v

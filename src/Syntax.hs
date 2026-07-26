@@ -212,8 +212,8 @@ data ArrayType v
 infix 5 :@
 
 instance (Show v, Pretty v) => Pretty (ArrayType v) where
-  pretty (t :@ Concat []) = pretty t -- fix
-  pretty (t :@ s) = brackets $ pretty t <+> pretty s
+  pretty (t :@ Concat []) = pretty t
+  pretty (t :@ s) = brackets $ pretty t <+> hsep (map pretty $ flattenShape s)
 
 -- | Types.
 data Type v
