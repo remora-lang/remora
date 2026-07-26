@@ -180,9 +180,9 @@ intrinsics =
           pure $ vFun1 $ \arr ->
             case cell of
               Right cellShp ->
-                let (shape, xs) = asArray arr in
-                let res = concat $ reverse $ split (product cellShp) xs 
-                in pure $ ValArray shape res
+                let (shape, xs) = asArray arr
+                    res = concat $ reverse $ split (product $ shape \\ cellShp) (product cellShp) xs
+                 in pure $ ValArray shape res
               _ -> error "reverse: second iarg not shape"
     intrinsic "reduce" =
       tFun1 $ \_ ->
@@ -190,7 +190,8 @@ intrinsics =
           pure $ vFun2 $ \opv arr ->
             let op = asScalar opv
                 s' = asShape s
-                cells = map (ValArray s') $ split (product s') $ snd $ asArray arr
+                (shape, elems) = asArray arr
+                cells = map (ValArray s') $ split (product $ shape \\ s') (product s') elems
              in case cells of
                   c : cs -> foldM (applyFun op) c cs
                   [] -> error "reduce: empty array"
@@ -200,7 +201,8 @@ intrinsics =
           pure $ vFun3 $ \opv zero arr ->
             let op = asScalar opv
                 s' = asShape s
-                cells = map (ValArray s') $ split (product s') $ snd $ asArray arr
+                (shape, elems) = asArray arr
+                cells = map (ValArray s') $ split (product $ shape \\ s') (product s') elems
              in foldM (applyFun op) zero cells
     intrinsic "sum" =
       let valSum (ValBase (IntVal x)) = x
@@ -239,7 +241,7 @@ intrinsics =
         pure $ iFun2 $ \_ _ ->
           pure $ vFun1 $ \arr ->
             case asArray arr of
-              ([m, n], elts) -> pure $ ValArray [n, m] (concat $ L.transpose $ split n elts)
+              ([m, n], elts) -> pure $ ValArray [n, m] (concat $ L.transpose $ split m n elts)
               _ -> error "transpose2d: not a 2d array"
     intrinsic "undefined" = undefined
     intrinsic "index" =

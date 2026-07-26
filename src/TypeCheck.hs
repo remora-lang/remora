@@ -110,10 +110,10 @@ checkExp' expr@(EmptyArray ns te _ pos) = do
   unless (product ns == 0) $
     throwErrorPos pos $
       "Empty array has a non-empty shape: " <> prettyText expr
-  case convertArrayTypeExp te' of
+  case convertAtomTypeExp te' of
     Nothing ->
-      throwErrorPos pos "Non-scalar kinded type annotation on empty array."
-    Just t -> pure $ EmptyArray ns (ArrayType t) (Info t) pos
+      throwErrorPos pos "Non-atom kinded type annotation on empty array."
+    Just t -> pure $ EmptyArray ns (AtomType t) (Info $ arrayOf (AtomType t) (intsToShape ns)) pos
 checkExp' expr@(Frame ns es _ pos) = do
   es' <- mapM checkExp' es
   let e' = NE.head es'
@@ -123,8 +123,7 @@ checkExp' expr@(Frame ns es _ pos) = do
   unless (product ns == length es') $
     throwErrorPos pos $
       "Frame shape doesn't match number of elements: " <> prettyText expr
-  let et :@ s = arrayTypeOf e'
-  pure $ flattenExp $ Frame ns es' (Info $ et :@ (intsToShape ns <> s)) pos
+  pure $ flattenExp $ Frame ns es' (Info $ arrayOf (typeOf e') (intsToShape ns)) pos
 checkExp' expr@(EmptyFrame ns te _ pos) = do
   te' <- checkTypeExp te
   unless (product ns == 0) $
@@ -133,7 +132,7 @@ checkExp' expr@(EmptyFrame ns te _ pos) = do
   case convertArrayTypeExp te' of
     Nothing ->
       throwErrorPos pos "Non-scalar kinded type annotation on empty frame."
-    Just t -> pure $ EmptyFrame ns (ArrayType t) (Info t) pos
+    Just t -> pure $ EmptyFrame ns (ArrayType t) (Info $ arrayOf (ArrayType t) (intsToShape ns)) pos
 checkExp' expr@(App f arg _ pos) = do
   f' <- checkExp' f
   arg' <- checkExp' arg
@@ -170,7 +169,7 @@ checkExp' expr@(App f arg _ pos) = do
                 prettyText expr
               ]
         Just principal ->
-          let ret' = arrayTypeAtom ret :@ (principal <> arrayTypeShape ret)
+          let ret' = arrayOf (ArrayType ret) principal
            in pure $ App f' arg' (Info (ret', principal)) pos
     t ->
       throwErrorPos pos $
@@ -196,8 +195,7 @@ checkExp' expr@(TApp f t _ pos) = do
                 "in",
                 prettyText expr
               ]
-      let rt :@ rshape = substitute (substAtomVars atom_subst) r
-          r' = rt :@ (frame_f <> rshape)
+      let r' = arrayOf (ArrayType $ substitute (substAtomVars atom_subst) r) frame_f
       pure $ TApp f' targ (Info r') pos
     _ ->
       throwErrorPos pos $
@@ -227,8 +225,7 @@ checkExp' expr@(IApp f i _ pos) = do
                   prettyText expr
                 ]
       (pt', i'') <- check_arg pt i'
-      let rt :@ shape = substitute (substISpaceVar (unISpaceParam pt') i'') r
-          r' = rt :@ (frame_f <> shape)
+      let r' = arrayOf (ArrayType $ substitute (substISpaceVar (unISpaceParam pt') i'') r) frame_f
       pure $ IApp f' i'' (Info r') pos
     _ ->
       throwErrorPos pos $
@@ -244,22 +241,14 @@ checkExp' expr@(Unbox ep x_e box body _ pos) = do
         | Just t' <- unboxType ep' boxt ->
             withParam' (x_e, t') $ \x_e' -> do
               body' <- checkExp' body
-              case typeOf body' of
-                ArrayType (t_b :@ shape_b) ->
-                  pure $
-                    Unbox
-                      ep'
-                      x_e'
-                      box'
-                      body'
-                      (Info $ t_b :@ (arrayTypeShape boxt <> shape_b))
-                      pos
-                _ ->
-                  throwErrorPos pos $
-                    T.unlines
-                      [ "Wrong body type for unbox:",
-                        prettyText expr
-                      ]
+              pure $
+                Unbox
+                  ep'
+                  x_e'
+                  box'
+                  body'
+                  (Info $ arrayOf (typeOf body') (arrayTypeShape boxt))
+                  pos
       _ ->
         throwErrorPos pos $
           T.unlines

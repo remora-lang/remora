@@ -221,8 +221,7 @@ specialize (PolyArray s ps) arg = do
       _ -> error "specialize: mix of argument types"
   where
     frame es@(e :| _) =
-      let et :@ sh = arrayTypeOf e
-       in flattenExp $ Frame s es (Info $ et :@ (intsToShape s <> sh)) (posOf e)
+      flattenExp $ Frame s es (Info $ arrayOf (typeOf e) (intsToShape s)) (posOf e)
 
 atomToPoly :: Atom -> Poly
 atomToPoly (TLambda p body _ _) =

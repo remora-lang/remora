@@ -382,18 +382,19 @@ lift pframe (ValArray fsshape fs) (sparam, argv) =
   where
     -- replicate the function array to match the frame
     n_fun_reps = fromIntegral $ product pframe `div` product fsshape
-    fs' = concat $ rep n_fun_reps $ split 1 fs
+    fs' = concat $ rep n_fun_reps $ split (length fs) 1 fs
 
     liftArg :: [Int] -> Val -> Val
     liftArg shape_param arg =
       let (shapeArg, as) = asArray arg
+          arg_frame = shapeArg \\ shape_param
           -- Number of cells the argument expects.
           n_arg_cell = product shape_param
           -- Number of times the argument needs to be replicated.
-          n_arg_reps = product pframe `div` product (shapeArg \\ shape_param)
+          n_arg_reps = product pframe `div` product arg_frame
        in ValArray
             (pframe <> shape_param)
-            (concat $ rep n_arg_reps $ split n_arg_cell as)
+            (concat $ rep n_arg_reps $ split (product arg_frame) n_arg_cell as)
 lift _ v _ = error $ prettyString v
 
 -- | Performs a function application between an array
@@ -401,13 +402,10 @@ lift _ v _ = error $ prettyString v
 apMap :: Val -> ([Int], Val) -> InterpM Val
 apMap v (sparam, argv) =
   let (shape_f, fs) = asArray v
-   in collapse . ValArray shape_f <$> zipWithM apply_fun fs (arg_split sparam argv)
+      cells = split (length fs) (product sparam) (snd $ asArray argv)
+   in collapse . ValArray shape_f <$> zipWithM apply_fun fs cells
   where
     apply_fun f cell = apply f (ValArray sparam cell)
-
-    -- Splits the argument according to the shape of the parameter.
-    arg_split shape_param arg =
-      split (product shape_param) (snd (asArray arg))
 
     apply :: Val -> Val -> InterpM Val
     apply (ValVar f) arg = do

@@ -76,7 +76,7 @@ instance Pretty (Val m) where
     where
       splitvs [d] vs' = ValArray [d] vs'
       splitvs (d : ds) vs' =
-        ValArray [d] $ map (splitvs ds) $ split (product ds) vs'
+        ValArray [d] $ map (splitvs ds) $ split d (product ds) vs'
       splitvs x y = error $ unlines [show x, show y, show (ValArray shape vs)]
   pretty (ValBox is v) =
     parens $ "box" <+> hsep (map (either pretty pretty) is) <+> pretty v
@@ -128,10 +128,12 @@ asScalar v = case asArray v of
   (_, [x]) -> x
   _ -> error "asScalar: not a scalar"
 
--- | @split n xs@ splits @xs@ into @n@-sized chunks.
-split :: Int -> [a] -> [[a]]
-split _ [] = []
-split n as = take n as : split n (drop n as)
+-- | @split n size xs@ splits @xs@ into @n@ cells of length @size@. (This
+-- diverges from @split@ in Justin's thesis, which takes only @size@---that's
+-- undefined when @size = 0@, so we pass @n@ too and don't infer the count.)
+split :: Int -> Int -> [a] -> [[a]]
+split 0 _ _ = []
+split n size xs = take size xs : split (n - 1) size (drop size xs)
 
 -- | A flattened 'replicate'.
 rep :: Int -> [a] -> [a]
@@ -156,7 +158,7 @@ rep n = concatMap $ replicate n
 
 transpose :: Val m -> Val m
 transpose (ValArray (m : n : ss) vss) =
-  ValArray (n : m : ss) $ concat $ L.transpose $ split n vss
+  ValArray (n : m : ss) $ concat $ L.transpose $ split m n vss
 transpose v = v
 
 valConcat :: Val m -> Val m

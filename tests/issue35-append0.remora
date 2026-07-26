@@ -1,0 +1,3 @@
+;; expected: [1 2 3]
+(entry (main)
+  (@append (Int) (0 3 []) (array [0] Int) [1 2 3]))

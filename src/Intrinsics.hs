@@ -7,6 +7,7 @@ import Data.Map (Map)
 import Data.Map qualified as M
 import Data.Text (Text)
 import Primitive (binOps, unOps)
+import Prop
 import Syntax
 import Uniquify.Monad
 import Uniquify.Type
@@ -43,7 +44,8 @@ intrinsics' =
                        scalar $
                          AtomTypeVar "t"
                            :@ Concat [ShapeDim (Add [DimN 1, DimVar "d"]), ShapeVar "s"]
-                           :-> AtomTypeVar "t" :@ ShapeVar "s"
+                           :-> AtomTypeVar "t"
+                           :@ ShapeVar "s"
              ),
              ( "tail",
                scalar $
@@ -53,7 +55,8 @@ intrinsics' =
                        scalar $
                          AtomTypeVar "t"
                            :@ Concat [ShapeDim (Add [DimN 1, DimVar "d"]), ShapeVar "s"]
-                           :-> AtomTypeVar "t" :@ Concat [ShapeDim (DimVar "d"), ShapeVar "s"]
+                           :-> AtomTypeVar "t"
+                           :@ Concat [ShapeDim (DimVar "d"), ShapeVar "s"]
              ),
              ( "length",
                scalar $
@@ -61,8 +64,10 @@ intrinsics' =
                    scalar $
                      piType (NE.fromList [DimParam "d", ShapeParam "s"]) $
                        scalar $
-                         AtomTypeVar "t" :@ Concat [ShapeDim (DimVar "d"), ShapeVar "s"]
-                           :-> Int :@ mempty
+                         AtomTypeVar "t"
+                           :@ Concat [ShapeDim (DimVar "d"), ShapeVar "s"]
+                           :-> Int
+                           :@ mempty
              ),
              ( "append",
                scalar $
@@ -95,7 +100,7 @@ intrinsics' =
                        let elem_t = AtomTypeVar "t" :@ ShapeVar "s"
                            op_t = scalar $ NE.fromList [elem_t, elem_t] `arrowType` elem_t
                            arg_t =
-                             AtomTypeVar "t" :@ (ShapeDim (DimN 1 <> DimVar "d") <> ShapeVar "s")
+                             arrayOf (ArrayType elem_t) (ShapeDim $ DimN 1 <> DimVar "d")
                         in scalar $ NE.fromList [op_t, arg_t] `arrowType` elem_t
              ),
              ( "sum",
@@ -113,7 +118,7 @@ intrinsics' =
                          AtomTypeVar "t"
                            :@ Concat [ShapeDim (DimVar "m"), ShapeDim (DimVar "n"), ShapeVar "s"]
                            :-> AtomTypeVar "t"
-                             :@ Concat [ShapeDim (Mul [DimVar "m", DimVar "n"]), ShapeVar "s"]
+                           :@ Concat [ShapeDim (Mul [DimVar "m", DimVar "n"]), ShapeVar "s"]
              ),
              ( "reshape",
                scalar $
@@ -121,14 +126,17 @@ intrinsics' =
                    scalar $
                      piType (NE.fromList [ShapeParam "s1", ShapeParam "s2"]) $
                        scalar $
-                         AtomTypeVar "t" :@ ShapeVar "s1"
-                           :-> AtomTypeVar "t" :@ ShapeVar "s2"
+                         AtomTypeVar "t"
+                           :@ ShapeVar "s1"
+                           :-> AtomTypeVar "t"
+                           :@ ShapeVar "s2"
              ),
              ( "iota",
                scalar $
                  Pi (DimParam "d") $
                    scalar $
-                     Int :@ ShapeDim (DimVar "d")
+                     Int
+                       :@ ShapeDim (DimVar "d")
                        :-> scalar (Sigma (ShapeParam "s") (Int :@ ShapeVar "s"))
              ),
              ( "iota/static",
@@ -143,7 +151,7 @@ intrinsics' =
                          AtomTypeVar "t"
                            :@ Concat [ShapeDim (DimVar "m"), ShapeDim (DimVar "n")]
                            :-> AtomTypeVar "t"
-                             :@ Concat [ShapeDim (DimVar "n"), ShapeDim (DimVar "m")]
+                           :@ Concat [ShapeDim (DimVar "n"), ShapeDim (DimVar "m")]
              ),
              ( "undefined",
                scalar $
@@ -188,7 +196,7 @@ intrinsics' =
                            acc_t = AtomTypeVar "t2" :@ ShapeVar "s2"
                            op_t = scalar $ NE.fromList [acc_t, elem_t] `arrowType` acc_t
                            arg_t =
-                             AtomTypeVar "t" :@ (ShapeDim (DimN 1 <> DimVar "d") <> ShapeVar "s")
+                             arrayOf (ArrayType elem_t) (ShapeDim $ DimN 1 <> DimVar "d")
                         in scalar $ NE.fromList [op_t, acc_t, arg_t] `arrowType` acc_t
              ),
              ( "trace",
@@ -226,8 +234,10 @@ intrinsics' =
                    scalar $
                      piType (NE.fromList [DimParam "d", ShapeParam "s"]) $
                        scalar $
-                         Int :@ ShapeDim (DimVar "d")
-                           :-> AtomTypeVar "t" :@ ShapeVar "s"
+                         Int
+                           :@ ShapeDim (DimVar "d")
+                           :-> AtomTypeVar "t"
+                           :@ ShapeVar "s"
              ),
              ( "reify-dim",
                scalar $
