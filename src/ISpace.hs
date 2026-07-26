@@ -14,10 +14,11 @@ module ISpace
     normDim,
     normShape,
     peelShape,
-    flattenShape,
     intsToShape,
     dimToInt,
     shapeToInts,
+    isEmptyShape,
+    unfoldShape,
   )
 where
 
@@ -72,7 +73,7 @@ instance Monoid (Shape v) where
 instance (Show v, Pretty v) => Pretty (Shape v) where
   pretty (ShapeVar v) = "@" <> pretty v
   pretty (ShapeDim d) = pretty d
-  pretty s@Concat {} = brackets $ hsep $ map pretty $ flattenShape s
+  pretty s@Concat {} = brackets $ hsep $ map pretty $ unfoldShape s
 
 -- | An 'ISpace', which is either a 'Dim' or a 'Shape'.
 data ISpace v
@@ -198,10 +199,6 @@ peelShape = peelShape' . normShape
     peelShape' (Concat (_ : ss)) = Concat ss
     peelShape' _ = mempty
 
-flattenShape :: Shape v -> [Shape v]
-flattenShape (Concat ss) = concatMap flattenShape ss
-flattenShape s = pure s
-
 -- | Turns n list of integer dimensions into a 'Shape'.
 intsToShape :: [Int] -> Shape v
 intsToShape = Concat . map (ShapeDim . DimN)
@@ -228,3 +225,13 @@ shapeToInts dim resolveShape = shapeToInts'
     shapeToInts' (ShapeVar v) = resolveShape v
     shapeToInts' (ShapeDim d) = pure <$> dim d
     shapeToInts' (Concat ss) = concat <$> traverse shapeToInts' ss
+
+isEmptyShape :: (Ord v) => Shape v -> Bool
+isEmptyShape s =
+  case normShape s of
+    Concat [] -> True
+    _ -> False
+
+unfoldShape :: Shape v -> [Shape v]
+unfoldShape (Concat ss) = concatMap unfoldShape ss
+unfoldShape s' = pure s'

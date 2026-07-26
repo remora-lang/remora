@@ -178,7 +178,7 @@ data AtomType v
 
 infixr 4 :->
 
-instance (Show v, Pretty v) => Pretty (AtomType v) where
+instance (Show v, Pretty v, Ord v) => Pretty (AtomType v) where
   pretty (AtomTypeVar x) = "&" <> pretty x
   pretty Bool = "Bool"
   pretty Int = "Int"
@@ -211,9 +211,12 @@ data ArrayType v
 
 infix 5 :@
 
-instance (Show v, Pretty v) => Pretty (ArrayType v) where
-  pretty (t :@ Concat []) = pretty t
-  pretty (t :@ s) = brackets $ pretty t <+> hsep (map pretty $ flattenShape s)
+instance (Show v, Pretty v, Ord v) => Pretty (ArrayType v) where
+  pretty (t :@ s)
+    | isEmptyShape s' = pretty t
+    | otherwise = brackets $ pretty t <+> hsep (map pretty $ unfoldShape s')
+    where
+      s' = normShape s
 
 -- | Types.
 data Type v
@@ -221,7 +224,7 @@ data Type v
   | ArrayType (ArrayType v)
   deriving (Show, Eq, Ord)
 
-instance (Show v, Pretty v) => Pretty (Type v) where
+instance (Show v, Pretty v, Ord v) => Pretty (Type v) where
   pretty (AtomType t) = pretty t
   pretty (ArrayType t) = pretty t
 
