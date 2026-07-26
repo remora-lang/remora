@@ -118,7 +118,14 @@ data ISpaceParam v
     ShapeParam v
   | -- | A dimension variable.
     DimParam v
-  deriving (Show, Eq, Ord, Functor)
+  deriving
+    ( Show,
+      Eq,
+      Ord,
+      Functor,
+      Foldable,
+      Traversable
+    )
 
 instance (Show v, Pretty v) => Pretty (ISpaceParam v) where
   pretty (ShapeParam v) = "@" <> pretty v

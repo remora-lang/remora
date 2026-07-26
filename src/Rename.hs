@@ -1,30 +1,23 @@
-module Rename (rename, renameExp) where
+{-# LANGUAGE MonoLocalBinds #-}
+{-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE UndecidableInstances #-}
+
+module Rename (renameExp, Renameable (..), MonadRename (..)) where
 
 import Control.Monad.Reader
+import Data.Foldable (toList)
 import Data.List.NonEmpty qualified as NE
-import Data.Map (Map)
-import Data.Map qualified as M
-import Data.Maybe (fromMaybe)
 import ISpace
-import Pass (PassM)
 import Substitute
 import Syntax
 import VName
 
-data Env = Env
-  { envMap :: Map VName VName,
-    envSubst :: Subst VName
-  }
-
-initEnv :: Env
-initEnv = Env mempty mempty
-
-newtype RenameM m a = RenameM {runRenameM :: ReaderT Env m a}
+newtype RenameM m a = RenameM {runRenameM :: ReaderT (Subst VName) m a}
   deriving
     ( Functor,
       Applicative,
       Monad,
-      MonadReader Env
+      MonadReader (Subst VName)
     )
 
 instance MonadTrans RenameM where
@@ -34,171 +27,138 @@ instance (MonadVName m) => MonadVName (RenameM m) where
   getVarTag = lift getVarTag
   putVarTag = lift . putVarTag
 
-runRename :: RenameM m a -> m a
-runRename = flip runReaderT initEnv . runRenameM
+class (MonadVName m) => MonadRename m where
+  applyRename :: (Substitutable VName a) => a -> m a
+  withRenamedBinders :: [VName] -> m a -> m a
 
-rename :: Prog -> PassM Prog
-rename = runRename . renameProg
+instance (MonadVName m) => MonadRename (RenameM m) where
+  applyRename x = asks $ flip substitute x
+  withRenamedBinders vs m = do
+    pairs <- zip vs <$> mapM (newVName . varName) vs
+    local (foldMap (uncurry renameVar) pairs <>) m
 
 renameExp :: (MonadVName m) => Exp -> m Exp
-renameExp = runRename . renameExp'
+renameExp = flip runReaderT mempty . runRenameM . rename
 
-useVar :: (Monad m) => VName -> RenameM m VName
-useVar v = asks $ fromMaybe v . M.lookup v . envMap
+class Renameable a where
+  rename :: (MonadRename m) => a -> m a
 
-sub :: (Monad m, Substitutable VName a) => a -> RenameM m a
-sub x = asks $ \env -> substitute (envSubst env) x
-
-withParams :: (MonadVName m) => [VName] -> RenameM m a -> RenameM m a
-withParams vs m = do
-  vs' <- mapM (newVName . varName) vs
-  local (extend $ zip vs vs') m
+instance
+  ( Traversable tp,
+    Substitutable VName (te VName),
+    forall a. (Substitutable VName a) => Substitutable VName (f a)
+  ) =>
+  Renameable (ExpBase te tp f VName)
   where
-    extend pairs (Env mp subst) =
-      Env
-        (M.fromList pairs <> mp)
-        (foldMap (uncurry renameVar) pairs <> subst)
+  rename (Var x t pos) =
+    Var <$> applyRename x <*> applyRename t <*> pure pos
+  rename (Array s as t pos) =
+    Array s <$> traverse rename as <*> applyRename t <*> pure pos
+  rename (EmptyArray s te t pos) =
+    EmptyArray s <$> applyRename te <*> applyRename t <*> pure pos
+  rename (Frame s es t pos) =
+    Frame s <$> traverse rename es <*> applyRename t <*> pure pos
+  rename (EmptyFrame s te t pos) =
+    EmptyFrame s <$> applyRename te <*> applyRename t <*> pure pos
+  rename (App f arg t pos) =
+    App <$> rename f <*> rename arg <*> applyRename t <*> pure pos
+  rename (TApp e te t pos) =
+    TApp <$> rename e <*> applyRename te <*> applyRename t <*> pure pos
+  rename (IApp e isp t pos) =
+    IApp <$> rename e <*> applyRename isp <*> applyRename t <*> pure pos
+  rename (Unbox ip x box body t pos) = do
+    box' <- rename box
+    withRenamedBinders (unISpaceParam ip : [x]) $
+      Unbox
+        <$> traverse applyRename ip
+        <*> applyRename x
+        <*> pure box'
+        <*> rename body
+        <*> applyRename t
+        <*> pure pos
+  rename (Let bs body t pos) =
+    withRenamedBinders (concatMap binderVars $ NE.toList bs) $
+      Let <$> traverse rename bs <*> rename body <*> applyRename t <*> pure pos
+    where
+      binderVars :: (Foldable tp) => BindBase te tp f v -> [v]
+      binderVars (BindVal v _ _ _) = [v]
+      binderVars (BindFun v _ _ _ _ _) = [v]
+      binderVars (BindTFun v _ _ _ _ _) = [v]
+      binderVars (BindIFun v _ _ _ _ _) = [v]
+      binderVars (BindType tp _ _ _) = toList tp
+      binderVars (BindISpace ip _ _) = toList ip
 
-renameProg :: (MonadVName m) => Prog -> RenameM m Prog
-renameProg (Prog decs) =
-  withParams (concatMap declBinders decs) $
-    Prog <$> traverse renameDecl decs
+instance
+  ( Traversable tp,
+    Substitutable VName (te VName),
+    forall a. (Substitutable VName a) => Substitutable VName (f a)
+  ) =>
+  Renameable (AtomBase te tp f VName)
+  where
+  rename (Base b t pos) =
+    Base b <$> applyRename t <*> pure pos
+  rename (Lambda pat body t pos) =
+    withRenamedBinders [patVar pat] $
+      Lambda <$> rename pat <*> rename body <*> applyRename t <*> pure pos
+  rename (TLambda tp body t pos) =
+    withRenamedBinders (toList tp) $
+      TLambda <$> traverse applyRename tp <*> rename body <*> applyRename t <*> pure pos
+  rename (ILambda ip body t pos) =
+    withRenamedBinders (toList ip) $
+      ILambda <$> traverse applyRename ip <*> rename body <*> applyRename t <*> pure pos
+  rename (Box isp body te t pos) =
+    Box <$> applyRename isp <*> rename body <*> applyRename te <*> applyRename t <*> pure pos
 
-renameDecl :: (MonadVName m) => Decl -> RenameM m Decl
-renameDecl (Def b) = Def <$> renameBind b
-renameDecl (Entry v pats mte body t pos) = do
-  v' <- useVar v
-  mte' <- traverse sub mte
-  t' <- sub t
-  withParams (patVar <$> pats) $
-    Entry v'
-      <$> traverse renamePat pats
-      <*> pure mte'
-      <*> renameExp' body
-      <*> pure t'
+instance
+  ( Traversable tp,
+    Substitutable VName (te VName),
+    forall a. (Substitutable VName a) => Substitutable VName (f a)
+  ) =>
+  Renameable (BindBase te tp f VName)
+  where
+  rename (BindVal v mte e pos) =
+    BindVal
+      <$> applyRename v
+      <*> traverse applyRename mte
+      <*> rename e
       <*> pure pos
+  rename (BindFun v pats mte body t pos) =
+    withRenamedBinders (patVar <$> NE.toList pats) $
+      BindFun
+        <$> applyRename v
+        <*> traverse rename pats
+        <*> traverse applyRename mte
+        <*> rename body
+        <*> applyRename t
+        <*> pure pos
+  rename (BindTFun v tps mte body t pos) =
+    withRenamedBinders (concatMap toList tps) $
+      BindTFun
+        <$> applyRename v
+        <*> traverse (traverse applyRename) tps
+        <*> traverse applyRename mte
+        <*> rename body
+        <*> applyRename t
+        <*> pure pos
+  rename (BindIFun v ips mte body t pos) =
+    withRenamedBinders (concatMap toList ips) $
+      BindIFun
+        <$> applyRename v
+        <*> traverse (traverse applyRename) ips
+        <*> traverse applyRename mte
+        <*> rename body
+        <*> applyRename t
+        <*> pure pos
+  rename (BindType tp te t pos) =
+    BindType <$> traverse applyRename tp <*> applyRename te <*> applyRename t <*> pure pos
+  rename (BindISpace ip isp pos) =
+    BindISpace <$> traverse applyRename ip <*> applyRename isp <*> pure pos
 
-renameExp' :: (MonadVName m) => Exp -> RenameM m Exp
-renameExp' (Var x t pos) =
-  Var <$> useVar x <*> sub t <*> pure pos
-renameExp' (Array s as t pos) =
-  Array s <$> traverse renameAtom as <*> sub t <*> pure pos
-renameExp' (EmptyArray s te t pos) =
-  EmptyArray s <$> sub te <*> sub t <*> pure pos
-renameExp' (Frame s es t pos) =
-  Frame s <$> traverse renameExp' es <*> sub t <*> pure pos
-renameExp' (EmptyFrame s te t pos) =
-  EmptyFrame s <$> sub te <*> sub t <*> pure pos
-renameExp' (App f arg t pos) =
-  App <$> renameExp' f <*> renameExp' arg <*> subPair t <*> pure pos
-renameExp' (TApp e te t pos) =
-  TApp <$> renameExp' e <*> sub te <*> sub t <*> pure pos
-renameExp' (IApp e isp t pos) =
-  IApp <$> renameExp' e <*> sub isp <*> sub t <*> pure pos
-renameExp' (Unbox ip x box body t pos) = do
-  box' <- renameExp' box
-  t' <- sub t
-  withParams [unISpaceParam ip, x] $
-    Unbox
-      <$> renameISpaceParam ip
-      <*> useVar x
-      <*> pure box'
-      <*> renameExp' body
-      <*> pure t'
-      <*> pure pos
-renameExp' (Let bs body t pos) = do
-  t' <- sub t
-  withParams (binderVar <$> NE.toList bs) $
-    Let
-      <$> traverse renameBind bs
-      <*> renameExp' body
-      <*> pure t'
-      <*> pure pos
-
-subPair ::
-  (Monad m) =>
-  Info (ArrayType VName, Shape VName) ->
-  RenameM m (Info (ArrayType VName, Shape VName))
-subPair (Info (at, sh)) = do
-  at' <- sub at
-  sh' <- sub sh
-  pure $ Info (at', sh')
-
-renameAtom :: (MonadVName m) => Atom -> RenameM m Atom
-renameAtom (Base b t pos) =
-  Base b <$> sub t <*> pure pos
-renameAtom (Lambda pat body t pos) = do
-  t' <- sub t
-  withParams [patVar pat] $
-    Lambda <$> renamePat pat <*> renameExp' body <*> pure t' <*> pure pos
-renameAtom (TLambda tp body t pos) = do
-  t' <- sub t
-  withParams [unTypeParam tp] $
-    TLambda <$> renameTypeParam tp <*> renameExp' body <*> pure t' <*> pure pos
-renameAtom (ILambda ip body t pos) = do
-  t' <- sub t
-  withParams [unISpaceParam ip] $
-    ILambda <$> renameISpaceParam ip <*> renameExp' body <*> pure t' <*> pure pos
-renameAtom (Box isp body te t pos) =
-  Box <$> sub isp <*> renameExp' body <*> sub te <*> sub t <*> pure pos
-
-renameBind :: (MonadVName m) => Bind -> RenameM m Bind
-renameBind (BindVal v mte e pos) =
-  BindVal <$> useVar v <*> traverse sub mte <*> renameExp' e <*> pure pos
-renameBind (BindFun v pats mte body t pos) = do
-  v' <- useVar v
-  mte' <- traverse sub mte
-  t' <- sub t
-  withParams (patVar <$> NE.toList pats) $
-    BindFun v'
-      <$> traverse renamePat pats
-      <*> pure mte'
-      <*> renameExp' body
-      <*> pure t'
-      <*> pure pos
-renameBind (BindTFun v tps mte body t pos) = do
-  v' <- useVar v
-  t' <- sub t
-  withParams (unTypeParam <$> NE.toList tps) $
-    BindTFun v'
-      <$> traverse renameTypeParam tps
-      <*> traverse sub mte
-      <*> renameExp' body
-      <*> pure t'
-      <*> pure pos
-renameBind (BindIFun v ips mte body t pos) = do
-  v' <- useVar v
-  t' <- sub t
-  withParams (unISpaceParam <$> NE.toList ips) $
-    BindIFun v'
-      <$> traverse renameISpaceParam ips
-      <*> traverse sub mte
-      <*> renameExp' body
-      <*> pure t'
-      <*> pure pos
-renameBind (BindType tp te t pos) =
-  BindType <$> renameTypeParam tp <*> sub te <*> sub t <*> pure pos
-renameBind (BindISpace ip isp pos) =
-  BindISpace <$> renameISpaceParam ip <*> sub isp <*> pure pos
-
-renamePat :: (Monad m) => Pat -> RenameM m Pat
-renamePat (PatId v te t pos) =
-  PatId <$> useVar v <*> sub te <*> sub t <*> pure pos
-
-renameTypeParam :: (Monad m) => TypeParam VName -> RenameM m (TypeParam VName)
-renameTypeParam tp = AtomTypeParam <$> useVar (unTypeParam tp)
-
-renameISpaceParam :: (Monad m) => ISpaceParam VName -> RenameM m (ISpaceParam VName)
-renameISpaceParam ip = (<$ ip) <$> useVar (unISpaceParam ip)
-
-declBinders :: Decl -> [VName]
-declBinders (Def b) = [binderVar b]
-declBinders (Entry v _ _ _ _ _) = [v]
-
-binderVar :: Bind -> VName
-binderVar (BindVal v _ _ _) = v
-binderVar (BindFun v _ _ _ _ _) = v
-binderVar (BindTFun v _ _ _ _ _) = v
-binderVar (BindIFun v _ _ _ _ _) = v
-binderVar (BindType tp _ _ _) = unTypeParam tp
-binderVar (BindISpace ip _ _) = unISpaceParam ip
+instance
+  ( Substitutable VName (te VName),
+    forall a. (Substitutable VName a) => Substitutable VName (f a)
+  ) =>
+  Renameable (PatBase te f VName)
+  where
+  rename (PatId v te t pos) =
+    PatId <$> applyRename v <*> applyRename te <*> applyRename t <*> pure pos

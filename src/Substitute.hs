@@ -20,10 +20,12 @@ import Data.Map qualified as M
 import Data.Maybe (fromMaybe)
 import ISpace
 import Syntax
+import VName (VName)
 
--- | A record of the various kinds of type-level substitutions.
+-- | A record of the various kinds of substitutions.
 data Subst v = Subst
-  { substAtoms :: Map v (AtomType v),
+  { substVars :: Map v v,
+    substAtoms :: Map v (AtomType v),
     substShapes :: Map v (Shape v),
     substDims :: Map v (Dim v),
     -- This is probably not what we really want to do (since these are *source*
@@ -35,14 +37,14 @@ data Subst v = Subst
   deriving (Show)
 
 instance (Ord v) => Semigroup (Subst v) where
-  Subst a1 s1 d1 t1 <> Subst a2 s2 d2 t2 =
-    Subst (a1 <> a2) (s1 <> s2) (d1 <> d2) (t1 <> t2)
+  Subst v1 a1 s1 d1 t1 <> Subst v2 a2 s2 d2 t2 =
+    Subst (v1 <> v2) (a1 <> a2) (s1 <> s2) (d1 <> d2) (t1 <> t2)
 
 instance (Ord v) => Monoid (Subst v) where
   mempty = empty
 
 empty :: Subst v
-empty = Subst M.empty M.empty M.empty M.empty
+empty = Subst M.empty M.empty M.empty M.empty M.empty
 
 substAtomVar :: v -> AtomType v -> Subst v
 substAtomVar v t = empty {substAtoms = M.singleton v t}
@@ -60,7 +62,8 @@ substTypeExpVar v t = empty {substTypeExps = M.singleton v t}
 renameVar :: v -> v -> Subst v
 renameVar old new =
   Subst
-    { substAtoms = M.singleton old $ AtomTypeVar new,
+    { substVars = M.singleton old new,
+      substAtoms = M.singleton old $ AtomTypeVar new,
       substShapes = M.singleton old $ ShapeVar new,
       substDims = M.singleton old $ DimVar new,
       substTypeExps = M.empty
@@ -69,7 +72,8 @@ renameVar old new =
 without :: (Ord v) => Subst v -> v -> Subst v
 without s v =
   Subst
-    { substAtoms = M.delete v $ substAtoms s,
+    { substVars = M.delete v $ substVars s,
+      substAtoms = M.delete v $ substAtoms s,
       substShapes = M.delete v $ substShapes s,
       substDims = M.delete v $ substDims s,
       substTypeExps = M.delete v $ substTypeExps s
@@ -77,6 +81,9 @@ without s v =
 
 class Substitutable v a | a -> v where
   substitute :: (Ord v) => Subst v -> a -> a
+
+instance Substitutable VName VName where
+  substitute s v = fromMaybe v $ substVars s M.!? v
 
 instance (Substitutable v a) => Substitutable v [a] where
   substitute = map . substitute
@@ -128,6 +135,12 @@ instance (Substitutable v a) => Substitutable v (NE.NonEmpty a) where
 
 instance (Substitutable v a) => Substitutable v (Maybe a) where
   substitute s = fmap (substitute s)
+
+instance (Substitutable v a) => Substitutable v (NoInfo a) where
+  substitute _ NoInfo = NoInfo
+
+instance (Substitutable v a, Substitutable v b) => Substitutable v (a, b) where
+  substitute s (a, b) = (substitute s a, substitute s b)
 
 instance Substitutable v (ISpace v) where
   substitute s (Dim d) = Dim $ substitute s d
