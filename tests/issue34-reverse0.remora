@@ -1,0 +1,4 @@
+;; error
+(entry (main)
+  (@reverse (Int) (3 []) [1 2])
+)

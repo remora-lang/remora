@@ -162,4 +162,4 @@ s \\ Concat [] = pure s
   | last ss @= last ts = Concat (init ss) \\ Concat (init ts)
 (Concat ss) \\ t
   | last ss @= t = pure $ Concat $ init ss
-s \\ t = error $ unlines ["No compatible p frame", prettyString s, prettyString t]
+_ \\ _ = Nothing

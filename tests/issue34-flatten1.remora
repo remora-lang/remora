@@ -1,0 +1,4 @@
+;; error
+(entry (main)
+  (@flatten (Int) (2 3 []) [[1 2] [3 4]])
+)
