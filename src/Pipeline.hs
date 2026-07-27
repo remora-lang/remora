@@ -1,5 +1,6 @@
 module Pipeline
   ( typeCheck,
+    typeCheckExp,
     uniquify,
     uniquifyExp,
     monomorphize,
@@ -25,14 +26,17 @@ import TypeCheck qualified
 import Uniquify qualified
 import Util
 
-typeCheck :: UncheckedProg -> Either Error Prog
-typeCheck = runPass . typeCheckM
-
 uniquify :: UncheckedProg -> Either Error UniqueProg
 uniquify = runPass . Uniquify.uniquify
 
 uniquifyExp :: UncheckedExp -> Either Error UniqueExp
 uniquifyExp = runPass . Uniquify.uniquifyExp
+
+typeCheck :: UncheckedProg -> Either Error Prog
+typeCheck = runPass . typeCheckM
+
+typeCheckExp :: UncheckedExp -> Either Error Exp
+typeCheckExp = runPass . typeCheckExpM
 
 monomorphize :: UncheckedProg -> Either Error Prog
 monomorphize = runPass . monomorphizeM
@@ -62,6 +66,11 @@ typeCheckM :: UncheckedProg -> PassM Prog
 typeCheckM =
   Uniquify.uniquify
     >=> TypeCheck.check
+
+typeCheckExpM :: UncheckedExp -> PassM Exp
+typeCheckExpM =
+  Uniquify.uniquifyExp
+    >=> TypeCheck.checkExp
 
 monomorphizeM :: UncheckedProg -> PassM Prog
 monomorphizeM =

@@ -48,6 +48,7 @@ data RemoraMode
       { file :: Maybe FilePath,
         expr :: Maybe String,
         uniquify :: Bool,
+        typeCheck :: Bool,
         monomorphize :: Bool,
         lambdalift :: Bool,
         serialize :: Bool
@@ -105,6 +106,7 @@ dev =
     { file = Nothing &= help "Run the pass on the passed file.",
       expr = Nothing &= help "Run the pass on an expression passed as an argument.",
       uniquify = False &= help "Uniquify and expand array type var syntactic sugar.",
+      typeCheck = False &= help "Type check.",
       monomorphize = False &= help "Monomorphize.",
       lambdalift = False &= help "Monomorphize & lambda lift.",
       serialize = False &= help "Serialize an input program to JSON."
@@ -138,7 +140,7 @@ main = do
             (\prog -> flip Pipeline.interpret prog =<< mapM evalArg margs)
             input
       liftIO $ T.putStrLn $ prettyText v
-    run (Dev mfile mexpr uniq mono lift serialize)
+    run (Dev mfile mexpr uniq check mono lift serialize)
       | lift = do
           input <- parseInput mfile mexpr
           out <-
@@ -157,6 +159,15 @@ main = do
                 (fmap prettyText . Pipeline.uniquify)
                 input
           liftIO $ T.putStrLn out
+      | check = do
+          input <- parseInput mfile mexpr
+          out <-
+            except $
+              either
+                (fmap prettyText . Pipeline.typeCheckExp)
+                (fmap prettyText . Pipeline.typeCheck)
+                input
+          liftIO $ T.putStrLn out
       | mono = do
           input <- parseInput mfile mexpr
           out <-
@@ -170,7 +181,7 @@ main = do
           input <- parseInput mfile mexpr
           liftIO $ serializeAST input
       | otherwise =
-          except $ Left "remora dev: specify --uniquify, --monomorphize or --lambdalift"
+          except $ Left "remora dev: specify --uniquify, --typecheck, --monomorphize or --lambdalift"
     run (Futhark mfile mexpr mbackend) = do
       input <- parseInput mfile mexpr
       ir <- except $ either Pipeline.compileExp Pipeline.compile input
