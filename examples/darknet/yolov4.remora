@@ -45,15 +45,35 @@
       (@transpose2d (&t) ($d $b) split-cd))))
 
 ;; ----------------- CONVOLUTION -------------------------
+;; Models darknet's truncating output-size division: writing
+;;   n + 2*pad - k = $q * $s + $r
+;; gives out = $q + 1 and leaves $r padded cells no window reads. Instead of
+;; constraining $n, this derives it, which is exact for every (n, pad, k, s):
+;;   n = $q * $s + $k + $r - 2 * $pad
+;; $pad is a plain per-side pixel count, not pre-divided by the stride.
+;;
+;; PRECONDITION: $r < $s. This is what makes $q the true floor quotient, i.e.
+;;   $q + 1 == (n + 2*$pad - $k)/$s + 1 as darknet computes it. Nothing checks
+;;   it; an $r >= $s silently describes a larger input than darknet would pick
+;;   for the same $q, shifting every output position.
+;; Also implicitly required, and equally unchecked:
+;;   - $s >= 1 and $k >= 1; $q, $r, $pad >= 0.
+;;   - (* $q $s) + $k + $r > $pad + $pad, so the derived input size is
+;;     positive. Dim evaluation rejects a negative result, but only at the
+;;     point the shape is used.
+;;   - $in-c >= 1 and $out-c >= 1 (@dot needs $k*$k*$in-c >= 1).
+;;   - the input is square; only one spatial size is tracked.
+;;   - $pad < $k for the result to mean anything: a larger pad admits windows
+;;     lying entirely in padding, which darknet's pad=size/2 never produces.
 
-(def (fun (@im2col _ ($n-k $k $p $in-c $s)
-                  (im [Float $in-c (+ (* $n-k $s) $k) (+ (* $n-k $s) $k)])
-                  : [Float (* $in-c $k $k) (* (+ $n-k $p $p 1) (+ $n-k $p $p 1))])
-      (@flatten (Float) ($in-c (* $k $k) [(* (+ $n-k $p $p 1) (+ $n-k $p $p 1))])
-        (@flatten (Float) ($k $k [(* (+ $n-k $p $p 1) (+ $n-k $p $p 1))])
-          (@flatten (Float) ((+ $n-k $p $p 1) (+ $n-k $p $p 1) [])
-             (@lifted-subarray/2 (Float) ([$k $k] (- $k 1) (+ $n-k $p $p) $s)
-               (@pad/2 (Float) ((+ (* $n-k $s) $k) (* $p $s)) im 0.0)
+(def (fun (@im2col/rem _ ($q $k $pad $in-c $s $r)
+                  (im [Float $in-c (- (+ (* $q $s) $k $r) $pad $pad) (- (+ (* $q $s) $k $r) $pad $pad)])
+                  : [Float (* $in-c $k $k) (* (+ $q 1) (+ $q 1))])
+      (@flatten (Float) ($in-c (* $k $k) [(* (+ $q 1) (+ $q 1))])
+        (@flatten (Float) ($k $k [(* (+ $q 1) (+ $q 1))])
+          (@flatten (Float) ((+ $q 1) (+ $q 1) [])
+             (@lifted-subarray/2 (Float) ([$k $k] (- (+ $k $r) 1) $q $s)
+               (@pad/2 (Float) ((- (+ (* $q $s) $k $r) $pad $pad) $pad) im 0.0)
                  (@replicate (Int) ([$in-c] [$k $k 2])
                    (i-app idxs-of/2 $k $k))))))))
 
@@ -67,14 +87,14 @@
                                (yss [Float (+ 1 $m-1) $o]) : [Float $n $o])
       (@lifted_dot _ ($m-1 $o) xss yss)))
 
-(def (fun (@conv-2d _ ($n-k $k $in-c $out-c $p $s)
-                (in [Float $in-c (+ (* $n-k $s) $k) (+ (* $n-k $s) $k)])
+(def (fun (@conv-2d/rem _ ($q $k $in-c $out-c $pad $s $r)
+                (in [Float $in-c (- (+ (* $q $s) $k $r) $pad $pad) (- (+ (* $q $s) $k $r) $pad $pad)])
                 (w  [Float $out-c $in-c $k $k])
-                : [Float $out-c (* (+ $n-k $p $p 1) (+ $n-k $p $p 1))])
-    (@matmul _ ($out-c (- (* $k $k $in-c) 1) (* (+ $n-k $p $p 1) (+ $n-k $p $p 1)))
+                : [Float $out-c (* (+ $q 1) (+ $q 1))])
+    (@matmul _ ($out-c (- (* $k $k $in-c) 1) (* (+ $q 1) (+ $q 1)))
              (@flatten (Float) ($in-c (* $k $k) [])
                 (@flatten (Float) ($k $k []) w))
-             (@im2col _ ($n-k $k $p $in-c $s) in))))
+             (@im2col/rem _ ($q $k $pad $in-c $s $r) in))))
 
 ;; ----------------- MAX POOLING -------------------------
 
@@ -170,29 +190,31 @@
      (scale [$o] (@undefined (Float) ([$o])))
      (bias [$o] (@undefined (Float) ([$o])))}))
 
-(def (fun (@conv-bn-mish _ ($n-k $k $in-c $out-c $p $s)
-                (in [Float $in-c (+ (* $n-k $s) $k) (+ (* $n-k $s) $k)])
+(def (fun (@conv-bn-mish _ ($q $k $in-c $out-c $pad $s $r)
+                (in [Float $in-c (- (+ (* $q $s) $k $r) $pad $pad) (- (+ (* $q $s) $k $r) $pad $pad)])
                 (p {(w [Float $out-c $in-c $k $k]) (mean [Float $out-c]) (variance [Float $out-c]) (scale [Float $out-c]) (bias [Float $out-c])})
-                : [Float $out-c (+ $n-k $p $p 1) (+ $n-k $p $p 1)])
-    (let ((val (conv-out : [Float $out-c (+ $n-k $p $p 1) (+ $n-k $p $p 1)])
-               (@reshape (Float) ([$out-c (* (+ $n-k $p $p 1) (+ $n-k $p $p 1))] [$out-c (+ $n-k $p $p 1) (+ $n-k $p $p 1)])
-                  (@conv-2d _ ($n-k $k $in-c $out-c $p $s) in (field p w)))))
+                : [Float $out-c (+ $q 1) (+ $q 1)])
+    (let ((val (conv-out : [Float $out-c (+ $q 1) (+ $q 1)])
+               (@reshape (Float) ([$out-c (* (+ $q 1) (+ $q 1))] [$out-c (+ $q 1) (+ $q 1)])
+                  (@conv-2d/rem _ ($q $k $in-c $out-c $pad $s $r) in (field p w)))))
       (@mish _ ()
-        (@batch-norm-2d-apply _ ((+ $n-k $p $p 1) $out-c) conv-out
+        (@batch-norm-2d-apply _ ((+ $q 1) $out-c) conv-out
           (field p mean) (field p variance) (field p scale) (field p bias))))))
 
-(def (fun (@conv-bn-leaky _ ($n-k $k $in-c $out-c $p $s)
-                (in [Float $in-c (+ (* $n-k $s) $k) (+ (* $n-k $s) $k)])
+(def (fun (@conv-bn-leaky _ ($q $k $in-c $out-c $pad $s $r)
+                (in [Float $in-c (- (+ (* $q $s) $k $r) $pad $pad) (- (+ (* $q $s) $k $r) $pad $pad)])
                 (p {(w [Float $out-c $in-c $k $k]) (mean [Float $out-c]) (variance [Float $out-c]) (scale [Float $out-c]) (bias [Float $out-c])})
-                : [Float $out-c (+ $n-k $p $p 1) (+ $n-k $p $p 1)])
-    (let ((val (conv-out : [Float $out-c (+ $n-k $p $p 1) (+ $n-k $p $p 1)])
-               (@reshape (Float) ([$out-c (* (+ $n-k $p $p 1) (+ $n-k $p $p 1))] [$out-c (+ $n-k $p $p 1) (+ $n-k $p $p 1)])
-                  (@conv-2d _ ($n-k $k $in-c $out-c $p $s) in (field p w)))))
+                : [Float $out-c (+ $q 1) (+ $q 1)])
+    (let ((val (conv-out : [Float $out-c (+ $q 1) (+ $q 1)])
+               (@reshape (Float) ([$out-c (* (+ $q 1) (+ $q 1))] [$out-c (+ $q 1) (+ $q 1)])
+                  (@conv-2d/rem _ ($q $k $in-c $out-c $pad $s $r) in (field p w)))))
       (@leaky-relu _ ()
-        (@batch-norm-2d-apply _ ((+ $n-k $p $p 1) $out-c) conv-out
+        (@batch-norm-2d-apply _ ((+ $q 1) $out-c) conv-out
           (field p mean) (field p variance) (field p scale) (field p bias))))))
 
 ;; ----------------- CSPDARKNET53 RESIDUAL BLOCK -------------------------
+;; Both convs are stride 1 and size-preserving, so $q = $n - 1 and $r = 0:
+;; 1x1 with pad 0 and 3x3 with pad 1 both leave the spatial size at $n.
 
 (def (fun (@res-block _ ($h $h2 $n)
                 (in [Float $h $n $n])
@@ -200,25 +222,22 @@
                 (ep {(w [Float $h $h2 3 3]) (mean [Float $h]) (variance [Float $h]) (scale [Float $h]) (bias [Float $h])})
                 : [Float $h $n $n])
     (let ((val (reduced : [Float $h2 $n $n])
-               (@conv-bn-mish _ ((- $n 1) 1 $h $h2 0 1) in rp))
+               (@conv-bn-mish _ ((- $n 1) 1 $h $h2 0 1 0) in rp))
           (val (expanded : [Float $h $n $n])
-               (@conv-bn-mish _ ((- $n 3) 3 $h2 $h 1 1) reduced ep)))
+               (@conv-bn-mish _ ((- $n 1) 3 $h2 $h 1 1 0) reduced ep)))
       (@shortcut _ () expanded in))))
 
 ;; ----------------- CSP STAGES -------------------------
-;; Downsample (2x2 stride 2, no padding -- darknet's actual 3x3/stride2/pad1
-;; downsample can't be expressed exactly here: with an even input size N and
-;; odd kernel 3, (N-3) is always odd and can never divide evenly by the
-;; stride, which our type-level shapes require; 2x2/stride2/pad0 gives the
-;; same exact N -> N/2 halving without that parity problem), CSP split into
-;; two 1x1-conv paths (skip + main), N residual blocks on the main path,
-;; 1x1 conv, concat, 1x1 transition conv. $n-k-down is the downsample conv's
-;; pre-divided-by-stride overhang (see conv.remora); the post-downsample
-;; spatial size is always (+ $n-k-down 1).
+;; Downsample with darknet's real 3x3 / stride 2 / pad 1, then CSP split into
+;; two 1x1-conv paths (skip + main), N residual blocks on the main path, a 1x1
+;; conv, concat, and a 1x1 transition conv. $n-k-down is the downsample's $q,
+;; so the post-downsample spatial size is (+ $n-k-down 1) and the stage input
+;; is (+ (* $n-k-down 2) 2): for an even input N, N/2 - 1 windows of a 3x3 at
+;; stride 2 over N+2 padded columns leaves remainder $r = 1.
 
 (def (fun (@csp-stage-x1 _ ($in-ch $half $quarter $n-k-down)
                 (in [Float $in-ch (+ (* $n-k-down 2) 2) (+ (* $n-k-down 2) 2)])
-                (down-p {(w [Float (+ $half $half) $in-ch 2 2]) (mean [Float (+ $half $half)]) (variance [Float (+ $half $half)]) (scale [Float (+ $half $half)]) (bias [Float (+ $half $half)])})  ;; 2x2/stride-2 downsample
+                (down-p {(w [Float (+ $half $half) $in-ch 3 3]) (mean [Float (+ $half $half)]) (variance [Float (+ $half $half)]) (scale [Float (+ $half $half)]) (bias [Float (+ $half $half)])})  ;; 3x3/stride-2/pad-1 downsample
                 (skip-p {(w [Float $half (+ $half $half) 1 1]) (mean [Float $half]) (variance [Float $half]) (scale [Float $half]) (bias [Float $half])})  ;; CSP skip path
                 (m0-p {(w [Float $half (+ $half $half) 1 1]) (mean [Float $half]) (variance [Float $half]) (scale [Float $half]) (bias [Float $half])})  ;; CSP main path
                 (r1-rp {(w [Float $quarter $half 1 1]) (mean [Float $quarter]) (variance [Float $quarter]) (scale [Float $quarter]) (bias [Float $quarter])})  ;; residual block 1 reduce
@@ -229,22 +248,22 @@
     (let ((type *full-map [Float (+ $half $half) (+ $n-k-down 1) (+ $n-k-down 1)])
           (type *half-map [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
           (val (down  : *full-map)
-               (@conv-bn-mish _ ($n-k-down 2 $in-ch (+ $half $half) 0 2) in down-p))
+               (@conv-bn-mish _ ($n-k-down 3 $in-ch (+ $half $half) 1 2 1) in down-p))
           (val (skip  : *half-map)
-               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1) down skip-p))
+               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1 0) down skip-p))
           (val (main0 : *half-map)
-               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1) down m0-p))
+               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1 0) down m0-p))
           (val (main1 : *half-map)
                (@res-block _ ($half $quarter (+ $n-k-down 1)) main0 r1-rp r1-ep))
           (val (mainF : *half-map)
-               (@conv-bn-mish _ ($n-k-down 1 $half $half 0 1) main1 mf-p))
+               (@conv-bn-mish _ ($n-k-down 1 $half $half 0 1 0) main1 mf-p))
           (val (merged : *full-map)
                (@route2 _ ($half $half (+ $n-k-down 1) (+ $n-k-down 1)) mainF skip)))
-      (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) (+ $half $half) 0 1) merged tr-p))))
+      (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) (+ $half $half) 0 1 0) merged tr-p))))
 
 (def (fun (@csp-stage-x2 _ ($in-ch $half $quarter $n-k-down)
                 (in [Float $in-ch (+ (* $n-k-down 2) 2) (+ (* $n-k-down 2) 2)])
-                (down-p {(w [Float (+ $half $half) $in-ch 2 2]) (mean [Float (+ $half $half)]) (variance [Float (+ $half $half)]) (scale [Float (+ $half $half)]) (bias [Float (+ $half $half)])})  ;; 2x2/stride-2 downsample
+                (down-p {(w [Float (+ $half $half) $in-ch 3 3]) (mean [Float (+ $half $half)]) (variance [Float (+ $half $half)]) (scale [Float (+ $half $half)]) (bias [Float (+ $half $half)])})  ;; 3x3/stride-2/pad-1 downsample
                 (skip-p {(w [Float $half (+ $half $half) 1 1]) (mean [Float $half]) (variance [Float $half]) (scale [Float $half]) (bias [Float $half])})  ;; CSP skip path
                 (m0-p {(w [Float $half (+ $half $half) 1 1]) (mean [Float $half]) (variance [Float $half]) (scale [Float $half]) (bias [Float $half])})  ;; CSP main path
                 (r1-rp {(w [Float $quarter $half 1 1]) (mean [Float $quarter]) (variance [Float $quarter]) (scale [Float $quarter]) (bias [Float $quarter])})  ;; residual block 1 reduce
@@ -257,24 +276,24 @@
     (let ((type *full-map [Float (+ $half $half) (+ $n-k-down 1) (+ $n-k-down 1)])
           (type *half-map [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
           (val (down  : *full-map)
-               (@conv-bn-mish _ ($n-k-down 2 $in-ch (+ $half $half) 0 2) in down-p))
+               (@conv-bn-mish _ ($n-k-down 3 $in-ch (+ $half $half) 1 2 1) in down-p))
           (val (skip  : *half-map)
-               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1) down skip-p))
+               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1 0) down skip-p))
           (val (main0 : *half-map)
-               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1) down m0-p))
+               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1 0) down m0-p))
           (val (main1 : *half-map)
                (@res-block _ ($half $quarter (+ $n-k-down 1)) main0 r1-rp r1-ep))
           (val (main2 : *half-map)
                (@res-block _ ($half $quarter (+ $n-k-down 1)) main1 r2-rp r2-ep))
           (val (mainF : *half-map)
-               (@conv-bn-mish _ ($n-k-down 1 $half $half 0 1) main2 mf-p))
+               (@conv-bn-mish _ ($n-k-down 1 $half $half 0 1 0) main2 mf-p))
           (val (merged : *full-map)
                (@route2 _ ($half $half (+ $n-k-down 1) (+ $n-k-down 1)) mainF skip)))
-      (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) (+ $half $half) 0 1) merged tr-p))))
+      (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) (+ $half $half) 0 1 0) merged tr-p))))
 
 (def (fun (@csp-stage-x4 _ ($in-ch $half $quarter $n-k-down)
                 (in [Float $in-ch (+ (* $n-k-down 2) 2) (+ (* $n-k-down 2) 2)])
-                (down-p {(w [Float (+ $half $half) $in-ch 2 2]) (mean [Float (+ $half $half)]) (variance [Float (+ $half $half)]) (scale [Float (+ $half $half)]) (bias [Float (+ $half $half)])})  ;; 2x2/stride-2 downsample
+                (down-p {(w [Float (+ $half $half) $in-ch 3 3]) (mean [Float (+ $half $half)]) (variance [Float (+ $half $half)]) (scale [Float (+ $half $half)]) (bias [Float (+ $half $half)])})  ;; 3x3/stride-2/pad-1 downsample
                 (skip-p {(w [Float $half (+ $half $half) 1 1]) (mean [Float $half]) (variance [Float $half]) (scale [Float $half]) (bias [Float $half])})  ;; CSP skip path
                 (m0-p {(w [Float $half (+ $half $half) 1 1]) (mean [Float $half]) (variance [Float $half]) (scale [Float $half]) (bias [Float $half])})  ;; CSP main path
                 (r1-rp {(w [Float $quarter $half 1 1]) (mean [Float $quarter]) (variance [Float $quarter]) (scale [Float $quarter]) (bias [Float $quarter])})  ;; residual block 1 reduce
@@ -291,11 +310,11 @@
     (let ((type *full-map [Float (+ $half $half) (+ $n-k-down 1) (+ $n-k-down 1)])
           (type *half-map [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
           (val (down  : *full-map)
-               (@conv-bn-mish _ ($n-k-down 2 $in-ch (+ $half $half) 0 2) in down-p))
+               (@conv-bn-mish _ ($n-k-down 3 $in-ch (+ $half $half) 1 2 1) in down-p))
           (val (skip  : *half-map)
-               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1) down skip-p))
+               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1 0) down skip-p))
           (val (main0 : *half-map)
-               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1) down m0-p))
+               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1 0) down m0-p))
           (val (main1 : *half-map)
                (@res-block _ ($half $quarter (+ $n-k-down 1)) main0 r1-rp r1-ep))
           (val (main2 : *half-map)
@@ -305,14 +324,14 @@
           (val (main4 : *half-map)
                (@res-block _ ($half $quarter (+ $n-k-down 1)) main3 r4-rp r4-ep))
           (val (mainF : *half-map)
-               (@conv-bn-mish _ ($n-k-down 1 $half $half 0 1) main4 mf-p))
+               (@conv-bn-mish _ ($n-k-down 1 $half $half 0 1 0) main4 mf-p))
           (val (merged : *full-map)
                (@route2 _ ($half $half (+ $n-k-down 1) (+ $n-k-down 1)) mainF skip)))
-      (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) (+ $half $half) 0 1) merged tr-p))))
+      (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) (+ $half $half) 0 1 0) merged tr-p))))
 
 (def (fun (@csp-stage-x8 _ ($in-ch $half $quarter $n-k-down)
                 (in [Float $in-ch (+ (* $n-k-down 2) 2) (+ (* $n-k-down 2) 2)])
-                (down-p {(w [Float (+ $half $half) $in-ch 2 2]) (mean [Float (+ $half $half)]) (variance [Float (+ $half $half)]) (scale [Float (+ $half $half)]) (bias [Float (+ $half $half)])})  ;; 2x2/stride-2 downsample
+                (down-p {(w [Float (+ $half $half) $in-ch 3 3]) (mean [Float (+ $half $half)]) (variance [Float (+ $half $half)]) (scale [Float (+ $half $half)]) (bias [Float (+ $half $half)])})  ;; 3x3/stride-2/pad-1 downsample
                 (skip-p {(w [Float $half (+ $half $half) 1 1]) (mean [Float $half]) (variance [Float $half]) (scale [Float $half]) (bias [Float $half])})  ;; CSP skip path
                 (m0-p {(w [Float $half (+ $half $half) 1 1]) (mean [Float $half]) (variance [Float $half]) (scale [Float $half]) (bias [Float $half])})  ;; CSP main path
                 (r1-rp {(w [Float $quarter $half 1 1]) (mean [Float $quarter]) (variance [Float $quarter]) (scale [Float $quarter]) (bias [Float $quarter])})  ;; residual block 1 reduce
@@ -337,11 +356,11 @@
     (let ((type *full-map [Float (+ $half $half) (+ $n-k-down 1) (+ $n-k-down 1)])
           (type *half-map [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
           (val (down  : *full-map)
-               (@conv-bn-mish _ ($n-k-down 2 $in-ch (+ $half $half) 0 2) in down-p))
+               (@conv-bn-mish _ ($n-k-down 3 $in-ch (+ $half $half) 1 2 1) in down-p))
           (val (skip  : *half-map)
-               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1) down skip-p))
+               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1 0) down skip-p))
           (val (main0 : *half-map)
-               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1) down m0-p))
+               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1 0) down m0-p))
           (val (main1 : *half-map)
                (@res-block _ ($half $quarter (+ $n-k-down 1)) main0 r1-rp r1-ep))
           (val (main2 : *half-map)
@@ -359,10 +378,10 @@
           (val (main8 : *half-map)
                (@res-block _ ($half $quarter (+ $n-k-down 1)) main7 r8-rp r8-ep))
           (val (mainF : *half-map)
-               (@conv-bn-mish _ ($n-k-down 1 $half $half 0 1) main8 mf-p))
+               (@conv-bn-mish _ ($n-k-down 1 $half $half 0 1 0) main8 mf-p))
           (val (merged : *full-map)
                (@route2 _ ($half $half (+ $n-k-down 1) (+ $n-k-down 1)) mainF skip)))
-      (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) (+ $half $half) 0 1) merged tr-p))))
+      (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) (+ $half $half) 0 1 0) merged tr-p))))
 
 ;; ----------------- SPP / PANET CONV BLOCKS (leaky) -------------------------
 
@@ -372,9 +391,9 @@
                 (c2-p {(w [Float $mid $small 3 3]) (mean [Float $mid]) (variance [Float $mid]) (scale [Float $mid]) (bias [Float $mid])})
                 (c3-p {(w [Float $small $mid 1 1]) (mean [Float $small]) (variance [Float $small]) (scale [Float $small]) (bias [Float $small])})
                 : [Float $small $n $n])
-    (let ((val (c1 : [Float $small $n $n]) (@conv-bn-leaky _ ((- $n 1) 1 $in-ch $small 0 1) in c1-p))
-          (val (c2 : [Float $mid $n $n]) (@conv-bn-leaky _ ((- $n 3) 3 $small $mid 1 1) c1 c2-p)))
-      (@conv-bn-leaky _ ((- $n 1) 1 $mid $small 0 1) c2 c3-p))))
+    (let ((val (c1 : [Float $small $n $n]) (@conv-bn-leaky _ ((- $n 1) 1 $in-ch $small 0 1 0) in c1-p))
+          (val (c2 : [Float $mid $n $n]) (@conv-bn-leaky _ ((- $n 1) 3 $small $mid 1 1 0) c1 c2-p)))
+      (@conv-bn-leaky _ ((- $n 1) 1 $mid $small 0 1 0) c2 c3-p))))
 
 (def (fun (@panet-5conv _ ($big $small $n)
                 (in [Float $big $n $n])
@@ -386,11 +405,11 @@
                 : [Float $small $n $n])
     (let ((type *small-map [Float $small $n $n])
           (type *big-map [Float $big $n $n])
-          (val (c1 : *small-map) (@conv-bn-leaky _ ((- $n 1) 1 $big $small 0 1) in c1-p))
-          (val (c2 : *big-map) (@conv-bn-leaky _ ((- $n 3) 3 $small $big 1 1) c1 c2-p))
-          (val (c3 : *small-map) (@conv-bn-leaky _ ((- $n 1) 1 $big $small 0 1) c2 c3-p))
-          (val (c4 : *big-map) (@conv-bn-leaky _ ((- $n 3) 3 $small $big 1 1) c3 c4-p)))
-      (@conv-bn-leaky _ ((- $n 1) 1 $big $small 0 1) c4 c5-p))))
+          (val (c1 : *small-map) (@conv-bn-leaky _ ((- $n 1) 1 $big $small 0 1 0) in c1-p))
+          (val (c2 : *big-map) (@conv-bn-leaky _ ((- $n 1) 3 $small $big 1 1 0) c1 c2-p))
+          (val (c3 : *small-map) (@conv-bn-leaky _ ((- $n 1) 1 $big $small 0 1 0) c2 c3-p))
+          (val (c4 : *big-map) (@conv-bn-leaky _ ((- $n 1) 3 $small $big 1 1 0) c3 c4-p)))
+      (@conv-bn-leaky _ ((- $n 1) 1 $big $small 0 1 0) c4 c5-p))))
 
 ;; ----------------- FULL REDUCTION (combines the 3 differently-shaped outputs) ---
 
@@ -419,10 +438,10 @@
 
         ;; --- stem: 3x3 conv at full 608x608, 3 -> 32 channels ---
         (val stem-p (@undef-params _ (32 3 3)))
-        (val (stem : [Float 32 608 608]) (@conv-bn-mish _ (605 3 3 32 1 1) image stem-p))
+        (val (stem : [Float 32 608 608]) (@conv-bn-mish _ (607 3 3 32 1 1 0) image stem-p))
 
         ;; --- s1: CSP x1, 608 -> 304, 32 -> 64 channels ---
-        (val s1-down-p (@undef-params _ (64 32 2)))
+        (val s1-down-p (@undef-params _ (64 32 3)))
         (val s1-skip-p (@undef-params _ (32 64 1)))
         (val s1-m0-p (@undef-params _ (32 64 1)))
         (val s1-r1-rp (@undef-params _ (16 32 1)))
@@ -434,7 +453,7 @@
                s1-down-p s1-skip-p s1-m0-p s1-r1-rp s1-r1-ep s1-mf-p s1-tr-p))
 
         ;; --- s2: CSP x2, 304 -> 152, 64 -> 128 channels ---
-        (val s2-down-p (@undef-params _ (128 64 2)))
+        (val s2-down-p (@undef-params _ (128 64 3)))
         (val s2-skip-p (@undef-params _ (64 128 1)))
         (val s2-m0-p (@undef-params _ (64 128 1)))
         (val s2-r1-rp (@undef-params _ (32 64 1)))
@@ -448,7 +467,7 @@
                s2-down-p s2-skip-p s2-m0-p s2-r1-rp s2-r1-ep s2-r2-rp s2-r2-ep s2-mf-p s2-tr-p))
 
         ;; --- s3: CSP x8, 152 -> 76, 128 -> 256 channels (feeds P3) ---
-        (val s3-down-p (@undef-params _ (256 128 2)))
+        (val s3-down-p (@undef-params _ (256 128 3)))
         (val s3-skip-p (@undef-params _ (128 256 1)))
         (val s3-m0-p (@undef-params _ (128 256 1)))
         (val s3-r1-rp (@undef-params _ (64 128 1)))
@@ -475,7 +494,7 @@
                s3-r5-rp s3-r5-ep s3-r6-rp s3-r6-ep s3-r7-rp s3-r7-ep s3-r8-rp s3-r8-ep s3-mf-p s3-tr-p))
 
         ;; --- s4: CSP x8, 76 -> 38, 256 -> 512 channels (feeds P4) ---
-        (val s4-down-p (@undef-params _ (512 256 2)))
+        (val s4-down-p (@undef-params _ (512 256 3)))
         (val s4-skip-p (@undef-params _ (256 512 1)))
         (val s4-m0-p (@undef-params _ (256 512 1)))
         (val s4-r1-rp (@undef-params _ (128 256 1)))
@@ -502,7 +521,7 @@
                s4-r5-rp s4-r5-ep s4-r6-rp s4-r6-ep s4-r7-rp s4-r7-ep s4-r8-rp s4-r8-ep s4-mf-p s4-tr-p))
 
         ;; --- s5: CSP x4, 38 -> 19, 512 -> 1024 channels ---
-        (val s5-down-p (@undef-params _ (1024 512 2)))
+        (val s5-down-p (@undef-params _ (1024 512 3)))
         (val s5-skip-p (@undef-params _ (512 1024 1)))
         (val s5-m0-p (@undef-params _ (512 1024 1)))
         (val s5-r1-rp (@undef-params _ (256 512 1)))
@@ -538,9 +557,9 @@
         ;; --- PANet top-down 19 -> 38: reduce P5, upsample, lateral from s4, concat ---
         (val p5r-p (@undef-params _ (256 512 1)))
         (val s4l-p (@undef-params _ (256 512 1)))
-        (val (p5-reduce : [Float 256 19 19]) (@conv-bn-leaky _ (18 1 512 256 0 1) p5 p5r-p))
+        (val (p5-reduce : [Float 256 19 19]) (@conv-bn-leaky _ (18 1 512 256 0 1 0) p5 p5r-p))
         (val (p5-up : *f256x38) (@upsample-nearest _ (19 256 2) p5-reduce))
-        (val (s4-lateral : *f256x38) (@conv-bn-leaky _ (37 1 512 256 0 1) s4 s4l-p))
+        (val (s4-lateral : *f256x38) (@conv-bn-leaky _ (37 1 512 256 0 1 0) s4 s4l-p))
         (val (merge-38 : *f512x38) (@route2 _ (256 256 38 38) p5-up s4-lateral))
 
         ;; --- PANet top-down 5-conv block at 38x38 ---
@@ -556,9 +575,9 @@
         ;; --- PANet top-down 38 -> 76: reduce, upsample, lateral from s3, concat ---
         (val p4tdr-p (@undef-params _ (128 256 1)))
         (val s3l-p (@undef-params _ (128 256 1)))
-        (val (p4td-reduce : [Float 128 38 38]) (@conv-bn-leaky _ (37 1 256 128 0 1) p4td p4tdr-p))
+        (val (p4td-reduce : [Float 128 38 38]) (@conv-bn-leaky _ (37 1 256 128 0 1 0) p4td p4tdr-p))
         (val (p4td-up : *f128x76) (@upsample-nearest _ (38 128 2) p4td-reduce))
-        (val (s3-lateral : *f128x76) (@conv-bn-leaky _ (75 1 256 128 0 1) s3 s3l-p))
+        (val (s3-lateral : *f128x76) (@conv-bn-leaky _ (75 1 256 128 0 1 0) s3 s3l-p))
         (val (merge-76 : *f256x76) (@route2 _ (128 128 76 76) p4td-up s3-lateral))
 
         ;; --- P3 output: 5-conv block at 76x76 -> 128 channels ---
@@ -571,9 +590,9 @@
              (@panet-5conv _ (256 128 76) merge-76
                p3o-c1-p p3o-c2-p p3o-c3-p p3o-c4-p p3o-c5-p))
 
-        ;; --- PANet bottom-up 76 -> 38: downsample P3, concat with top-down P4 ---
-        (val p3d-p (@undef-params _ (256 128 2)))
-        (val (p3-down : *f256x38) (@conv-bn-leaky _ (37 2 128 256 0 2) p3out p3d-p))
+        ;; --- PANet bottom-up 76 -> 38: downsample P3 (3x3/s2), concat with top-down P4 ---
+        (val p3d-p (@undef-params _ (256 128 3)))
+        (val (p3-down : *f256x38) (@conv-bn-leaky _ (37 3 128 256 1 2 1) p3out p3d-p))
         (val (merge-38b : *f512x38) (@route2 _ (256 256 38 38) p3-down p4td))
 
         ;; --- P4 output: 5-conv block at 38x38 -> 256 channels ---
@@ -586,9 +605,9 @@
              (@panet-5conv _ (512 256 38) merge-38b
                p4o-c1-p p4o-c2-p p4o-c3-p p4o-c4-p p4o-c5-p))
 
-        ;; --- PANet bottom-up 38 -> 19: downsample P4, concat with P5 trunk ---
-        (val p4od-p (@undef-params _ (512 256 2)))
-        (val (p4out-down : *f512x19) (@conv-bn-leaky _ (18 2 256 512 0 2) p4out p4od-p))
+        ;; --- PANet bottom-up 38 -> 19: downsample P4 (3x3/s2), concat with P5 trunk ---
+        (val p4od-p (@undef-params _ (512 256 3)))
+        (val (p4out-down : *f512x19) (@conv-bn-leaky _ (18 3 256 512 1 2 1) p4out p4od-p))
         (val (merge-19 : *f1024x19) (@route2 _ (512 512 19 19) p4out-down p5))
 
         ;; --- P5 output: 5-conv block at 19x19 -> 512 channels ---

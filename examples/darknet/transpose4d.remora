@@ -1,5 +1,4 @@
 ;; ----------------- 4D TRANSPOSE (axes 0 1 2 3 -> 0 2 1 3) -------------------------
-
 ;; Swaps the middle two axes of a rank-4 array, leaving the outermost and
 ;; innermost axes fixed: out[i][k][j][l] = in[i][j][k][l].
 ;;

@@ -47,8 +47,8 @@
 
 ;; ----------------- SPATIAL PYRAMID POOLING -------------------------
 
-;; darknet's SPP: same-padding max-pools of size 5/9/13 (stride 1, so
-;; spatial size is unchanged) concatenated with the input along channels.
+;; darknet's SPP: same-padding (floor($k / 2)) max-pools of
+;; size 5/9/13 with concatenated with the input along channels.
 (def (fun (@spp _ ($n $k)
                 (in [Float $k $n $n])
                 : [Float (* 4 $k) $n $n])
