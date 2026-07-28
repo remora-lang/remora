@@ -32,6 +32,8 @@ where
 
 import Control.Applicative
 import Data.Bifunctor (first, second)
+import Data.Foldable (find)
+import Data.Functor qualified
 import Data.List.NonEmpty qualified as NE
 import Data.Maybe
 import Data.Text (Text)
@@ -42,7 +44,6 @@ import Symbolic qualified
 import Syntax
 import Util
 import VName
-import Data.Foldable (find)
 
 class HasArrayType x where
   arrayTypeOf :: x -> ArrayType VName
@@ -193,11 +194,12 @@ instance IsType (AtomType VName) where
   Sigma p r ~= Sigma q t =
     substitute (renameVar (unISpaceParam p) (unISpaceParam q)) r ~= t
   Record f1s ~= Record f2s = all cmpFields allFields
-    where allFields = NE.nub $ NE.append (fmap fst f1s) (fmap fst f2s)
-          cmpFields fName = case (findField fName f1s, findField fName f2s) of
-            (Just t1, Just t2) -> t1 ~= t2
-            _ -> False
-          findField fn fs = fmap snd (find ((== fn) . fst) fs)
+    where
+      allFields = NE.nub $ NE.append (fmap fst f1s) (fmap fst f2s)
+      cmpFields fName = case (findField fName f1s, findField fName f2s) of
+        (Just t1, Just t2) -> t1 ~= t2
+        _ -> False
+      findField fn fs = fmap snd (find ((== fn) . fst) fs)
   t ~= r = t == r
 
   atomType = id
@@ -308,7 +310,7 @@ convertAtomTypeExp (TESigma ps t _) = do
   t' <- convertArrayTypeExp t
   pure $ foldr (\p r -> Sigma p (mkScalarArrayType r)) (Sigma (NE.last ps) t') (NE.init ps)
 convertAtomTypeExp (TERecord fs _) = do
-  let (fNames, ts) = NE.unzip fs
+  let (fNames, ts) = Data.Functor.unzip fs
   ts' <- mapM convertArrayTypeExp ts
   pure $ Record (NE.zip fNames ts')
 convertAtomTypeExp _ = Nothing

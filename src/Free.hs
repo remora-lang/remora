@@ -54,6 +54,8 @@ instance Free v (ExpBase te tp f v) where
     foldr step (freeVars body) bs
     where
       step b acc = freeVars b `S.union` maybe id S.delete (bindName b) acc
+  freeVars (Struct fs _ _) = foldMap (\(_, _, e) -> freeVars e) fs
+  freeVars (FieldProj e _ _ _) = freeVars e
 
 instance Free v (DeclBase te tp f v) where
   freeVars (Def b) = freeVars b

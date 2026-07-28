@@ -1,6 +1,7 @@
 module Uniquify (uniquify, uniquifyExp) where
 
 import Control.Monad.State (state)
+import Data.Functor qualified
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as M
@@ -8,10 +9,10 @@ import Data.Semigroup (sconcat)
 import Data.Text (Text)
 import Intrinsics
 import Pass
-import Util
 import Syntax
 import Uniquify.Monad
 import Uniquify.Type
+import Util
 import VName
 
 uniquify :: UncheckedProg -> PassM UniqueProg
@@ -135,7 +136,7 @@ withBind (BindType (TEArrayTypeParam v) t _ pos) m = do
     TEArray atomTE shapeSh _ ->
       withArrayTypeParam v $ \et s ->
         m $
-          NE.fromList 
+          NE.fromList
             [ BindType (AtomTypeParam et) atomTE NoInfo pos,
               BindISpace (ShapeParam s) (Shape shapeSh) pos
             ]
@@ -202,6 +203,6 @@ uniquifyTypeExp (TESigma params t pos) =
   bindsNE withISpaceParam params $ \params' ->
     TESigma params' <$> uniquifyTypeExp t <*> pure pos
 uniquifyTypeExp (TERecord s pos) = do
-  let (fs, ts) = NE.unzip s
+  let (fs, ts) = Data.Functor.unzip s
   ts' <- mapM uniquifyTypeExp ts
   pure $ TERecord (NE.zip fs ts') pos

@@ -4,6 +4,8 @@ import Control.Monad
 import Control.Monad.Error.Class
 import Control.Monad.Reader hiding (lift)
 import Control.Monad.Trans.Except
+import Data.Foldable (find)
+import Data.List qualified
 import Data.List.NonEmpty qualified as NE
 import Data.Map (Map)
 import Data.Map qualified as M
@@ -23,9 +25,6 @@ import TypeCheck qualified as TC
 import Uniquify qualified as U
 import Util
 import VName
-import Data.Foldable (find)
-import qualified Data.List
-import Debug.Trace (traceM)
 
 type Dim = Syntax.Dim VName
 
@@ -336,18 +335,24 @@ intExp expr@(Struct s (Info (_, pframe)) _) = do
   let pcnt = product pframe'
   shps' <- mapM intShape $ NE.toList shps
   es' <- mapM intExp $ NE.toList es
-  replFieldsEs <- zipWithM (\shp' v' -> case v' of
-                        ValArray inShp vs -> do
-                          let splitVs = split (product inShp `div` product shp') (product shp') vs
-                          let replFactor = pcnt `div` (product inShp `div` product shp')
-                          pure $ concat $ replicate replFactor $ map (ValArray shp') splitVs
-                        _ -> error $
-                               unlines [
-                                 "struct construction: rhs of a field did not evaluate to an array",
-                                 prettyString v',
-                                 "in",
-                                 prettyString expr])
-                  shps' es'
+  replFieldsEs <-
+    zipWithM
+      ( \shp' v' -> case v' of
+          ValArray inShp vs -> do
+            let splitVs = split (product inShp `div` product shp') (product shp') vs
+            let replFactor = pcnt `div` (product inShp `div` product shp')
+            pure $ concat $ replicate replFactor $ map (ValArray shp') splitVs
+          _ ->
+            error $
+              unlines
+                [ "struct construction: rhs of a field did not evaluate to an array",
+                  prettyString v',
+                  "in",
+                  prettyString expr
+                ]
+      )
+      shps'
+      es'
   -- fields - frame -> frame - fields
   let tReplFields = Data.List.transpose replFieldsEs
   let recs = map (ValRecord . zip (NE.toList fnames)) tReplFields
@@ -356,22 +361,30 @@ intExp expr@(FieldProj e f _ _) = do
   e' <- intExp e
   let (ns, recs) = asArray e'
   case recs of
-    [] -> error $ unlines [
-      "field proj: empty array of records in projection",
-      prettyString e,
-      "in",
-      prettyString expr]
-    rs@(r : _) | Just vs' <- mapM projMaybe rs  -> do
-      pure $ collapse $ ValArray (ns <> valShapeOf r) vs'
-        where projMaybe (ValRecord fs) = case find (\(fn, _) -> fn == f) fs of
-                Just (_, v) -> Just v
-                Nothing -> Nothing
-              projMaybe _ = Nothing
-    _ -> error $ unlines [
-            "field proj: records do not have the right field",
+    [] ->
+      error $
+        unlines
+          [ "field proj: empty array of records in projection",
             prettyString e,
             "in",
-            prettyString expr]
+            prettyString expr
+          ]
+    rs@(r : _) | Just vs' <- mapM projMaybe rs -> do
+      pure $ collapse $ ValArray (ns <> valShapeOf r) vs'
+      where
+        projMaybe (ValRecord fs) = case find (\(fn, _) -> fn == f) fs of
+          Just (_, v) -> Just v
+          Nothing -> Nothing
+        projMaybe _ = Nothing
+    _ ->
+      error $
+        unlines
+          [ "field proj: records do not have the right field",
+            prettyString e,
+            "in",
+            prettyString expr
+          ]
+
 -- | Interpret a 'Dim'. Variables are looked up in the environment; the result
 -- must be non-negative (subtraction may produce negatives in subterms).
 intDim :: Dim -> InterpM Int

@@ -429,7 +429,7 @@ data ExpBase te tp f v
   | -- | Record expression.
     Struct (NonEmpty (Text, Shape v, ExpBase te tp f v)) (f (ArrayType v, Shape v)) SourcePos
   | -- | Record Field Projection
-    FieldProj (ExpBase te tp f v) Text (f (ArrayType v)) SourcePos 
+    FieldProj (ExpBase te tp f v) Text (f (ArrayType v)) SourcePos
 
 deriving instance (Show v, Show (te v), Show (tp v)) => Show (ExpBase te tp NoInfo v)
 
@@ -445,8 +445,6 @@ instance
   Pretty (ExpBase te tp f v)
   where
   pretty (Var v _ _) = pretty v
-  -- We should probably be more clever here and use Prop.@=, but I don't want to
-  -- deal with the circular import right now.
   pretty (Array [] (a NE.:| []) _ _) =
     pretty a
   pretty (Array shape as _ _) =
@@ -659,7 +657,7 @@ instance HasSrcPos (TypeExp v) where
   posOf (TEForall _ _ pos) = pos
   posOf (TEPi _ _ pos) = pos
   posOf (TESigma _ _ pos) = pos
-  posOf (TERecord _ pos) = pos 
+  posOf (TERecord _ pos) = pos
 
 type UncheckedProg = ProgBase TypeExp TypeParamExp NoInfo Text
 

@@ -78,6 +78,13 @@ instance
   rename (Let bs body t pos) =
     withRenamedBinders (concatMap bindVars $ NE.toList bs) $
       Let <$> traverse rename bs <*> rename body <*> applyRename t <*> pure pos
+  rename (Struct fs t pos) =
+    Struct
+      <$> traverse (\(f, sh, e) -> (,,) f <$> applyRename sh <*> rename e) fs
+      <*> applyRename t
+      <*> pure pos
+  rename (FieldProj e f t pos) =
+    FieldProj <$> rename e <*> pure f <*> applyRename t <*> pure pos
 
 instance
   ( Traversable tp,

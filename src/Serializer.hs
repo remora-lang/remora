@@ -85,6 +85,7 @@ instance (ToJSON v) => ToJSON (Syntax.TypeExp v) where
   toJSON (Syntax.TEForall ps t _) = object ["tag" .= ("TEForall" :: T.Text), "params" .= ps, "body" .= t]
   toJSON (Syntax.TEPi ps t _) = object ["tag" .= ("TEPi" :: T.Text), "params" .= ps, "body" .= t]
   toJSON (Syntax.TESigma ps t _) = object ["tag" .= ("TESigma" :: T.Text), "params" .= ps, "body" .= t]
+  toJSON (Syntax.TERecord fs _) = object ["tag" .= ("TERecord" :: T.Text), "fields" .= fs]
 
 -- ---------------------------------------------------------------------------
 -- TypeParam
@@ -104,6 +105,7 @@ instance (ToJSON v) => ToJSON (Syntax.AtomType v) where
   toJSON (Syntax.Forall p t) = object ["tag" .= ("Forall" :: T.Text), "param" .= p, "body" .= t]
   toJSON (Syntax.Pi p t) = object ["tag" .= ("Pi" :: T.Text), "param" .= p, "body" .= t]
   toJSON (Syntax.Sigma p t) = object ["tag" .= ("Sigma" :: T.Text), "param" .= p, "body" .= t]
+  toJSON (Syntax.Record fs) = object ["tag" .= ("Record" :: T.Text), "fields" .= fs]
 
 -- ---------------------------------------------------------------------------
 -- ArrayType
@@ -216,6 +218,10 @@ instance
     object ["tag" .= ("Unbox" :: T.Text), "ispace" .= ispace, "var" .= v, "target" .= src, "body" .= body, "info" .= info]
   toJSON (Syntax.Let binds body info _) =
     object ["tag" .= ("Let" :: T.Text), "binds" .= binds, "body" .= body, "info" .= info]
+  toJSON (Syntax.Struct fs info _) =
+    object ["tag" .= ("Struct" :: T.Text), "fields" .= fs, "info" .= info]
+  toJSON (Syntax.FieldProj e field info _) =
+    object ["tag" .= ("FieldProj" :: T.Text), "expr" .= e, "field" .= field, "info" .= info]
 
 -- ---------------------------------------------------------------------------
 -- DeclBase

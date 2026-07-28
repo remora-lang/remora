@@ -51,3 +51,5 @@ uniquifyAtomType (Pi pt t) =
 uniquifyAtomType (Sigma pt t) =
   withISpaceParam pt $ \pt' ->
     Sigma pt' <$> uniquifyArrayType t
+uniquifyAtomType (Record fs) =
+  Record <$> traverse (\(f, t) -> (,) f <$> uniquifyArrayType t) fs
