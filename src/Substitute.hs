@@ -119,6 +119,8 @@ instance Substitutable v (AtomType v) where
   substitute s (Sigma p t) =
     Sigma p $
       substitute (s `without` unISpaceParam p) t
+  substitute s (Record fs) =
+    Record (NE.map (second (substitute s)) fs)
 
 instance Substitutable v (ArrayType v) where
   substitute s (t :@ shape) = substitute s t :@ substitute s shape
@@ -168,6 +170,8 @@ instance Substitutable v (TypeExp v) where
     TEPi ps (substitute (foldl without s $ fmap unISpaceParam ps) t) pos
   substitute s (TESigma ps t pos) =
     TESigma ps (substitute (foldl without s $ fmap unISpaceParam ps) t) pos
+  substitute s (TERecord fs pos) =
+    TERecord (NE.map (second $ substitute s) fs) pos
 
 instance (Substitutable v (te v)) => Substitutable v (PatBase te Info v) where
   substitute s (PatId x te t pos) =
@@ -240,3 +244,7 @@ instance (Substitutable v (te v)) => Substitutable v (ExpBase te TypeParam Info 
       pos
   substitute s (Let bs body t pos) =
     Let (substitute s bs) (substitute s body) (substitute s t) pos
+  substitute s (Struct fs i pos) =
+    Struct (NE.map (second (substitute s)) fs) i pos
+  substitute s (FieldProj e f i pos) =
+    FieldProj (substitute s e) f i pos

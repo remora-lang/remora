@@ -42,6 +42,7 @@ import Symbolic qualified
 import Syntax
 import Util
 import VName
+import Data.Foldable (find)
 
 class HasArrayType x where
   arrayTypeOf :: x -> ArrayType VName
@@ -181,6 +182,7 @@ instance IsType (AtomType VName) where
   normType (Forall pts t) = Forall pts $ normType t
   normType (Pi pts t) = Pi pts $ normType t
   normType (Sigma pts t) = Sigma pts $ normType t
+  normType (Record fs) = Record $ fmap (second normType) fs
   normType t = t
 
   (p :-> r) ~= (q :-> t) = p ~= q && r ~= t
@@ -190,6 +192,12 @@ instance IsType (AtomType VName) where
     substitute (renameVar (unISpaceParam p) (unISpaceParam q)) r ~= t
   Sigma p r ~= Sigma q t =
     substitute (renameVar (unISpaceParam p) (unISpaceParam q)) r ~= t
+  Record f1s ~= Record f2s = all cmpFields allFields
+    where allFields = NE.nub $ NE.append (fmap fst f1s) (fmap fst f2s)
+          cmpFields fName = case (findField fName f1s, findField fName f2s) of
+            (Just t1, Just t2) -> t1 ~= t2
+            _ -> False
+          findField fn fs = fmap snd (find ((== fn) . fst) fs)
   t ~= r = t == r
 
   atomType = id
@@ -299,6 +307,10 @@ convertAtomTypeExp (TEPi ps t _) = do
 convertAtomTypeExp (TESigma ps t _) = do
   t' <- convertArrayTypeExp t
   pure $ foldr (\p r -> Sigma p (mkScalarArrayType r)) (Sigma (NE.last ps) t') (NE.init ps)
+convertAtomTypeExp (TERecord fs _) = do
+  let (fNames, ts) = NE.unzip fs
+  ts' <- mapM convertArrayTypeExp ts
+  pure $ Record (NE.zip fNames ts')
 convertAtomTypeExp _ = Nothing
 
 convertArrayTypeExp :: (Ord v) => TypeExp v -> Maybe (ArrayType v)

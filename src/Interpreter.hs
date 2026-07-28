@@ -338,7 +338,7 @@ intExp expr@(Struct s (Info (_, pframe)) _) = do
   es' <- mapM intExp $ NE.toList es
   replFieldsEs <- zipWithM (\shp' v' -> case v' of
                         ValArray inShp vs -> do
-                          let splitVs = split (product shp') vs
+                          let splitVs = split (product inShp `div` product shp') (product shp') vs
                           let replFactor = pcnt `div` (product inShp `div` product shp')
                           pure $ concat $ replicate replFactor $ map (ValArray shp') splitVs
                         _ -> error $

@@ -202,7 +202,7 @@ pType =
         symbol "Int" >> pure TEInt,
         symbol "Float" >> pure TEFloat,
         brackets $ TEArray <$> pType <*> pShapeSplice,
-        braces $ TERecord <$> neListOf pFieldType,
+        braces $ TERecord <$> someNE pFieldType,
         parens $
           choice
             [ TEArray <$> (lKeyword "A" >> pType) <*> (ispaceToShape <$> pISpace),
