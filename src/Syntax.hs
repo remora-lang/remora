@@ -29,6 +29,7 @@ module Syntax
     patVar,
     unpackPat,
     bindName,
+    bindVars,
     declName,
     AtomBase (..),
     Atom,
@@ -63,6 +64,7 @@ module Syntax
   )
 where
 
+import Data.Foldable (toList)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Text (Text)
@@ -394,6 +396,14 @@ bindName (BindIFun v _ _ _ _ _) = Just v
 bindName BindType {} = Nothing
 bindName BindISpace {} = Nothing
 
+bindVars :: (Foldable tp) => BindBase te tp f v -> [v]
+bindVars (BindVal v _ _ _) = [v]
+bindVars (BindFun v _ _ _ _ _) = [v]
+bindVars (BindTFun v _ _ _ _ _) = [v]
+bindVars (BindIFun v _ _ _ _ _) = [v]
+bindVars (BindType tp _ _ _) = toList tp
+bindVars (BindISpace ip _ _) = toList ip
+
 -- | Expressions.
 data ExpBase te tp f v
   = -- | Variables.
@@ -419,7 +429,7 @@ data ExpBase te tp f v
   | -- | Record expression.
     Struct (NonEmpty (Text, Shape v, ExpBase te tp f v)) (f (ArrayType v, Shape v)) SourcePos
   | -- | Record Field Projection
-    FieldProj (ExpBase te tp f v) Text (f (ArrayType v)) SourcePos 
+    FieldProj (ExpBase te tp f v) Text (f (ArrayType v)) SourcePos
 
 deriving instance (Show v, Show (te v), Show (tp v)) => Show (ExpBase te tp NoInfo v)
 
@@ -435,8 +445,6 @@ instance
   Pretty (ExpBase te tp f v)
   where
   pretty (Var v _ _) = pretty v
-  -- We should probably be more clever here and use Prop.@=, but I don't want to
-  -- deal with the circular import right now.
   pretty (Array [] (a NE.:| []) _ _) =
     pretty a
   pretty (Array shape as _ _) =
@@ -649,7 +657,7 @@ instance HasSrcPos (TypeExp v) where
   posOf (TEForall _ _ pos) = pos
   posOf (TEPi _ _ pos) = pos
   posOf (TESigma _ _ pos) = pos
-  posOf (TERecord _ pos) = pos 
+  posOf (TERecord _ pos) = pos
 
 type UncheckedProg = ProgBase TypeExp TypeParamExp NoInfo Text
 

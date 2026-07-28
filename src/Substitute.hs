@@ -1,4 +1,6 @@
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE MonoLocalBinds #-}
+{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Substitute
@@ -14,6 +16,7 @@ module Substitute
 where
 
 import Data.Bifunctor
+import Data.Foldable (toList)
 import Data.List.NonEmpty qualified as NE
 import Data.Map (Map)
 import Data.Map qualified as M
@@ -173,11 +176,22 @@ instance Substitutable v (TypeExp v) where
   substitute s (TERecord fs pos) =
     TERecord (NE.map (second $ substitute s) fs) pos
 
-instance (Substitutable v (te v)) => Substitutable v (PatBase te Info v) where
+instance
+  ( Substitutable v (te v),
+    forall a. (Substitutable v a) => Substitutable v (f a)
+  ) =>
+  Substitutable v (PatBase te f v)
+  where
   substitute s (PatId x te t pos) =
     PatId x (substitute s te) (substitute s t) pos
 
-instance (Substitutable v (te v)) => Substitutable v (AtomBase te TypeParam Info v) where
+instance
+  ( Traversable tp,
+    Substitutable v (te v),
+    forall a. (Substitutable v a) => Substitutable v (f a)
+  ) =>
+  Substitutable v (AtomBase te tp f v)
+  where
   substitute s (Base b t pos) =
     Base b (substitute s t) pos
   substitute s (Lambda pat body t pos) =
@@ -185,7 +199,7 @@ instance (Substitutable v (te v)) => Substitutable v (AtomBase te TypeParam Info
   substitute s (TLambda tp body t pos) =
     TLambda
       tp
-      (substitute (s `without` unTypeParam tp) body)
+      (substitute (foldl without s $ toList tp) body)
       (substitute s t)
       pos
   substitute s (ILambda ip body t pos) =
@@ -197,7 +211,13 @@ instance (Substitutable v (te v)) => Substitutable v (AtomBase te TypeParam Info
   substitute s (Box isp body te t pos) =
     Box (substitute s isp) (substitute s body) (substitute s te) (substitute s t) pos
 
-instance (Substitutable v (te v)) => Substitutable v (BindBase te TypeParam Info v) where
+instance
+  ( Traversable tp,
+    Substitutable v (te v),
+    forall a. (Substitutable v a) => Substitutable v (f a)
+  ) =>
+  Substitutable v (BindBase te tp f v)
+  where
   substitute s (BindVal x mte e pos) =
     BindVal x (substitute s mte) (substitute s e) pos
   substitute s (BindType tp te t pos) =
@@ -207,13 +227,19 @@ instance (Substitutable v (te v)) => Substitutable v (BindBase te TypeParam Info
   substitute s (BindFun x pats mte body t pos) =
     BindFun x (substitute s pats) (substitute s mte) (substitute s body) (substitute s t) pos
   substitute s (BindTFun x tps mte body t pos) =
-    let s' = foldl without s $ fmap unTypeParam tps
+    let s' = foldl without s $ concatMap toList tps
      in BindTFun x tps (substitute s' mte) (substitute s' body) (substitute s t) pos
   substitute s (BindIFun x ips mte body t pos) =
     let s' = foldl without s $ fmap unISpaceParam ips
      in BindIFun x ips (substitute s' mte) (substitute s' body) (substitute s t) pos
 
-instance (Substitutable v (te v)) => Substitutable v (ExpBase te TypeParam Info v) where
+instance
+  ( Traversable tp,
+    Substitutable v (te v),
+    forall a. (Substitutable v a) => Substitutable v (f a)
+  ) =>
+  Substitutable v (ExpBase te tp f v)
+  where
   substitute s (Var x t pos) =
     Var x (substitute s t) pos
   substitute s (Array dims as t pos) =
@@ -225,11 +251,7 @@ instance (Substitutable v (te v)) => Substitutable v (ExpBase te TypeParam Info 
   substitute s (EmptyFrame dims te t pos) =
     EmptyFrame dims (substitute s te) (substitute s t) pos
   substitute s (App fun arg t pos) =
-    App
-      (substitute s fun)
-      (substitute s arg)
-      (bimap (substitute s) (substitute s) <$> t)
-      pos
+    App (substitute s fun) (substitute s arg) (substitute s t) pos
   substitute s (TApp e te t pos) =
     TApp (substitute s e) (substitute s te) (substitute s t) pos
   substitute s (IApp e isp t pos) =
@@ -243,7 +265,9 @@ instance (Substitutable v (te v)) => Substitutable v (ExpBase te TypeParam Info 
       (substitute s t)
       pos
   substitute s (Let bs body t pos) =
-    Let (substitute s bs) (substitute s body) (substitute s t) pos
+    Let (NE.zipWith substitute substs bs) (substitute (NE.last substs) body) (substitute s t) pos
+    where
+      substs = NE.scanl (\acc b -> foldl without acc $ bindVars b) s bs
   substitute s (Struct fs i pos) =
     Struct (NE.map (second (substitute s)) fs) i pos
   substitute s (FieldProj e f i pos) =
