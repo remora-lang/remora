@@ -1,0 +1,129 @@
+;; ----------------- UTILITIES -------------------------
+
+(def (fun (@replicate (&t) (@f @s) (in [&t @s]) : [&t @f @s])
+    ((array [] (fn ((x [Int])) in)) (i-app iota/static [@f]))))
+
+(def (fun (@pad/2 (&t) ($n $p) (in [&t $n $n])
+                            (zero [&t]) : [&t (+ $n $p $p) (+ $n $p $p)])
+    (let ((val (vert-pad : [&t $p (+ $p $p $n)]) (@replicate (&t) ([$p (+ $p $p $n)] []) zero))
+          (val (hor-pad : [&t $p]) (@replicate (&t) ([$p] []) zero)))
+      (@append (&t) ($p (+ $n $p) [(+ $p $p $n)])
+         vert-pad
+         (@append (&t) ($n $p [(+ $p $p $n)])
+           (@append (&t) ($p (+ $n $p) []) hor-pad (@append (&t) ($n $p []) in hor-pad))
+           vert-pad)))))
+
+(def (i-fun (idxs-of/2 ($m $n) : [Int $m $n 2])
+     ((fn ((i [Int]))
+        ((fn ((j [Int])) [i j]) (i-app iota/static [$n])))
+      (i-app iota/static [$m]))))
+
+;; $m is (out-count - 1); the window is scaled by stride $s, so extracting
+;; $m+1 samples spaced $s apart needs an input of size $in-out + $m*$s + 1.
+(def (fun (@subarray/2 (&t) ($in-out $m $s)
+                    (in [&t (+ $in-out (* $m $s) 1) (+ $in-out (* $m $s) 1)])
+                    (offset [Int 2]) : [&t (+ $m 1) (+ $m 1)])
+     (@index2d (&t) ((+ $in-out (* $m $s) 1) (+ $in-out (* $m $s) 1))
+                    in
+                     (+ (@replicate (Int) ([(+ $m 1) (+ $m 1)] [2]) offset)
+                        (* (@reify-dim _ ($s)) (i-app idxs-of/2 (+ $m 1) (+ $m 1)))))))
+
+(def (fun (@lifted-subarray/2 (&t) (@shape $in-out $m $s)
+                        (in [&t (+ $in-out (* $m $s) 1) (+ $in-out (* $m $s) 1)])
+                        (offset [Int @shape 2]) : [&t @shape (+ $m 1) (+ $m 1)])
+     (@subarray/2 (&t) ($in-out $m $s) in offset)))
+
+(def (fun (@dot _ ($n-1) (v [Float (+ 1 $n-1)]) (w [Float (+ 1 $n-1)]) : [Float])
+    (@reduce (Float) ($n-1 []) f.+ (f.* v w))))
+
+(def (fun (@lifted_dot _ ($m-1 $o) (v [Float (+ 1 $m-1)]) (M [Float (+ 1 $m-1) $o]) : [Float $o])
+    (@dot _ ($m-1) v (@transpose2d (Float) ((+ 1 $m-1) $o) M))))
+
+(def (fun (@matmul _ ($n $m-1 $o) (xss [Float $n (+ 1 $m-1)])
+                               (yss [Float (+ 1 $m-1) $o]) : [Float $n $o])
+      (@lifted_dot _ ($m-1 $o) xss yss)))
+
+;; ----------------- CONVOLUTION -------------------------
+
+;; Stride support: the language has no type-level division, so $n-k and $p
+;; are taken pre-divided by the stride $s (i.e. the real image overhang is
+;; (* $n-k $s) and the real per-side padding is (* $p $s)). This keeps the
+;; output-position formula (+ $n-k $p $p 1) unchanged (it's still a count of
+;; stride-steps), while the caller is responsible for choosing $n-k/$p such
+;; that multiplying back by $s gives the true pixel amounts.
+(def (fun (@im2col _ ($n-k $k $p $in-c $s)
+                  (im [Float $in-c (+ (* $n-k $s) $k) (+ (* $n-k $s) $k)])
+                  : [Float (* $in-c $k $k) (* (+ $n-k $p $p 1) (+ $n-k $p $p 1))])
+      (@flatten (Float) ($in-c (* $k $k) [(* (+ $n-k $p $p 1) (+ $n-k $p $p 1))])
+        (@flatten (Float) ($k $k [(* (+ $n-k $p $p 1) (+ $n-k $p $p 1))])
+          (@flatten (Float) ((+ $n-k $p $p 1) (+ $n-k $p $p 1) [])
+             (@lifted-subarray/2 (Float) ([$k $k] (- $k 1) (+ $n-k $p $p) $s)
+               (@pad/2 (Float) ((+ (* $n-k $s) $k) (* $p $s)) im 0.0)
+                 (@replicate (Int) ([$in-c] [$k $k 2])
+                   (i-app idxs-of/2 $k $k))))))))
+
+(def (fun (@conv-2d _ ($n-k $k $in-c $out-c $p $s)
+                (in [Float $in-c (+ (* $n-k $s) $k) (+ (* $n-k $s) $k)])
+                (w  [Float $out-c $in-c $k $k])
+                : [Float $out-c (* (+ $n-k $p $p 1) (+ $n-k $p $p 1))])
+    (@matmul _ ($out-c (- (* $k $k $in-c) 1) (* (+ $n-k $p $p 1) (+ $n-k $p $p 1)))
+             ; matrix out-c x in-c*k*k
+             (@flatten (Float) ($in-c (* $k $k) [])
+                (@flatten (Float) ($k $k []) w))
+             ; out*out x k*k*in-c
+             (@im2col _ ($n-k $k $p $in-c $s) in))))
+
+
+;; Expected output with stride 1 (@conv-2d _ (2 2 1 2 1 1) ...), same inputs:
+;; [[[0  1  3  5  3]
+;;   [4  10 14 18 10]
+;;   [12 26 30 34 18]
+;;   [20 42 46 50 26]
+;;   [12 25 27 29 15]]
+;;  [[0 0.5 1.5 2.5 1.5]
+;;   [2 5 7 9 5]
+;;   [6 13 15 17 9]
+;;   [10 21 23 25 13]
+;;   [6 12.5 13.5 14.5 7.5]]]
+
+;; Same image/weights, but with stride 2 and no padding: n-k=1 (raw n-k=1*2=2,
+;; matching the 4x4 image), p=0, s=2 -> 2x2 output per channel.
+;; Expected output:
+;; [[[10 18]
+;;   [42 50]]
+;;  [[5  9]
+;;   [21 25]]]
+(entry (main)
+  (@conv-2d _ (1 2 1 2 0 2)
+    [[[0.0  1.0  2.0  3.0]
+      [4.0  5.0  6.0  7.0]
+      [8.0  9.0  10.0 11.0]
+      [12.0 13.0 14.0 15.0]]]
+    [[[[1.0 1.0] [1.0 1.0]]]
+      [[[[0.5 0.5] [0.5 0.5]]]]]))
+
+;; "Same" padding, 3x3 kernel, stride 1: raw n=3, k=3, pad=1, stride=1 ->
+;; darknet out = (3 + 2*1 - 3)/1 + 1 = 3 (output size == input size, as
+;; expected for "same" padding). Our params: n-k=0 (raw n-k=0*1=0), p=1, s=1
+;; -> out_count = 0+1+1+1 = 3. Matches.
+;; Expected output (sum kernel), flattened 3x3: [8 15 12 21 36 27 20 33 24]
+;; (entry (main)
+;;   (@conv-2d _ (0 3 1 1 1 1)
+;;     [[[0.0 1.0 2.0]
+;;       [3.0 4.0 5.0]
+;;       [6.0 7.0 8.0]]]
+;;     [[[[1.0 1.0 1.0] [1.0 1.0 1.0] [1.0 1.0 1.0]]]]))
+
+;; 3x3 kernel, stride 2, padding 2: raw n=5, k=3, pad=2, stride=2 ->
+;; darknet out = (5 + 2*2 - 3)/2 + 1 = 4. Our params: n-k=1 (raw n-k=1*2=2),
+;; p=1 (raw pad=1*2=2), s=2 -> out_count = 1+1+1+1 = 4. Matches.
+;; Expected output (sum kernel, all-ones input), flattened 4x4:
+;; [1 3 3 1 3 9 9 3 3 9 9 3 1 3 3 1]
+;; (entry (main)
+;;   (@conv-2d _ (1 3 1 1 1 2)
+;;     [[[1.0 1.0 1.0 1.0 1.0]
+;;       [1.0 1.0 1.0 1.0 1.0]
+;;       [1.0 1.0 1.0 1.0 1.0]
+;;       [1.0 1.0 1.0 1.0 1.0]
+;;       [1.0 1.0 1.0 1.0 1.0]]]
+;;     [[[[1.0 1.0 1.0] [1.0 1.0 1.0] [1.0 1.0 1.0]]]]))

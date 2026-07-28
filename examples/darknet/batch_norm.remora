@@ -1,0 +1,70 @@
+;; ----------------- UTILITIES -------------------------
+
+(def (fun (@replicate (&t) (@f @s) (in [&t @s]) : [&t @f @s])
+    ((array [] (fn ((x [Int])) in)) (i-app iota/static [@f]))))
+
+;; ----------------- BATCH NORMALIZATION -------------------------
+
+(def (fun (@channel-sum _ ($n $k) (input [Float $k $n $n]) : [Float $k])
+    (@reduce (Float) ((- $n 1) []) f.+
+      (@reduce (Float) ((- $n 1) []) f.+ input))))
+
+(def (fun (@channel-mean _ ($n $k) (input [Float $k $n $n]) : [Float $k])
+    (f./ (@channel-sum _ ($n $k) input)
+         (i->f (* (@reify-dim _ ($n)) (@reify-dim _ ($n)))))))
+
+;; Sample variance (n*n - 1 denominator), matching darknet's variance_cpu
+;; (scale = 1/(batch*spatial - 1); batch is always 1 here).
+(def (fun (@channel-variance _ ($n $k) (input [Float $k $n $n]) (mean [Float $k]) : [Float $k])
+    (let ((val (diff : [Float $k $n $n])
+               (f.- input (@replicate (Float) ([$n $n] []) mean))))
+      (f./ (@channel-sum _ ($n $k) (f.* diff diff))
+           (i->f (- (* (@reify-dim _ ($n)) (@reify-dim _ ($n))) 1))))))
+
+(def (fun (@batch-norm-2d-apply _ ($n $k)
+                (in [Float $k $n $n])
+                (mean [Float $k])
+                (variance [Float $k])
+                (scale [Float $k])
+                (bias [Float $k])
+                : [Float $k $n $n])
+    (f.+ (f.* (f./ (f.- in (@replicate (Float) ([$n $n] []) mean))
+                   (f.sqrt (@replicate (Float) ([$n $n] []) (f.+ variance 0.00001))))
+              (@replicate (Float) ([$n $n] []) scale))
+         (@replicate (Float) ([$n $n] []) bias))))
+
+(def (fun (@batch-norm-2d _ ($n $k)
+                (in [Float $k $n $n])
+                (scale [Float $k])
+                (bias [Float $k])
+                : [Float $k $n $n])
+    (let ((val (mean : [Float $k]) (@channel-mean _ ($n $k) in)))
+      (@batch-norm-2d-apply _ ($n $k) in mean (@channel-variance _ ($n $k) in mean) scale bias))))
+
+;; Expected output:
+;; [[[-1.3237884 0.2254039] [1.7745961 3.3237884]]
+;;  [[-0.5809471 -0.19364902] [0.19364902 0.5809471]]]
+(entry (main)
+  (@batch-norm-2d _ (2 2)
+    [[[1.0 3.0]
+      [5.0 7.0]]
+     [[2.0 4.0]
+      [6.0 8.0]]]
+    [2.0 0.5]
+    [1.0 0.0]))
+
+;; Expected output:
+;; [[[-5   -1  ]
+;;   [ 3    7  ]]
+;;  [[-1.5 -0.5]
+;;   [ 0.5  1.5]]]
+;; (entry (main)
+;;   (@batch-norm-2d-apply _ (2 2)
+;;     [[[1.0 3.0]
+;;       [5.0 7.0]]
+;;      [[2.0 4.0]
+;;       [6.0 8.0]]]
+;;     [4.0 5.0]
+;;     [0.99999 0.99999]
+;;     [2.0 0.5]
+;;     [1.0 0.0]))

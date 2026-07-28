@@ -1,0 +1,10 @@
+;; darknet's shortcut layer: elementwise add of two same-shaped feature
+;; maps (residual connection). Scalar op, so it auto-lifts over any shape.
+(def (fun (@shortcut _ () (a [Float]) (b [Float]) : [Float])
+    (f.+ a b)))
+
+;; Expected: [[[6 8] [10 12]] [[14 16] [18 20]]]
+(entry (main)
+  (@shortcut _ ()
+    [[[1.0 2.0] [3.0 4.0]] [[5.0 6.0] [7.0 8.0]]]
+    [[[5.0 6.0] [7.0 8.0]] [[9.0 10.0] [11.0 12.0]]]))

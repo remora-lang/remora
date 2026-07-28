@@ -1,0 +1,61 @@
+;; ----------------- UTILITIES -------------------------
+(def (fun (@replicate (&t) (@f @s) (in [&t @s]) : [&t @f @s])
+    ((array [] (fn ((x [Int])) in)) (i-app iota/static [@f]))))
+
+(def (fun (@pad/2 (&t) ($n $p) (in [&t $n $n])
+                            (zero [&t]) : [&t (+ $n $p $p) (+ $n $p $p)])
+    (let ((val (vert-pad : [&t $p (+ $p $p $n)]) (@replicate (&t) ([$p (+ $p $p $n)] []) zero))
+          (val (hor-pad : [&t $p]) (@replicate (&t) ([$p] []) zero)))
+      (@append (&t) ($p (+ $n $p) [(+ $p $p $n)])
+         vert-pad
+         (@append (&t) ($n $p [(+ $p $p $n)])
+           (@append (&t) ($p (+ $n $p) []) hor-pad (@append (&t) ($n $p []) in hor-pad))
+           vert-pad)))))
+
+(def (i-fun (idxs-of/2 ($m $n) : [Int $m $n 2])
+     ((fn ((i [Int]))
+        ((fn ((j [Int])) [i j]) (i-app iota/static [$n])))
+      (i-app iota/static [$m]))))
+
+(def (fun (@subarray/2 (&t) ($in-out $m $s)
+                    (in [&t (+ $in-out (* $m $s) 1) (+ $in-out (* $m $s) 1)])
+                    (offset [Int 2]) : [&t (+ $m 1) (+ $m 1)])
+     (@index2d (&t) ((+ $in-out (* $m $s) 1) (+ $in-out (* $m $s) 1))
+                    in
+                     (+ (@replicate (Int) ([(+ $m 1) (+ $m 1)] [2]) offset)
+                        (* (@reify-dim _ ($s)) (i-app idxs-of/2 (+ $m 1) (+ $m 1)))))))
+
+(def (fun (@lifted-subarray/2 (&t) (@shape $in-out $m $s)
+                        (in [&t (+ $in-out (* $m $s) 1) (+ $in-out (* $m $s) 1)])
+                        (offset [Int @shape 2]) : [&t @shape (+ $m 1) (+ $m 1)])
+     (@subarray/2 (&t) ($in-out $m $s) in offset)))
+
+;; ----------------- MAX POOLING -------------------------
+
+(def (fun (@f-max2d _ (@s) (a [Float @s]) (b [Float @s]) : [Float @s])
+     (f.max a b)))
+
+;; $n-k and $p are pre-divided by $s (real values are
+;; (* $n-k $s) / (* $p $s)). @pad/2 is filled with a
+;; negative number standing in for -infinity (since no -FLT_MAX).
+(def (fun (@max-pool-2d _ ($n-k $k $in-c $p $s)
+                (in [Float $in-c (+ (* $n-k $s) $k) (+ (* $n-k $s) $k)])
+                : [Float $in-c (+ $n-k $p $p 1) (+ $n-k $p $p 1)])
+    (@reduce (Float) ((- $k 1) [(+ $n-k $p $p 1) (+ $n-k $p $p 1)])
+             (@f-max2d _ ([(+ $n-k $p $p 1) (+ $n-k $p $p 1)]))
+      (@reduce (Float) ((- $k 1) [$k (+ $n-k $p $p 1) (+ $n-k $p $p 1)])
+               (@f-max2d _ ([$k (+ $n-k $p $p 1) (+ $n-k $p $p 1)]))
+        (@lifted-subarray/2 (Float) ([$k $k] (- $k 1) (+ $n-k $p $p) $s)
+          (@pad/2 (Float) ((+ (* $n-k $s) $k) (* $p $s)) in -1.0e30)
+            (@replicate (Int) ([$in-c] [$k $k 2])
+              (i-app idxs-of/2 $k $k)))))))
+
+;; 2x2 max pool, stride 2, no padding, on a single channel: n-k=1 (raw
+;; n-k=1*2=2, matching the 4x4 image), k=2, p=0, s=2 -> 2x2 output.
+;; Expected output: [[5 7] [13 15]]
+(entry (main)
+  (@max-pool-2d _ (1 2 1 0 2)
+    [[[0.0  1.0  2.0  3.0]
+      [4.0  5.0  6.0  7.0]
+      [8.0  9.0  10.0 11.0]
+      [12.0 13.0 14.0 15.0]]]))

@@ -1,0 +1,781 @@
+;; ----------------- UTILITIES -------------------------
+
+(def (fun (@replicate (&t) (@f @s) (in [&t @s]) : [&t @f @s])
+    ((array [] (fn ((x [Int])) in)) (i-app iota/static [@f]))))
+
+(def (fun (@pad/2 (&t) ($n $p) (in [&t $n $n])
+                            (zero [&t]) : [&t (+ $n $p $p) (+ $n $p $p)])
+    (let ((val (vert-pad : [&t $p (+ $p $p $n)]) (@replicate (&t) ([$p (+ $p $p $n)] []) zero))
+          (val (hor-pad : [&t $p]) (@replicate (&t) ([$p] []) zero)))
+      (@append (&t) ($p (+ $n $p) [(+ $p $p $n)])
+         vert-pad
+         (@append (&t) ($n $p [(+ $p $p $n)])
+           (@append (&t) ($p (+ $n $p) []) hor-pad (@append (&t) ($n $p []) in hor-pad))
+           vert-pad)))))
+
+(def (i-fun (idxs-of/2 ($m $n) : [Int $m $n 2])
+     ((fn ((i [Int]))
+        ((fn ((j [Int])) [i j]) (i-app iota/static [$n])))
+      (i-app iota/static [$m]))))
+
+(def (fun (@subarray/2 (&t) ($in-out $m $s)
+                    (in [&t (+ $in-out (* $m $s) 1) (+ $in-out (* $m $s) 1)])
+                    (offset [Int 2]) : [&t (+ $m 1) (+ $m 1)])
+     (@index2d (&t) ((+ $in-out (* $m $s) 1) (+ $in-out (* $m $s) 1))
+                    in
+                     (+ (@replicate (Int) ([(+ $m 1) (+ $m 1)] [2]) offset)
+                        (* (@reify-dim _ ($s)) (i-app idxs-of/2 (+ $m 1) (+ $m 1)))))))
+
+(def (fun (@lifted-subarray/2 (&t) (@shape $in-out $m $s)
+                        (in [&t (+ $in-out (* $m $s) 1) (+ $in-out (* $m $s) 1)])
+                        (offset [Int @shape 2]) : [&t @shape (+ $m 1) (+ $m 1)])
+     (@subarray/2 (&t) ($in-out $m $s) in offset)))
+
+;; ----------------- 4D TRANSPOSE (axes 0 1 2 3 -> 0 2 1 3) -------------------------
+
+(def (fun (@transpose4d/0213 (&t) ($a $b $c $d)
+                (in [&t $a $b $c $d])
+                : [&t $a $c $b $d])
+    (let ((val (flat-cd : [&t $a $b (* $c $d)])
+               (@flatten (&t) ($c $d []) in))
+          (val (swapped : [&t $a (* $c $d) $b])
+               (@transpose2d (&t) ($b (* $c $d)) flat-cd))
+          (val (split-cd : [&t $a $c $d $b])
+               (@reshape (&t) ([$a (* $c $d) $b] [$a $c $d $b]) swapped)))
+      (@transpose2d (&t) ($d $b) split-cd))))
+
+;; ----------------- CONVOLUTION -------------------------
+
+(def (fun (@im2col _ ($n-k $k $p $in-c $s)
+                  (im [Float $in-c (+ (* $n-k $s) $k) (+ (* $n-k $s) $k)])
+                  : [Float (* $in-c $k $k) (* (+ $n-k $p $p 1) (+ $n-k $p $p 1))])
+      (@flatten (Float) ($in-c (* $k $k) [(* (+ $n-k $p $p 1) (+ $n-k $p $p 1))])
+        (@flatten (Float) ($k $k [(* (+ $n-k $p $p 1) (+ $n-k $p $p 1))])
+          (@flatten (Float) ((+ $n-k $p $p 1) (+ $n-k $p $p 1) [])
+             (@lifted-subarray/2 (Float) ([$k $k] (- $k 1) (+ $n-k $p $p) $s)
+               (@pad/2 (Float) ((+ (* $n-k $s) $k) (* $p $s)) im 0.0)
+                 (@replicate (Int) ([$in-c] [$k $k 2])
+                   (i-app idxs-of/2 $k $k))))))))
+
+(def (fun (@dot _ ($n-1) (v [Float (+ 1 $n-1)]) (w [Float (+ 1 $n-1)]) : [Float])
+    (@reduce (Float) ($n-1 []) f.+ (f.* v w))))
+
+(def (fun (@lifted_dot _ ($m-1 $o) (v [Float (+ 1 $m-1)]) (M [Float (+ 1 $m-1) $o]) : [Float $o])
+    (@dot _ ($m-1) v (@transpose2d (Float) ((+ 1 $m-1) $o) M))))
+
+(def (fun (@matmul _ ($n $m-1 $o) (xss [Float $n (+ 1 $m-1)])
+                               (yss [Float (+ 1 $m-1) $o]) : [Float $n $o])
+      (@lifted_dot _ ($m-1 $o) xss yss)))
+
+(def (fun (@conv-2d _ ($n-k $k $in-c $out-c $p $s)
+                (in [Float $in-c (+ (* $n-k $s) $k) (+ (* $n-k $s) $k)])
+                (w  [Float $out-c $in-c $k $k])
+                : [Float $out-c (* (+ $n-k $p $p 1) (+ $n-k $p $p 1))])
+    (@matmul _ ($out-c (- (* $k $k $in-c) 1) (* (+ $n-k $p $p 1) (+ $n-k $p $p 1)))
+             (@flatten (Float) ($in-c (* $k $k) [])
+                (@flatten (Float) ($k $k []) w))
+             (@im2col _ ($n-k $k $p $in-c $s) in))))
+
+;; ----------------- MAX POOLING -------------------------
+
+(def (fun (@f-max2d _ (@s) (a [Float @s]) (b [Float @s]) : [Float @s])
+     (f.max a b)))
+
+(def (fun (@max-pool-2d _ ($n-k $k $in-c $p $s)
+                (in [Float $in-c (+ (* $n-k $s) $k) (+ (* $n-k $s) $k)])
+                : [Float $in-c (+ $n-k $p $p 1) (+ $n-k $p $p 1)])
+    (@reduce (Float) ((- $k 1) [(+ $n-k $p $p 1) (+ $n-k $p $p 1)])
+             (@f-max2d _ ([(+ $n-k $p $p 1) (+ $n-k $p $p 1)]))
+      (@reduce (Float) ((- $k 1) [$k (+ $n-k $p $p 1) (+ $n-k $p $p 1)])
+               (@f-max2d _ ([$k (+ $n-k $p $p 1) (+ $n-k $p $p 1)]))
+        (@lifted-subarray/2 (Float) ([$k $k] (- $k 1) (+ $n-k $p $p) $s)
+          (@pad/2 (Float) ((+ (* $n-k $s) $k) (* $p $s)) in -1.0e30)
+            (@replicate (Int) ([$in-c] [$k $k 2])
+              (i-app idxs-of/2 $k $k)))))))
+
+;; ----------------- BATCH NORMALIZATION -------------------------
+
+(def (fun (@batch-norm-2d-apply _ ($n $k)
+                (in [Float $k $n $n])
+                (mean [Float $k])
+                (variance [Float $k])
+                (scale [Float $k])
+                (bias [Float $k])
+                : [Float $k $n $n])
+    (f.+ (f.* (f./ (f.- in (@replicate (Float) ([$n $n] []) mean))
+                   (f.sqrt (@replicate (Float) ([$n $n] []) (f.+ variance 0.00001))))
+              (@replicate (Float) ([$n $n] []) scale))
+         (@replicate (Float) ([$n $n] []) bias))))
+
+;; ----------------- ACTIVATIONS -------------------------
+
+(def (fun (@leaky-relu _ () (x [Float]) : [Float])
+    (f.max x (f.* 0.1 x))))
+
+(def (val e 2.718281828459045))
+
+(def (fun (@softplus _ () (x [Float]) : [Float])
+     (f.ln (f.+ 1.0 (f.^ e x)))))
+
+(def (fun (@mish _ () (x [Float]) : [Float])
+     (f.* x (f.tanh (@softplus _ () x)))))
+
+;; ----------------- NEAREST NEIGHBOR UPSAMPLING -------------------------
+
+(def (fun (@upsample-nearest _ ($n $k $s)
+                (in [Float $k $n $n])
+                : [Float $k (* $n $s) (* $n $s)])
+    (let ((val (replicated : [Float $k $n $n $s $s])
+               (@replicate (Float) ([$s $s] []) in))
+          (val (transposed : [Float $k $n $s $n $s])
+               (@transpose4d/0213 (Float) ($n $n $s $s) replicated))
+          (val (merged-rows : [Float $k (* $n $s) $n $s])
+               (@flatten (Float) ($n $s [$n $s]) transposed)))
+      (@flatten (Float) ($n $s []) merged-rows))))
+
+;; ----------------- SHORTCUT / ROUTE / SPP -------------------------
+
+(def (fun (@shortcut _ () (a [Float]) (b [Float]) : [Float])
+    (f.+ a b)))
+
+(def (fun (@route2 _ ($c1 $c2 $h $w)
+                (a [Float $c1 $h $w])
+                (b [Float $c2 $h $w])
+                : [Float (+ $c1 $c2) $h $w])
+     (@append (Float) ($c1 $c2 [$h $w]) a b)))
+
+(def (fun (@spp _ ($n $k)
+                (in [Float $k $n $n])
+                : [Float (* 4 $k) $n $n])
+    (let ((val (mp5  : [Float $k $n $n]) (@max-pool-2d _ ((- $n 5) 5 $k 2 1) in))
+          (val (mp9  : [Float $k $n $n]) (@max-pool-2d _ ((- $n 9) 9 $k 4 1) in))
+          (val (mp13 : [Float $k $n $n]) (@max-pool-2d _ ((- $n 13) 13 $k 6 1) in)))
+      (@append (Float) ($k (* 3 $k) [$n $n])
+         mp13
+         (@append (Float) ($k (* 2 $k) [$n $n])
+            mp9
+            (@append (Float) ($k $k [$n $n]) mp5 in))))))
+
+;; ----------------- CONV + BATCHNORM + ACTIVATION -------------------------
+;; Every learnable tensor is an explicit parameter: the conv kernel `w` plus
+;; batchnorm's four per-channel arrays. Nothing is conjured layer-locally --
+;; all of it is threaded down from the entry point, which is the only place
+;; that builds placeholders (see the bottom of this file). At inference,
+;; batchnorm uses a trained checkpoint's stored running stats, not anything
+;; recomputed from this call's input (see batch_norm.remora).
+
+(def (fun (@conv-bn-mish _ ($n-k $k $in-c $out-c $p $s)
+                (in [Float $in-c (+ (* $n-k $s) $k) (+ (* $n-k $s) $k)])
+                (w [Float $out-c $in-c $k $k])
+                (mean [Float $out-c]) (variance [Float $out-c]) (scale [Float $out-c]) (bias [Float $out-c])
+                : [Float $out-c (+ $n-k $p $p 1) (+ $n-k $p $p 1)])
+    (let ((val (conv-out : [Float $out-c (+ $n-k $p $p 1) (+ $n-k $p $p 1)])
+               (@reshape (Float) ([$out-c (* (+ $n-k $p $p 1) (+ $n-k $p $p 1))] [$out-c (+ $n-k $p $p 1) (+ $n-k $p $p 1)])
+                  (@conv-2d _ ($n-k $k $in-c $out-c $p $s) in w))))
+      (@mish _ ()
+        (@batch-norm-2d-apply _ ((+ $n-k $p $p 1) $out-c) conv-out mean variance scale bias)))))
+
+(def (fun (@conv-bn-leaky _ ($n-k $k $in-c $out-c $p $s)
+                (in [Float $in-c (+ (* $n-k $s) $k) (+ (* $n-k $s) $k)])
+                (w [Float $out-c $in-c $k $k])
+                (mean [Float $out-c]) (variance [Float $out-c]) (scale [Float $out-c]) (bias [Float $out-c])
+                : [Float $out-c (+ $n-k $p $p 1) (+ $n-k $p $p 1)])
+    (let ((val (conv-out : [Float $out-c (+ $n-k $p $p 1) (+ $n-k $p $p 1)])
+               (@reshape (Float) ([$out-c (* (+ $n-k $p $p 1) (+ $n-k $p $p 1))] [$out-c (+ $n-k $p $p 1) (+ $n-k $p $p 1)])
+                  (@conv-2d _ ($n-k $k $in-c $out-c $p $s) in w))))
+      (@leaky-relu _ ()
+        (@batch-norm-2d-apply _ ((+ $n-k $p $p 1) $out-c) conv-out mean variance scale bias)))))
+
+;; ----------------- CSPDARKNET53 RESIDUAL BLOCK -------------------------
+
+(def (fun (@res-block _ ($h $h2 $n)
+                (in [Float $h $n $n])
+                ;; 1x1 reduce: $h -> $h2
+                (r-w [Float $h2 $h 1 1]) (r-m [Float $h2]) (r-v [Float $h2]) (r-s [Float $h2]) (r-b [Float $h2])
+                ;; 3x3 expand: $h2 -> $h, then shortcut-add the block input
+                (e-w [Float $h $h2 3 3]) (e-m [Float $h]) (e-v [Float $h]) (e-s [Float $h]) (e-b [Float $h])
+                : [Float $h $n $n])
+    (let ((val (reduced : [Float $h2 $n $n])
+               (@conv-bn-mish _ ((- $n 1) 1 $h $h2 0 1) in r-w r-m r-v r-s r-b))
+          (val (expanded : [Float $h $n $n])
+               (@conv-bn-mish _ ((- $n 3) 3 $h2 $h 1 1) reduced e-w e-m e-v e-s e-b)))
+      (@shortcut _ () expanded in))))
+
+;; ----------------- CSP STAGES -------------------------
+;; Downsample (2x2 stride 2, no padding -- darknet's actual 3x3/stride2/pad1
+;; downsample can't be expressed exactly here: with an even input size N and
+;; odd kernel 3, (N-3) is always odd and can never divide evenly by the
+;; stride, which our type-level shapes require; 2x2/stride2/pad0 gives the
+;; same exact N -> N/2 halving without that parity problem), CSP split into
+;; two 1x1-conv paths (skip + main), N residual blocks on the main path,
+;; 1x1 conv, concat, 1x1 transition conv. $n-k-down is the downsample conv's
+;; pre-divided-by-stride overhang (see conv.remora); the post-downsample
+;; spatial size is always (+ $n-k-down 1).
+
+(def (fun (@csp-stage-x1 _ ($in-ch $half $quarter $n-k-down)
+                (in [Float $in-ch (+ (* $n-k-down 2) 2) (+ (* $n-k-down 2) 2)])
+                (down-w [Float (+ $half $half) $in-ch 2 2]) (down-m [Float (+ $half $half)]) (down-v [Float (+ $half $half)]) (down-s [Float (+ $half $half)]) (down-b [Float (+ $half $half)])  ;; 2x2/stride-2 downsample: $in-ch -> 2*$half
+                (skip-w [Float $half (+ $half $half) 1 1]) (skip-m [Float $half]) (skip-v [Float $half]) (skip-s [Float $half]) (skip-b [Float $half])  ;; CSP skip path 1x1: 2*$half -> $half
+                (m0-w [Float $half (+ $half $half) 1 1]) (m0-m [Float $half]) (m0-v [Float $half]) (m0-s [Float $half]) (m0-b [Float $half])  ;; CSP main path 1x1: 2*$half -> $half
+                (r1-rw [Float $quarter $half 1 1]) (r1-rm [Float $quarter]) (r1-rv [Float $quarter]) (r1-rs [Float $quarter]) (r1-rb [Float $quarter])  ;; residual block 1: 1x1 reduce
+                (r1-ew [Float $half $quarter 3 3]) (r1-em [Float $half]) (r1-ev [Float $half]) (r1-es [Float $half]) (r1-eb [Float $half])  ;; residual block 1: 3x3 expand
+                (mf-w [Float $half $half 1 1]) (mf-m [Float $half]) (mf-v [Float $half]) (mf-s [Float $half]) (mf-b [Float $half])  ;; main path final 1x1
+                (tr-w [Float (+ $half $half) (+ $half $half) 1 1]) (tr-m [Float (+ $half $half)]) (tr-v [Float (+ $half $half)]) (tr-s [Float (+ $half $half)]) (tr-b [Float (+ $half $half)])  ;; transition 1x1 after concat
+                : [Float (+ $half $half) (+ $n-k-down 1) (+ $n-k-down 1)])
+    (let ((val (down  : [Float (+ $half $half) (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@conv-bn-mish _ ($n-k-down 2 $in-ch (+ $half $half) 0 2) in down-w down-m down-v down-s down-b))
+          (val (skip  : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1) down skip-w skip-m skip-v skip-s skip-b))
+          (val (main0 : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1) down m0-w m0-m m0-v m0-s m0-b))
+          (val (main1 : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@res-block _ ($half $quarter (+ $n-k-down 1)) main0 r1-rw r1-rm r1-rv r1-rs r1-rb r1-ew r1-em r1-ev r1-es r1-eb))
+          (val (mainF : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@conv-bn-mish _ ($n-k-down 1 $half $half 0 1) main1 mf-w mf-m mf-v mf-s mf-b))
+          (val (merged : [Float (+ $half $half) (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@route2 _ ($half $half (+ $n-k-down 1) (+ $n-k-down 1)) mainF skip)))
+      (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) (+ $half $half) 0 1) merged tr-w tr-m tr-v tr-s tr-b))))
+
+(def (fun (@csp-stage-x2 _ ($in-ch $half $quarter $n-k-down)
+                (in [Float $in-ch (+ (* $n-k-down 2) 2) (+ (* $n-k-down 2) 2)])
+                (down-w [Float (+ $half $half) $in-ch 2 2]) (down-m [Float (+ $half $half)]) (down-v [Float (+ $half $half)]) (down-s [Float (+ $half $half)]) (down-b [Float (+ $half $half)])  ;; 2x2/stride-2 downsample: $in-ch -> 2*$half
+                (skip-w [Float $half (+ $half $half) 1 1]) (skip-m [Float $half]) (skip-v [Float $half]) (skip-s [Float $half]) (skip-b [Float $half])  ;; CSP skip path 1x1: 2*$half -> $half
+                (m0-w [Float $half (+ $half $half) 1 1]) (m0-m [Float $half]) (m0-v [Float $half]) (m0-s [Float $half]) (m0-b [Float $half])  ;; CSP main path 1x1: 2*$half -> $half
+                (r1-rw [Float $quarter $half 1 1]) (r1-rm [Float $quarter]) (r1-rv [Float $quarter]) (r1-rs [Float $quarter]) (r1-rb [Float $quarter])  ;; residual block 1: 1x1 reduce
+                (r1-ew [Float $half $quarter 3 3]) (r1-em [Float $half]) (r1-ev [Float $half]) (r1-es [Float $half]) (r1-eb [Float $half])  ;; residual block 1: 3x3 expand
+                (r2-rw [Float $quarter $half 1 1]) (r2-rm [Float $quarter]) (r2-rv [Float $quarter]) (r2-rs [Float $quarter]) (r2-rb [Float $quarter])  ;; residual block 2: 1x1 reduce
+                (r2-ew [Float $half $quarter 3 3]) (r2-em [Float $half]) (r2-ev [Float $half]) (r2-es [Float $half]) (r2-eb [Float $half])  ;; residual block 2: 3x3 expand
+                (mf-w [Float $half $half 1 1]) (mf-m [Float $half]) (mf-v [Float $half]) (mf-s [Float $half]) (mf-b [Float $half])  ;; main path final 1x1
+                (tr-w [Float (+ $half $half) (+ $half $half) 1 1]) (tr-m [Float (+ $half $half)]) (tr-v [Float (+ $half $half)]) (tr-s [Float (+ $half $half)]) (tr-b [Float (+ $half $half)])  ;; transition 1x1 after concat
+                : [Float (+ $half $half) (+ $n-k-down 1) (+ $n-k-down 1)])
+    (let ((val (down  : [Float (+ $half $half) (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@conv-bn-mish _ ($n-k-down 2 $in-ch (+ $half $half) 0 2) in down-w down-m down-v down-s down-b))
+          (val (skip  : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1) down skip-w skip-m skip-v skip-s skip-b))
+          (val (main0 : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1) down m0-w m0-m m0-v m0-s m0-b))
+          (val (main1 : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@res-block _ ($half $quarter (+ $n-k-down 1)) main0 r1-rw r1-rm r1-rv r1-rs r1-rb r1-ew r1-em r1-ev r1-es r1-eb))
+          (val (main2 : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@res-block _ ($half $quarter (+ $n-k-down 1)) main1 r2-rw r2-rm r2-rv r2-rs r2-rb r2-ew r2-em r2-ev r2-es r2-eb))
+          (val (mainF : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@conv-bn-mish _ ($n-k-down 1 $half $half 0 1) main2 mf-w mf-m mf-v mf-s mf-b))
+          (val (merged : [Float (+ $half $half) (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@route2 _ ($half $half (+ $n-k-down 1) (+ $n-k-down 1)) mainF skip)))
+      (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) (+ $half $half) 0 1) merged tr-w tr-m tr-v tr-s tr-b))))
+
+(def (fun (@csp-stage-x4 _ ($in-ch $half $quarter $n-k-down)
+                (in [Float $in-ch (+ (* $n-k-down 2) 2) (+ (* $n-k-down 2) 2)])
+                (down-w [Float (+ $half $half) $in-ch 2 2]) (down-m [Float (+ $half $half)]) (down-v [Float (+ $half $half)]) (down-s [Float (+ $half $half)]) (down-b [Float (+ $half $half)])  ;; 2x2/stride-2 downsample: $in-ch -> 2*$half
+                (skip-w [Float $half (+ $half $half) 1 1]) (skip-m [Float $half]) (skip-v [Float $half]) (skip-s [Float $half]) (skip-b [Float $half])  ;; CSP skip path 1x1: 2*$half -> $half
+                (m0-w [Float $half (+ $half $half) 1 1]) (m0-m [Float $half]) (m0-v [Float $half]) (m0-s [Float $half]) (m0-b [Float $half])  ;; CSP main path 1x1: 2*$half -> $half
+                (r1-rw [Float $quarter $half 1 1]) (r1-rm [Float $quarter]) (r1-rv [Float $quarter]) (r1-rs [Float $quarter]) (r1-rb [Float $quarter])  ;; residual block 1: 1x1 reduce
+                (r1-ew [Float $half $quarter 3 3]) (r1-em [Float $half]) (r1-ev [Float $half]) (r1-es [Float $half]) (r1-eb [Float $half])  ;; residual block 1: 3x3 expand
+                (r2-rw [Float $quarter $half 1 1]) (r2-rm [Float $quarter]) (r2-rv [Float $quarter]) (r2-rs [Float $quarter]) (r2-rb [Float $quarter])  ;; residual block 2: 1x1 reduce
+                (r2-ew [Float $half $quarter 3 3]) (r2-em [Float $half]) (r2-ev [Float $half]) (r2-es [Float $half]) (r2-eb [Float $half])  ;; residual block 2: 3x3 expand
+                (r3-rw [Float $quarter $half 1 1]) (r3-rm [Float $quarter]) (r3-rv [Float $quarter]) (r3-rs [Float $quarter]) (r3-rb [Float $quarter])  ;; residual block 3: 1x1 reduce
+                (r3-ew [Float $half $quarter 3 3]) (r3-em [Float $half]) (r3-ev [Float $half]) (r3-es [Float $half]) (r3-eb [Float $half])  ;; residual block 3: 3x3 expand
+                (r4-rw [Float $quarter $half 1 1]) (r4-rm [Float $quarter]) (r4-rv [Float $quarter]) (r4-rs [Float $quarter]) (r4-rb [Float $quarter])  ;; residual block 4: 1x1 reduce
+                (r4-ew [Float $half $quarter 3 3]) (r4-em [Float $half]) (r4-ev [Float $half]) (r4-es [Float $half]) (r4-eb [Float $half])  ;; residual block 4: 3x3 expand
+                (mf-w [Float $half $half 1 1]) (mf-m [Float $half]) (mf-v [Float $half]) (mf-s [Float $half]) (mf-b [Float $half])  ;; main path final 1x1
+                (tr-w [Float (+ $half $half) (+ $half $half) 1 1]) (tr-m [Float (+ $half $half)]) (tr-v [Float (+ $half $half)]) (tr-s [Float (+ $half $half)]) (tr-b [Float (+ $half $half)])  ;; transition 1x1 after concat
+                : [Float (+ $half $half) (+ $n-k-down 1) (+ $n-k-down 1)])
+    (let ((val (down  : [Float (+ $half $half) (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@conv-bn-mish _ ($n-k-down 2 $in-ch (+ $half $half) 0 2) in down-w down-m down-v down-s down-b))
+          (val (skip  : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1) down skip-w skip-m skip-v skip-s skip-b))
+          (val (main0 : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1) down m0-w m0-m m0-v m0-s m0-b))
+          (val (main1 : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@res-block _ ($half $quarter (+ $n-k-down 1)) main0 r1-rw r1-rm r1-rv r1-rs r1-rb r1-ew r1-em r1-ev r1-es r1-eb))
+          (val (main2 : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@res-block _ ($half $quarter (+ $n-k-down 1)) main1 r2-rw r2-rm r2-rv r2-rs r2-rb r2-ew r2-em r2-ev r2-es r2-eb))
+          (val (main3 : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@res-block _ ($half $quarter (+ $n-k-down 1)) main2 r3-rw r3-rm r3-rv r3-rs r3-rb r3-ew r3-em r3-ev r3-es r3-eb))
+          (val (main4 : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@res-block _ ($half $quarter (+ $n-k-down 1)) main3 r4-rw r4-rm r4-rv r4-rs r4-rb r4-ew r4-em r4-ev r4-es r4-eb))
+          (val (mainF : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@conv-bn-mish _ ($n-k-down 1 $half $half 0 1) main4 mf-w mf-m mf-v mf-s mf-b))
+          (val (merged : [Float (+ $half $half) (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@route2 _ ($half $half (+ $n-k-down 1) (+ $n-k-down 1)) mainF skip)))
+      (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) (+ $half $half) 0 1) merged tr-w tr-m tr-v tr-s tr-b))))
+
+(def (fun (@csp-stage-x8 _ ($in-ch $half $quarter $n-k-down)
+                (in [Float $in-ch (+ (* $n-k-down 2) 2) (+ (* $n-k-down 2) 2)])
+                (down-w [Float (+ $half $half) $in-ch 2 2]) (down-m [Float (+ $half $half)]) (down-v [Float (+ $half $half)]) (down-s [Float (+ $half $half)]) (down-b [Float (+ $half $half)])  ;; 2x2/stride-2 downsample: $in-ch -> 2*$half
+                (skip-w [Float $half (+ $half $half) 1 1]) (skip-m [Float $half]) (skip-v [Float $half]) (skip-s [Float $half]) (skip-b [Float $half])  ;; CSP skip path 1x1: 2*$half -> $half
+                (m0-w [Float $half (+ $half $half) 1 1]) (m0-m [Float $half]) (m0-v [Float $half]) (m0-s [Float $half]) (m0-b [Float $half])  ;; CSP main path 1x1: 2*$half -> $half
+                (r1-rw [Float $quarter $half 1 1]) (r1-rm [Float $quarter]) (r1-rv [Float $quarter]) (r1-rs [Float $quarter]) (r1-rb [Float $quarter])  ;; residual block 1: 1x1 reduce
+                (r1-ew [Float $half $quarter 3 3]) (r1-em [Float $half]) (r1-ev [Float $half]) (r1-es [Float $half]) (r1-eb [Float $half])  ;; residual block 1: 3x3 expand
+                (r2-rw [Float $quarter $half 1 1]) (r2-rm [Float $quarter]) (r2-rv [Float $quarter]) (r2-rs [Float $quarter]) (r2-rb [Float $quarter])  ;; residual block 2: 1x1 reduce
+                (r2-ew [Float $half $quarter 3 3]) (r2-em [Float $half]) (r2-ev [Float $half]) (r2-es [Float $half]) (r2-eb [Float $half])  ;; residual block 2: 3x3 expand
+                (r3-rw [Float $quarter $half 1 1]) (r3-rm [Float $quarter]) (r3-rv [Float $quarter]) (r3-rs [Float $quarter]) (r3-rb [Float $quarter])  ;; residual block 3: 1x1 reduce
+                (r3-ew [Float $half $quarter 3 3]) (r3-em [Float $half]) (r3-ev [Float $half]) (r3-es [Float $half]) (r3-eb [Float $half])  ;; residual block 3: 3x3 expand
+                (r4-rw [Float $quarter $half 1 1]) (r4-rm [Float $quarter]) (r4-rv [Float $quarter]) (r4-rs [Float $quarter]) (r4-rb [Float $quarter])  ;; residual block 4: 1x1 reduce
+                (r4-ew [Float $half $quarter 3 3]) (r4-em [Float $half]) (r4-ev [Float $half]) (r4-es [Float $half]) (r4-eb [Float $half])  ;; residual block 4: 3x3 expand
+                (r5-rw [Float $quarter $half 1 1]) (r5-rm [Float $quarter]) (r5-rv [Float $quarter]) (r5-rs [Float $quarter]) (r5-rb [Float $quarter])  ;; residual block 5: 1x1 reduce
+                (r5-ew [Float $half $quarter 3 3]) (r5-em [Float $half]) (r5-ev [Float $half]) (r5-es [Float $half]) (r5-eb [Float $half])  ;; residual block 5: 3x3 expand
+                (r6-rw [Float $quarter $half 1 1]) (r6-rm [Float $quarter]) (r6-rv [Float $quarter]) (r6-rs [Float $quarter]) (r6-rb [Float $quarter])  ;; residual block 6: 1x1 reduce
+                (r6-ew [Float $half $quarter 3 3]) (r6-em [Float $half]) (r6-ev [Float $half]) (r6-es [Float $half]) (r6-eb [Float $half])  ;; residual block 6: 3x3 expand
+                (r7-rw [Float $quarter $half 1 1]) (r7-rm [Float $quarter]) (r7-rv [Float $quarter]) (r7-rs [Float $quarter]) (r7-rb [Float $quarter])  ;; residual block 7: 1x1 reduce
+                (r7-ew [Float $half $quarter 3 3]) (r7-em [Float $half]) (r7-ev [Float $half]) (r7-es [Float $half]) (r7-eb [Float $half])  ;; residual block 7: 3x3 expand
+                (r8-rw [Float $quarter $half 1 1]) (r8-rm [Float $quarter]) (r8-rv [Float $quarter]) (r8-rs [Float $quarter]) (r8-rb [Float $quarter])  ;; residual block 8: 1x1 reduce
+                (r8-ew [Float $half $quarter 3 3]) (r8-em [Float $half]) (r8-ev [Float $half]) (r8-es [Float $half]) (r8-eb [Float $half])  ;; residual block 8: 3x3 expand
+                (mf-w [Float $half $half 1 1]) (mf-m [Float $half]) (mf-v [Float $half]) (mf-s [Float $half]) (mf-b [Float $half])  ;; main path final 1x1
+                (tr-w [Float (+ $half $half) (+ $half $half) 1 1]) (tr-m [Float (+ $half $half)]) (tr-v [Float (+ $half $half)]) (tr-s [Float (+ $half $half)]) (tr-b [Float (+ $half $half)])  ;; transition 1x1 after concat
+                : [Float (+ $half $half) (+ $n-k-down 1) (+ $n-k-down 1)])
+    (let ((val (down  : [Float (+ $half $half) (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@conv-bn-mish _ ($n-k-down 2 $in-ch (+ $half $half) 0 2) in down-w down-m down-v down-s down-b))
+          (val (skip  : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1) down skip-w skip-m skip-v skip-s skip-b))
+          (val (main0 : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) $half 0 1) down m0-w m0-m m0-v m0-s m0-b))
+          (val (main1 : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@res-block _ ($half $quarter (+ $n-k-down 1)) main0 r1-rw r1-rm r1-rv r1-rs r1-rb r1-ew r1-em r1-ev r1-es r1-eb))
+          (val (main2 : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@res-block _ ($half $quarter (+ $n-k-down 1)) main1 r2-rw r2-rm r2-rv r2-rs r2-rb r2-ew r2-em r2-ev r2-es r2-eb))
+          (val (main3 : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@res-block _ ($half $quarter (+ $n-k-down 1)) main2 r3-rw r3-rm r3-rv r3-rs r3-rb r3-ew r3-em r3-ev r3-es r3-eb))
+          (val (main4 : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@res-block _ ($half $quarter (+ $n-k-down 1)) main3 r4-rw r4-rm r4-rv r4-rs r4-rb r4-ew r4-em r4-ev r4-es r4-eb))
+          (val (main5 : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@res-block _ ($half $quarter (+ $n-k-down 1)) main4 r5-rw r5-rm r5-rv r5-rs r5-rb r5-ew r5-em r5-ev r5-es r5-eb))
+          (val (main6 : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@res-block _ ($half $quarter (+ $n-k-down 1)) main5 r6-rw r6-rm r6-rv r6-rs r6-rb r6-ew r6-em r6-ev r6-es r6-eb))
+          (val (main7 : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@res-block _ ($half $quarter (+ $n-k-down 1)) main6 r7-rw r7-rm r7-rv r7-rs r7-rb r7-ew r7-em r7-ev r7-es r7-eb))
+          (val (main8 : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@res-block _ ($half $quarter (+ $n-k-down 1)) main7 r8-rw r8-rm r8-rv r8-rs r8-rb r8-ew r8-em r8-ev r8-es r8-eb))
+          (val (mainF : [Float $half (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@conv-bn-mish _ ($n-k-down 1 $half $half 0 1) main8 mf-w mf-m mf-v mf-s mf-b))
+          (val (merged : [Float (+ $half $half) (+ $n-k-down 1) (+ $n-k-down 1)])
+               (@route2 _ ($half $half (+ $n-k-down 1) (+ $n-k-down 1)) mainF skip)))
+      (@conv-bn-mish _ ($n-k-down 1 (+ $half $half) (+ $half $half) 0 1) merged tr-w tr-m tr-v tr-s tr-b))))
+
+;; ----------------- SPP / PANET CONV BLOCKS (leaky) -------------------------
+
+(def (fun (@panet-3conv _ ($in-ch $mid $small $n)
+                (in [Float $in-ch $n $n])
+                ;; 1x1: $in-ch -> $small
+                (c1-w [Float $small $in-ch 1 1]) (c1-m [Float $small]) (c1-v [Float $small]) (c1-s [Float $small]) (c1-b [Float $small])
+                ;; 3x3: $small -> $mid
+                (c2-w [Float $mid $small 3 3]) (c2-m [Float $mid]) (c2-v [Float $mid]) (c2-s [Float $mid]) (c2-b [Float $mid])
+                ;; 1x1: $mid -> $small
+                (c3-w [Float $small $mid 1 1]) (c3-m [Float $small]) (c3-v [Float $small]) (c3-s [Float $small]) (c3-b [Float $small])
+                : [Float $small $n $n])
+    (let ((val (c1 : [Float $small $n $n]) (@conv-bn-leaky _ ((- $n 1) 1 $in-ch $small 0 1) in c1-w c1-m c1-v c1-s c1-b))
+          (val (c2 : [Float $mid $n $n]) (@conv-bn-leaky _ ((- $n 3) 3 $small $mid 1 1) c1 c2-w c2-m c2-v c2-s c2-b)))
+      (@conv-bn-leaky _ ((- $n 1) 1 $mid $small 0 1) c2 c3-w c3-m c3-v c3-s c3-b))))
+
+(def (fun (@panet-5conv _ ($big $small $n)
+                (in [Float $big $n $n])
+                ;; 1x1: $big -> $small
+                (c1-w [Float $small $big 1 1]) (c1-m [Float $small]) (c1-v [Float $small]) (c1-s [Float $small]) (c1-b [Float $small])
+                ;; 3x3: $small -> $big
+                (c2-w [Float $big $small 3 3]) (c2-m [Float $big]) (c2-v [Float $big]) (c2-s [Float $big]) (c2-b [Float $big])
+                ;; 1x1: $big -> $small
+                (c3-w [Float $small $big 1 1]) (c3-m [Float $small]) (c3-v [Float $small]) (c3-s [Float $small]) (c3-b [Float $small])
+                ;; 3x3: $small -> $big
+                (c4-w [Float $big $small 3 3]) (c4-m [Float $big]) (c4-v [Float $big]) (c4-s [Float $big]) (c4-b [Float $big])
+                ;; 1x1: $big -> $small
+                (c5-w [Float $small $big 1 1]) (c5-m [Float $small]) (c5-v [Float $small]) (c5-s [Float $small]) (c5-b [Float $small])
+                : [Float $small $n $n])
+    (let ((val (c1 : [Float $small $n $n]) (@conv-bn-leaky _ ((- $n 1) 1 $big $small 0 1) in c1-w c1-m c1-v c1-s c1-b))
+          (val (c2 : [Float $big $n $n]) (@conv-bn-leaky _ ((- $n 3) 3 $small $big 1 1) c1 c2-w c2-m c2-v c2-s c2-b))
+          (val (c3 : [Float $small $n $n]) (@conv-bn-leaky _ ((- $n 1) 1 $big $small 0 1) c2 c3-w c3-m c3-v c3-s c3-b))
+          (val (c4 : [Float $big $n $n]) (@conv-bn-leaky _ ((- $n 3) 3 $small $big 1 1) c3 c4-w c4-m c4-v c4-s c4-b)))
+      (@conv-bn-leaky _ ((- $n 1) 1 $big $small 0 1) c4 c5-w c5-m c5-v c5-s c5-b))))
+
+;; ----------------- FULL REDUCTION (for combining the 3 differently-shaped outputs) ---
+
+(def (fun (@full-sum _ ($n $c) (in [Float $c $n $n]) : [Float])
+    (@reduce (Float) ((- $c 1) []) f.+
+      (@reduce (Float) ((- $n 1) []) f.+
+        (@reduce (Float) ((- $n 1) []) f.+ in)))))
+
+;; ----------------- FULL NETWORK (CSPDarknet53 + SPP + PANet, no detection heads) ---
+;; Input 608x608x3. Backbone stages halve resolution 5 times: 608 -> 304 ->
+;; 152 -> 76 -> 38 -> 19 (channels 32 -> 64 -> 128 -> 256 -> 512 -> 1024,
+;; block counts 1/2/8/8/4). SPP + PANet then produce 3 feature maps at
+;; 76x76x128, 38x38x256 and 19x19x512 -- the inputs the (omitted) detection
+;; heads would run on.
+;;
+;; Every conv kernel and batchnorm array below is a parameter: 104 conv+bn
+;; layers x 5 tensors = 520 arguments, grouped one line per conv layer.
+
+(def (fun (@yolov4-backbone-neck _ ()
+                (image [Float 3 608 608])
+
+                ;; --- stem: 3x3 conv at full 608x608 resolution, 3 -> 32 channels ---
+                (stem-w [Float 32 3 3 3]) (stem-m [Float 32]) (stem-v [Float 32]) (stem-s [Float 32]) (stem-b [Float 32])  ;; 3x3 stem conv
+
+                ;; --- s1: CSP x1, 608 -> 304, 32 -> 64 channels ---
+                (s1-down-w [Float 64 32 2 2]) (s1-down-m [Float 64]) (s1-down-v [Float 64]) (s1-down-s [Float 64]) (s1-down-b [Float 64])  ;; 2x2/2 downsample
+                (s1-skip-w [Float 32 64 1 1]) (s1-skip-m [Float 32]) (s1-skip-v [Float 32]) (s1-skip-s [Float 32]) (s1-skip-b [Float 32])  ;; CSP skip path 1x1
+                (s1-m0-w [Float 32 64 1 1]) (s1-m0-m [Float 32]) (s1-m0-v [Float 32]) (s1-m0-s [Float 32]) (s1-m0-b [Float 32])  ;; CSP main path 1x1
+                (s1-r1-rw [Float 16 32 1 1]) (s1-r1-rm [Float 16]) (s1-r1-rv [Float 16]) (s1-r1-rs [Float 16]) (s1-r1-rb [Float 16])  ;; res block 1: 1x1 reduce
+                (s1-r1-ew [Float 32 16 3 3]) (s1-r1-em [Float 32]) (s1-r1-ev [Float 32]) (s1-r1-es [Float 32]) (s1-r1-eb [Float 32])  ;; res block 1: 3x3 expand
+                (s1-mf-w [Float 32 32 1 1]) (s1-mf-m [Float 32]) (s1-mf-v [Float 32]) (s1-mf-s [Float 32]) (s1-mf-b [Float 32])  ;; main path final 1x1
+                (s1-tr-w [Float 64 64 1 1]) (s1-tr-m [Float 64]) (s1-tr-v [Float 64]) (s1-tr-s [Float 64]) (s1-tr-b [Float 64])  ;; transition 1x1 after concat
+
+                ;; --- s2: CSP x2, 304 -> 152, 64 -> 128 channels ---
+                (s2-down-w [Float 128 64 2 2]) (s2-down-m [Float 128]) (s2-down-v [Float 128]) (s2-down-s [Float 128]) (s2-down-b [Float 128])  ;; 2x2/2 downsample
+                (s2-skip-w [Float 64 128 1 1]) (s2-skip-m [Float 64]) (s2-skip-v [Float 64]) (s2-skip-s [Float 64]) (s2-skip-b [Float 64])  ;; CSP skip path 1x1
+                (s2-m0-w [Float 64 128 1 1]) (s2-m0-m [Float 64]) (s2-m0-v [Float 64]) (s2-m0-s [Float 64]) (s2-m0-b [Float 64])  ;; CSP main path 1x1
+                (s2-r1-rw [Float 32 64 1 1]) (s2-r1-rm [Float 32]) (s2-r1-rv [Float 32]) (s2-r1-rs [Float 32]) (s2-r1-rb [Float 32])  ;; res block 1: 1x1 reduce
+                (s2-r1-ew [Float 64 32 3 3]) (s2-r1-em [Float 64]) (s2-r1-ev [Float 64]) (s2-r1-es [Float 64]) (s2-r1-eb [Float 64])  ;; res block 1: 3x3 expand
+                (s2-r2-rw [Float 32 64 1 1]) (s2-r2-rm [Float 32]) (s2-r2-rv [Float 32]) (s2-r2-rs [Float 32]) (s2-r2-rb [Float 32])  ;; res block 2: 1x1 reduce
+                (s2-r2-ew [Float 64 32 3 3]) (s2-r2-em [Float 64]) (s2-r2-ev [Float 64]) (s2-r2-es [Float 64]) (s2-r2-eb [Float 64])  ;; res block 2: 3x3 expand
+                (s2-mf-w [Float 64 64 1 1]) (s2-mf-m [Float 64]) (s2-mf-v [Float 64]) (s2-mf-s [Float 64]) (s2-mf-b [Float 64])  ;; main path final 1x1
+                (s2-tr-w [Float 128 128 1 1]) (s2-tr-m [Float 128]) (s2-tr-v [Float 128]) (s2-tr-s [Float 128]) (s2-tr-b [Float 128])  ;; transition 1x1 after concat
+
+                ;; --- s3: CSP x8, 152 -> 76, 128 -> 256 channels (feeds P3) ---
+                (s3-down-w [Float 256 128 2 2]) (s3-down-m [Float 256]) (s3-down-v [Float 256]) (s3-down-s [Float 256]) (s3-down-b [Float 256])  ;; 2x2/2 downsample
+                (s3-skip-w [Float 128 256 1 1]) (s3-skip-m [Float 128]) (s3-skip-v [Float 128]) (s3-skip-s [Float 128]) (s3-skip-b [Float 128])  ;; CSP skip path 1x1
+                (s3-m0-w [Float 128 256 1 1]) (s3-m0-m [Float 128]) (s3-m0-v [Float 128]) (s3-m0-s [Float 128]) (s3-m0-b [Float 128])  ;; CSP main path 1x1
+                (s3-r1-rw [Float 64 128 1 1]) (s3-r1-rm [Float 64]) (s3-r1-rv [Float 64]) (s3-r1-rs [Float 64]) (s3-r1-rb [Float 64])  ;; res block 1: 1x1 reduce
+                (s3-r1-ew [Float 128 64 3 3]) (s3-r1-em [Float 128]) (s3-r1-ev [Float 128]) (s3-r1-es [Float 128]) (s3-r1-eb [Float 128])  ;; res block 1: 3x3 expand
+                (s3-r2-rw [Float 64 128 1 1]) (s3-r2-rm [Float 64]) (s3-r2-rv [Float 64]) (s3-r2-rs [Float 64]) (s3-r2-rb [Float 64])  ;; res block 2: 1x1 reduce
+                (s3-r2-ew [Float 128 64 3 3]) (s3-r2-em [Float 128]) (s3-r2-ev [Float 128]) (s3-r2-es [Float 128]) (s3-r2-eb [Float 128])  ;; res block 2: 3x3 expand
+                (s3-r3-rw [Float 64 128 1 1]) (s3-r3-rm [Float 64]) (s3-r3-rv [Float 64]) (s3-r3-rs [Float 64]) (s3-r3-rb [Float 64])  ;; res block 3: 1x1 reduce
+                (s3-r3-ew [Float 128 64 3 3]) (s3-r3-em [Float 128]) (s3-r3-ev [Float 128]) (s3-r3-es [Float 128]) (s3-r3-eb [Float 128])  ;; res block 3: 3x3 expand
+                (s3-r4-rw [Float 64 128 1 1]) (s3-r4-rm [Float 64]) (s3-r4-rv [Float 64]) (s3-r4-rs [Float 64]) (s3-r4-rb [Float 64])  ;; res block 4: 1x1 reduce
+                (s3-r4-ew [Float 128 64 3 3]) (s3-r4-em [Float 128]) (s3-r4-ev [Float 128]) (s3-r4-es [Float 128]) (s3-r4-eb [Float 128])  ;; res block 4: 3x3 expand
+                (s3-r5-rw [Float 64 128 1 1]) (s3-r5-rm [Float 64]) (s3-r5-rv [Float 64]) (s3-r5-rs [Float 64]) (s3-r5-rb [Float 64])  ;; res block 5: 1x1 reduce
+                (s3-r5-ew [Float 128 64 3 3]) (s3-r5-em [Float 128]) (s3-r5-ev [Float 128]) (s3-r5-es [Float 128]) (s3-r5-eb [Float 128])  ;; res block 5: 3x3 expand
+                (s3-r6-rw [Float 64 128 1 1]) (s3-r6-rm [Float 64]) (s3-r6-rv [Float 64]) (s3-r6-rs [Float 64]) (s3-r6-rb [Float 64])  ;; res block 6: 1x1 reduce
+                (s3-r6-ew [Float 128 64 3 3]) (s3-r6-em [Float 128]) (s3-r6-ev [Float 128]) (s3-r6-es [Float 128]) (s3-r6-eb [Float 128])  ;; res block 6: 3x3 expand
+                (s3-r7-rw [Float 64 128 1 1]) (s3-r7-rm [Float 64]) (s3-r7-rv [Float 64]) (s3-r7-rs [Float 64]) (s3-r7-rb [Float 64])  ;; res block 7: 1x1 reduce
+                (s3-r7-ew [Float 128 64 3 3]) (s3-r7-em [Float 128]) (s3-r7-ev [Float 128]) (s3-r7-es [Float 128]) (s3-r7-eb [Float 128])  ;; res block 7: 3x3 expand
+                (s3-r8-rw [Float 64 128 1 1]) (s3-r8-rm [Float 64]) (s3-r8-rv [Float 64]) (s3-r8-rs [Float 64]) (s3-r8-rb [Float 64])  ;; res block 8: 1x1 reduce
+                (s3-r8-ew [Float 128 64 3 3]) (s3-r8-em [Float 128]) (s3-r8-ev [Float 128]) (s3-r8-es [Float 128]) (s3-r8-eb [Float 128])  ;; res block 8: 3x3 expand
+                (s3-mf-w [Float 128 128 1 1]) (s3-mf-m [Float 128]) (s3-mf-v [Float 128]) (s3-mf-s [Float 128]) (s3-mf-b [Float 128])  ;; main path final 1x1
+                (s3-tr-w [Float 256 256 1 1]) (s3-tr-m [Float 256]) (s3-tr-v [Float 256]) (s3-tr-s [Float 256]) (s3-tr-b [Float 256])  ;; transition 1x1 after concat
+
+                ;; --- s4: CSP x8, 76 -> 38, 256 -> 512 channels (feeds P4) ---
+                (s4-down-w [Float 512 256 2 2]) (s4-down-m [Float 512]) (s4-down-v [Float 512]) (s4-down-s [Float 512]) (s4-down-b [Float 512])  ;; 2x2/2 downsample
+                (s4-skip-w [Float 256 512 1 1]) (s4-skip-m [Float 256]) (s4-skip-v [Float 256]) (s4-skip-s [Float 256]) (s4-skip-b [Float 256])  ;; CSP skip path 1x1
+                (s4-m0-w [Float 256 512 1 1]) (s4-m0-m [Float 256]) (s4-m0-v [Float 256]) (s4-m0-s [Float 256]) (s4-m0-b [Float 256])  ;; CSP main path 1x1
+                (s4-r1-rw [Float 128 256 1 1]) (s4-r1-rm [Float 128]) (s4-r1-rv [Float 128]) (s4-r1-rs [Float 128]) (s4-r1-rb [Float 128])  ;; res block 1: 1x1 reduce
+                (s4-r1-ew [Float 256 128 3 3]) (s4-r1-em [Float 256]) (s4-r1-ev [Float 256]) (s4-r1-es [Float 256]) (s4-r1-eb [Float 256])  ;; res block 1: 3x3 expand
+                (s4-r2-rw [Float 128 256 1 1]) (s4-r2-rm [Float 128]) (s4-r2-rv [Float 128]) (s4-r2-rs [Float 128]) (s4-r2-rb [Float 128])  ;; res block 2: 1x1 reduce
+                (s4-r2-ew [Float 256 128 3 3]) (s4-r2-em [Float 256]) (s4-r2-ev [Float 256]) (s4-r2-es [Float 256]) (s4-r2-eb [Float 256])  ;; res block 2: 3x3 expand
+                (s4-r3-rw [Float 128 256 1 1]) (s4-r3-rm [Float 128]) (s4-r3-rv [Float 128]) (s4-r3-rs [Float 128]) (s4-r3-rb [Float 128])  ;; res block 3: 1x1 reduce
+                (s4-r3-ew [Float 256 128 3 3]) (s4-r3-em [Float 256]) (s4-r3-ev [Float 256]) (s4-r3-es [Float 256]) (s4-r3-eb [Float 256])  ;; res block 3: 3x3 expand
+                (s4-r4-rw [Float 128 256 1 1]) (s4-r4-rm [Float 128]) (s4-r4-rv [Float 128]) (s4-r4-rs [Float 128]) (s4-r4-rb [Float 128])  ;; res block 4: 1x1 reduce
+                (s4-r4-ew [Float 256 128 3 3]) (s4-r4-em [Float 256]) (s4-r4-ev [Float 256]) (s4-r4-es [Float 256]) (s4-r4-eb [Float 256])  ;; res block 4: 3x3 expand
+                (s4-r5-rw [Float 128 256 1 1]) (s4-r5-rm [Float 128]) (s4-r5-rv [Float 128]) (s4-r5-rs [Float 128]) (s4-r5-rb [Float 128])  ;; res block 5: 1x1 reduce
+                (s4-r5-ew [Float 256 128 3 3]) (s4-r5-em [Float 256]) (s4-r5-ev [Float 256]) (s4-r5-es [Float 256]) (s4-r5-eb [Float 256])  ;; res block 5: 3x3 expand
+                (s4-r6-rw [Float 128 256 1 1]) (s4-r6-rm [Float 128]) (s4-r6-rv [Float 128]) (s4-r6-rs [Float 128]) (s4-r6-rb [Float 128])  ;; res block 6: 1x1 reduce
+                (s4-r6-ew [Float 256 128 3 3]) (s4-r6-em [Float 256]) (s4-r6-ev [Float 256]) (s4-r6-es [Float 256]) (s4-r6-eb [Float 256])  ;; res block 6: 3x3 expand
+                (s4-r7-rw [Float 128 256 1 1]) (s4-r7-rm [Float 128]) (s4-r7-rv [Float 128]) (s4-r7-rs [Float 128]) (s4-r7-rb [Float 128])  ;; res block 7: 1x1 reduce
+                (s4-r7-ew [Float 256 128 3 3]) (s4-r7-em [Float 256]) (s4-r7-ev [Float 256]) (s4-r7-es [Float 256]) (s4-r7-eb [Float 256])  ;; res block 7: 3x3 expand
+                (s4-r8-rw [Float 128 256 1 1]) (s4-r8-rm [Float 128]) (s4-r8-rv [Float 128]) (s4-r8-rs [Float 128]) (s4-r8-rb [Float 128])  ;; res block 8: 1x1 reduce
+                (s4-r8-ew [Float 256 128 3 3]) (s4-r8-em [Float 256]) (s4-r8-ev [Float 256]) (s4-r8-es [Float 256]) (s4-r8-eb [Float 256])  ;; res block 8: 3x3 expand
+                (s4-mf-w [Float 256 256 1 1]) (s4-mf-m [Float 256]) (s4-mf-v [Float 256]) (s4-mf-s [Float 256]) (s4-mf-b [Float 256])  ;; main path final 1x1
+                (s4-tr-w [Float 512 512 1 1]) (s4-tr-m [Float 512]) (s4-tr-v [Float 512]) (s4-tr-s [Float 512]) (s4-tr-b [Float 512])  ;; transition 1x1 after concat
+
+                ;; --- s5: CSP x4, 38 -> 19, 512 -> 1024 channels (feeds P5) ---
+                (s5-down-w [Float 1024 512 2 2]) (s5-down-m [Float 1024]) (s5-down-v [Float 1024]) (s5-down-s [Float 1024]) (s5-down-b [Float 1024])  ;; 2x2/2 downsample
+                (s5-skip-w [Float 512 1024 1 1]) (s5-skip-m [Float 512]) (s5-skip-v [Float 512]) (s5-skip-s [Float 512]) (s5-skip-b [Float 512])  ;; CSP skip path 1x1
+                (s5-m0-w [Float 512 1024 1 1]) (s5-m0-m [Float 512]) (s5-m0-v [Float 512]) (s5-m0-s [Float 512]) (s5-m0-b [Float 512])  ;; CSP main path 1x1
+                (s5-r1-rw [Float 256 512 1 1]) (s5-r1-rm [Float 256]) (s5-r1-rv [Float 256]) (s5-r1-rs [Float 256]) (s5-r1-rb [Float 256])  ;; res block 1: 1x1 reduce
+                (s5-r1-ew [Float 512 256 3 3]) (s5-r1-em [Float 512]) (s5-r1-ev [Float 512]) (s5-r1-es [Float 512]) (s5-r1-eb [Float 512])  ;; res block 1: 3x3 expand
+                (s5-r2-rw [Float 256 512 1 1]) (s5-r2-rm [Float 256]) (s5-r2-rv [Float 256]) (s5-r2-rs [Float 256]) (s5-r2-rb [Float 256])  ;; res block 2: 1x1 reduce
+                (s5-r2-ew [Float 512 256 3 3]) (s5-r2-em [Float 512]) (s5-r2-ev [Float 512]) (s5-r2-es [Float 512]) (s5-r2-eb [Float 512])  ;; res block 2: 3x3 expand
+                (s5-r3-rw [Float 256 512 1 1]) (s5-r3-rm [Float 256]) (s5-r3-rv [Float 256]) (s5-r3-rs [Float 256]) (s5-r3-rb [Float 256])  ;; res block 3: 1x1 reduce
+                (s5-r3-ew [Float 512 256 3 3]) (s5-r3-em [Float 512]) (s5-r3-ev [Float 512]) (s5-r3-es [Float 512]) (s5-r3-eb [Float 512])  ;; res block 3: 3x3 expand
+                (s5-r4-rw [Float 256 512 1 1]) (s5-r4-rm [Float 256]) (s5-r4-rv [Float 256]) (s5-r4-rs [Float 256]) (s5-r4-rb [Float 256])  ;; res block 4: 1x1 reduce
+                (s5-r4-ew [Float 512 256 3 3]) (s5-r4-em [Float 512]) (s5-r4-ev [Float 512]) (s5-r4-es [Float 512]) (s5-r4-eb [Float 512])  ;; res block 4: 3x3 expand
+                (s5-mf-w [Float 512 512 1 1]) (s5-mf-m [Float 512]) (s5-mf-v [Float 512]) (s5-mf-s [Float 512]) (s5-mf-b [Float 512])  ;; main path final 1x1
+                (s5-tr-w [Float 1024 1024 1 1]) (s5-tr-m [Float 1024]) (s5-tr-v [Float 1024]) (s5-tr-s [Float 1024]) (s5-tr-b [Float 1024])  ;; transition 1x1 after concat
+
+                ;; --- pre-SPP 3-conv block, then SPP (maxpool 5/9/13 + concat), then post-SPP 3-conv ---
+                (pspp-c1-w [Float 512 1024 1 1]) (pspp-c1-m [Float 512]) (pspp-c1-v [Float 512]) (pspp-c1-s [Float 512]) (pspp-c1-b [Float 512])  ;; 1x1 reduce
+                (pspp-c2-w [Float 1024 512 3 3]) (pspp-c2-m [Float 1024]) (pspp-c2-v [Float 1024]) (pspp-c2-s [Float 1024]) (pspp-c2-b [Float 1024])  ;; 3x3
+                (pspp-c3-w [Float 512 1024 1 1]) (pspp-c3-m [Float 512]) (pspp-c3-v [Float 512]) (pspp-c3-s [Float 512]) (pspp-c3-b [Float 512])  ;; 1x1 reduce
+
+                ;; --- post-SPP 3-conv block: 2048 -> 512 channels, becomes P5 trunk ---
+                (post-c1-w [Float 512 2048 1 1]) (post-c1-m [Float 512]) (post-c1-v [Float 512]) (post-c1-s [Float 512]) (post-c1-b [Float 512])  ;; 1x1 reduce
+                (post-c2-w [Float 1024 512 3 3]) (post-c2-m [Float 1024]) (post-c2-v [Float 1024]) (post-c2-s [Float 1024]) (post-c2-b [Float 1024])  ;; 3x3
+                (post-c3-w [Float 512 1024 1 1]) (post-c3-m [Float 512]) (post-c3-v [Float 512]) (post-c3-s [Float 512]) (post-c3-b [Float 512])  ;; 1x1 reduce
+
+                ;; --- PANet top-down 19 -> 38: reduce P5, upsample, lateral from s4, concat ---
+                (p5r-w [Float 256 512 1 1]) (p5r-m [Float 256]) (p5r-v [Float 256]) (p5r-s [Float 256]) (p5r-b [Float 256])  ;; 1x1 reduce before upsample
+                (s4l-w [Float 256 512 1 1]) (s4l-m [Float 256]) (s4l-v [Float 256]) (s4l-s [Float 256]) (s4l-b [Float 256])  ;; 1x1 lateral on s4
+
+                ;; --- PANet top-down 5-conv block at 38x38 ---
+                (p4td-c1-w [Float 256 512 1 1]) (p4td-c1-m [Float 256]) (p4td-c1-v [Float 256]) (p4td-c1-s [Float 256]) (p4td-c1-b [Float 256])  ;; 1x1 reduce
+                (p4td-c2-w [Float 512 256 3 3]) (p4td-c2-m [Float 512]) (p4td-c2-v [Float 512]) (p4td-c2-s [Float 512]) (p4td-c2-b [Float 512])  ;; 3x3
+                (p4td-c3-w [Float 256 512 1 1]) (p4td-c3-m [Float 256]) (p4td-c3-v [Float 256]) (p4td-c3-s [Float 256]) (p4td-c3-b [Float 256])  ;; 1x1 reduce
+                (p4td-c4-w [Float 512 256 3 3]) (p4td-c4-m [Float 512]) (p4td-c4-v [Float 512]) (p4td-c4-s [Float 512]) (p4td-c4-b [Float 512])  ;; 3x3
+                (p4td-c5-w [Float 256 512 1 1]) (p4td-c5-m [Float 256]) (p4td-c5-v [Float 256]) (p4td-c5-s [Float 256]) (p4td-c5-b [Float 256])  ;; 1x1 reduce
+
+                ;; --- PANet top-down 38 -> 76: reduce, upsample, lateral from s3, concat ---
+                (p4tdr-w [Float 128 256 1 1]) (p4tdr-m [Float 128]) (p4tdr-v [Float 128]) (p4tdr-s [Float 128]) (p4tdr-b [Float 128])  ;; 1x1 reduce before upsample
+                (s3l-w [Float 128 256 1 1]) (s3l-m [Float 128]) (s3l-v [Float 128]) (s3l-s [Float 128]) (s3l-b [Float 128])  ;; 1x1 lateral on s3
+
+                ;; --- P3 output head input: 5-conv block at 76x76 -> 128 channels ---
+                (p3o-c1-w [Float 128 256 1 1]) (p3o-c1-m [Float 128]) (p3o-c1-v [Float 128]) (p3o-c1-s [Float 128]) (p3o-c1-b [Float 128])  ;; 1x1 reduce
+                (p3o-c2-w [Float 256 128 3 3]) (p3o-c2-m [Float 256]) (p3o-c2-v [Float 256]) (p3o-c2-s [Float 256]) (p3o-c2-b [Float 256])  ;; 3x3
+                (p3o-c3-w [Float 128 256 1 1]) (p3o-c3-m [Float 128]) (p3o-c3-v [Float 128]) (p3o-c3-s [Float 128]) (p3o-c3-b [Float 128])  ;; 1x1 reduce
+                (p3o-c4-w [Float 256 128 3 3]) (p3o-c4-m [Float 256]) (p3o-c4-v [Float 256]) (p3o-c4-s [Float 256]) (p3o-c4-b [Float 256])  ;; 3x3
+                (p3o-c5-w [Float 128 256 1 1]) (p3o-c5-m [Float 128]) (p3o-c5-v [Float 128]) (p3o-c5-s [Float 128]) (p3o-c5-b [Float 128])  ;; 1x1 reduce
+
+                ;; --- PANet bottom-up 76 -> 38: strided downsample of P3, concat with top-down P4 ---
+                (p3d-w [Float 256 128 2 2]) (p3d-m [Float 256]) (p3d-v [Float 256]) (p3d-s [Float 256]) (p3d-b [Float 256])  ;; 2x2/2 downsample
+
+                ;; --- P4 output head input: 5-conv block at 38x38 -> 256 channels ---
+                (p4o-c1-w [Float 256 512 1 1]) (p4o-c1-m [Float 256]) (p4o-c1-v [Float 256]) (p4o-c1-s [Float 256]) (p4o-c1-b [Float 256])  ;; 1x1 reduce
+                (p4o-c2-w [Float 512 256 3 3]) (p4o-c2-m [Float 512]) (p4o-c2-v [Float 512]) (p4o-c2-s [Float 512]) (p4o-c2-b [Float 512])  ;; 3x3
+                (p4o-c3-w [Float 256 512 1 1]) (p4o-c3-m [Float 256]) (p4o-c3-v [Float 256]) (p4o-c3-s [Float 256]) (p4o-c3-b [Float 256])  ;; 1x1 reduce
+                (p4o-c4-w [Float 512 256 3 3]) (p4o-c4-m [Float 512]) (p4o-c4-v [Float 512]) (p4o-c4-s [Float 512]) (p4o-c4-b [Float 512])  ;; 3x3
+                (p4o-c5-w [Float 256 512 1 1]) (p4o-c5-m [Float 256]) (p4o-c5-v [Float 256]) (p4o-c5-s [Float 256]) (p4o-c5-b [Float 256])  ;; 1x1 reduce
+
+                ;; --- PANet bottom-up 38 -> 19: strided downsample of P4, concat with P5 trunk ---
+                (p4od-w [Float 512 256 2 2]) (p4od-m [Float 512]) (p4od-v [Float 512]) (p4od-s [Float 512]) (p4od-b [Float 512])  ;; 2x2/2 downsample
+
+                ;; --- P5 output head input: 5-conv block at 19x19 -> 512 channels ---
+                (p5o-c1-w [Float 512 1024 1 1]) (p5o-c1-m [Float 512]) (p5o-c1-v [Float 512]) (p5o-c1-s [Float 512]) (p5o-c1-b [Float 512])  ;; 1x1 reduce
+                (p5o-c2-w [Float 1024 512 3 3]) (p5o-c2-m [Float 1024]) (p5o-c2-v [Float 1024]) (p5o-c2-s [Float 1024]) (p5o-c2-b [Float 1024])  ;; 3x3
+                (p5o-c3-w [Float 512 1024 1 1]) (p5o-c3-m [Float 512]) (p5o-c3-v [Float 512]) (p5o-c3-s [Float 512]) (p5o-c3-b [Float 512])  ;; 1x1 reduce
+                (p5o-c4-w [Float 1024 512 3 3]) (p5o-c4-m [Float 1024]) (p5o-c4-v [Float 1024]) (p5o-c4-s [Float 1024]) (p5o-c4-b [Float 1024])  ;; 3x3
+                (p5o-c5-w [Float 512 1024 1 1]) (p5o-c5-m [Float 512]) (p5o-c5-v [Float 512]) (p5o-c5-s [Float 512]) (p5o-c5-b [Float 512])  ;; 1x1 reduce
+                : [Float 3])
+    (let ((val (stem : [Float 32 608 608])
+               (@conv-bn-mish _ (605 3 3 32 1 1) image stem-w stem-m stem-v stem-s stem-b))
+          (val (s1 : [Float 64 304 304])
+               (@csp-stage-x1 _ (32 32 16 303) stem
+                 s1-down-w s1-down-m s1-down-v s1-down-s s1-down-b s1-skip-w s1-skip-m s1-skip-v s1-skip-s s1-skip-b
+                 s1-m0-w s1-m0-m s1-m0-v s1-m0-s s1-m0-b s1-r1-rw s1-r1-rm s1-r1-rv s1-r1-rs s1-r1-rb
+                 s1-r1-ew s1-r1-em s1-r1-ev s1-r1-es s1-r1-eb s1-mf-w s1-mf-m s1-mf-v s1-mf-s s1-mf-b
+                 s1-tr-w s1-tr-m s1-tr-v s1-tr-s s1-tr-b))
+          (val (s2 : [Float 128 152 152])
+               (@csp-stage-x2 _ (64 64 32 151) s1
+                 s2-down-w s2-down-m s2-down-v s2-down-s s2-down-b s2-skip-w s2-skip-m s2-skip-v s2-skip-s s2-skip-b
+                 s2-m0-w s2-m0-m s2-m0-v s2-m0-s s2-m0-b s2-r1-rw s2-r1-rm s2-r1-rv s2-r1-rs s2-r1-rb
+                 s2-r1-ew s2-r1-em s2-r1-ev s2-r1-es s2-r1-eb s2-r2-rw s2-r2-rm s2-r2-rv s2-r2-rs s2-r2-rb
+                 s2-r2-ew s2-r2-em s2-r2-ev s2-r2-es s2-r2-eb s2-mf-w s2-mf-m s2-mf-v s2-mf-s s2-mf-b
+                 s2-tr-w s2-tr-m s2-tr-v s2-tr-s s2-tr-b))
+          (val (s3 : [Float 256 76 76])
+               (@csp-stage-x8 _ (128 128 64 75) s2
+                 s3-down-w s3-down-m s3-down-v s3-down-s s3-down-b s3-skip-w s3-skip-m s3-skip-v s3-skip-s s3-skip-b
+                 s3-m0-w s3-m0-m s3-m0-v s3-m0-s s3-m0-b s3-r1-rw s3-r1-rm s3-r1-rv s3-r1-rs s3-r1-rb
+                 s3-r1-ew s3-r1-em s3-r1-ev s3-r1-es s3-r1-eb s3-r2-rw s3-r2-rm s3-r2-rv s3-r2-rs s3-r2-rb
+                 s3-r2-ew s3-r2-em s3-r2-ev s3-r2-es s3-r2-eb s3-r3-rw s3-r3-rm s3-r3-rv s3-r3-rs s3-r3-rb
+                 s3-r3-ew s3-r3-em s3-r3-ev s3-r3-es s3-r3-eb s3-r4-rw s3-r4-rm s3-r4-rv s3-r4-rs s3-r4-rb
+                 s3-r4-ew s3-r4-em s3-r4-ev s3-r4-es s3-r4-eb s3-r5-rw s3-r5-rm s3-r5-rv s3-r5-rs s3-r5-rb
+                 s3-r5-ew s3-r5-em s3-r5-ev s3-r5-es s3-r5-eb s3-r6-rw s3-r6-rm s3-r6-rv s3-r6-rs s3-r6-rb
+                 s3-r6-ew s3-r6-em s3-r6-ev s3-r6-es s3-r6-eb s3-r7-rw s3-r7-rm s3-r7-rv s3-r7-rs s3-r7-rb
+                 s3-r7-ew s3-r7-em s3-r7-ev s3-r7-es s3-r7-eb s3-r8-rw s3-r8-rm s3-r8-rv s3-r8-rs s3-r8-rb
+                 s3-r8-ew s3-r8-em s3-r8-ev s3-r8-es s3-r8-eb s3-mf-w s3-mf-m s3-mf-v s3-mf-s s3-mf-b
+                 s3-tr-w s3-tr-m s3-tr-v s3-tr-s s3-tr-b))
+          (val (s4 : [Float 512 38 38])
+               (@csp-stage-x8 _ (256 256 128 37) s3
+                 s4-down-w s4-down-m s4-down-v s4-down-s s4-down-b s4-skip-w s4-skip-m s4-skip-v s4-skip-s s4-skip-b
+                 s4-m0-w s4-m0-m s4-m0-v s4-m0-s s4-m0-b s4-r1-rw s4-r1-rm s4-r1-rv s4-r1-rs s4-r1-rb
+                 s4-r1-ew s4-r1-em s4-r1-ev s4-r1-es s4-r1-eb s4-r2-rw s4-r2-rm s4-r2-rv s4-r2-rs s4-r2-rb
+                 s4-r2-ew s4-r2-em s4-r2-ev s4-r2-es s4-r2-eb s4-r3-rw s4-r3-rm s4-r3-rv s4-r3-rs s4-r3-rb
+                 s4-r3-ew s4-r3-em s4-r3-ev s4-r3-es s4-r3-eb s4-r4-rw s4-r4-rm s4-r4-rv s4-r4-rs s4-r4-rb
+                 s4-r4-ew s4-r4-em s4-r4-ev s4-r4-es s4-r4-eb s4-r5-rw s4-r5-rm s4-r5-rv s4-r5-rs s4-r5-rb
+                 s4-r5-ew s4-r5-em s4-r5-ev s4-r5-es s4-r5-eb s4-r6-rw s4-r6-rm s4-r6-rv s4-r6-rs s4-r6-rb
+                 s4-r6-ew s4-r6-em s4-r6-ev s4-r6-es s4-r6-eb s4-r7-rw s4-r7-rm s4-r7-rv s4-r7-rs s4-r7-rb
+                 s4-r7-ew s4-r7-em s4-r7-ev s4-r7-es s4-r7-eb s4-r8-rw s4-r8-rm s4-r8-rv s4-r8-rs s4-r8-rb
+                 s4-r8-ew s4-r8-em s4-r8-ev s4-r8-es s4-r8-eb s4-mf-w s4-mf-m s4-mf-v s4-mf-s s4-mf-b
+                 s4-tr-w s4-tr-m s4-tr-v s4-tr-s s4-tr-b))
+          (val (s5 : [Float 1024 19 19])
+               (@csp-stage-x4 _ (512 512 256 18) s4
+                 s5-down-w s5-down-m s5-down-v s5-down-s s5-down-b s5-skip-w s5-skip-m s5-skip-v s5-skip-s s5-skip-b
+                 s5-m0-w s5-m0-m s5-m0-v s5-m0-s s5-m0-b s5-r1-rw s5-r1-rm s5-r1-rv s5-r1-rs s5-r1-rb
+                 s5-r1-ew s5-r1-em s5-r1-ev s5-r1-es s5-r1-eb s5-r2-rw s5-r2-rm s5-r2-rv s5-r2-rs s5-r2-rb
+                 s5-r2-ew s5-r2-em s5-r2-ev s5-r2-es s5-r2-eb s5-r3-rw s5-r3-rm s5-r3-rv s5-r3-rs s5-r3-rb
+                 s5-r3-ew s5-r3-em s5-r3-ev s5-r3-es s5-r3-eb s5-r4-rw s5-r4-rm s5-r4-rv s5-r4-rs s5-r4-rb
+                 s5-r4-ew s5-r4-em s5-r4-ev s5-r4-es s5-r4-eb s5-mf-w s5-mf-m s5-mf-v s5-mf-s s5-mf-b
+                 s5-tr-w s5-tr-m s5-tr-v s5-tr-s s5-tr-b))
+          (val (pre-spp : [Float 512 19 19])
+               (@panet-3conv _ (1024 1024 512 19) s5
+                 pspp-c1-w pspp-c1-m pspp-c1-v pspp-c1-s pspp-c1-b pspp-c2-w pspp-c2-m pspp-c2-v pspp-c2-s pspp-c2-b pspp-c3-w pspp-c3-m pspp-c3-v pspp-c3-s pspp-c3-b))
+          (val (spp-out : [Float 2048 19 19]) (@spp _ (19 512) pre-spp))
+          (val (p5 : [Float 512 19 19])
+               (@panet-3conv _ (2048 1024 512 19) spp-out
+                 post-c1-w post-c1-m post-c1-v post-c1-s post-c1-b post-c2-w post-c2-m post-c2-v post-c2-s post-c2-b post-c3-w post-c3-m post-c3-v post-c3-s post-c3-b))
+          (val (p5-reduce : [Float 256 19 19]) (@conv-bn-leaky _ (18 1 512 256 0 1) p5 p5r-w p5r-m p5r-v p5r-s p5r-b))
+          (val (p5-up : [Float 256 38 38]) (@upsample-nearest _ (19 256 2) p5-reduce))
+          (val (s4-lateral : [Float 256 38 38]) (@conv-bn-leaky _ (37 1 512 256 0 1) s4 s4l-w s4l-m s4l-v s4l-s s4l-b))
+          (val (merge-38 : [Float 512 38 38]) (@route2 _ (256 256 38 38) p5-up s4-lateral))
+          (val (p4td : [Float 256 38 38])
+               (@panet-5conv _ (512 256 38) merge-38
+                 p4td-c1-w p4td-c1-m p4td-c1-v p4td-c1-s p4td-c1-b p4td-c2-w p4td-c2-m p4td-c2-v p4td-c2-s p4td-c2-b p4td-c3-w p4td-c3-m p4td-c3-v p4td-c3-s p4td-c3-b
+                 p4td-c4-w p4td-c4-m p4td-c4-v p4td-c4-s p4td-c4-b p4td-c5-w p4td-c5-m p4td-c5-v p4td-c5-s p4td-c5-b))
+          (val (p4td-reduce : [Float 128 38 38]) (@conv-bn-leaky _ (37 1 256 128 0 1) p4td p4tdr-w p4tdr-m p4tdr-v p4tdr-s p4tdr-b))
+          (val (p4td-up : [Float 128 76 76]) (@upsample-nearest _ (38 128 2) p4td-reduce))
+          (val (s3-lateral : [Float 128 76 76]) (@conv-bn-leaky _ (75 1 256 128 0 1) s3 s3l-w s3l-m s3l-v s3l-s s3l-b))
+          (val (merge-76 : [Float 256 76 76]) (@route2 _ (128 128 76 76) p4td-up s3-lateral))
+          (val (p3out : [Float 128 76 76])
+               (@panet-5conv _ (256 128 76) merge-76
+                 p3o-c1-w p3o-c1-m p3o-c1-v p3o-c1-s p3o-c1-b p3o-c2-w p3o-c2-m p3o-c2-v p3o-c2-s p3o-c2-b p3o-c3-w p3o-c3-m p3o-c3-v p3o-c3-s p3o-c3-b
+                 p3o-c4-w p3o-c4-m p3o-c4-v p3o-c4-s p3o-c4-b p3o-c5-w p3o-c5-m p3o-c5-v p3o-c5-s p3o-c5-b))
+          (val (p3-down : [Float 256 38 38]) (@conv-bn-leaky _ (37 2 128 256 0 2) p3out p3d-w p3d-m p3d-v p3d-s p3d-b))
+          (val (merge-38b : [Float 512 38 38]) (@route2 _ (256 256 38 38) p3-down p4td))
+          (val (p4out : [Float 256 38 38])
+               (@panet-5conv _ (512 256 38) merge-38b
+                 p4o-c1-w p4o-c1-m p4o-c1-v p4o-c1-s p4o-c1-b p4o-c2-w p4o-c2-m p4o-c2-v p4o-c2-s p4o-c2-b p4o-c3-w p4o-c3-m p4o-c3-v p4o-c3-s p4o-c3-b
+                 p4o-c4-w p4o-c4-m p4o-c4-v p4o-c4-s p4o-c4-b p4o-c5-w p4o-c5-m p4o-c5-v p4o-c5-s p4o-c5-b))
+          (val (p4out-down : [Float 512 19 19]) (@conv-bn-leaky _ (18 2 256 512 0 2) p4out p4od-w p4od-m p4od-v p4od-s p4od-b))
+          (val (merge-19 : [Float 1024 19 19]) (@route2 _ (512 512 19 19) p4out-down p5))
+          (val (p5out : [Float 512 19 19])
+               (@panet-5conv _ (1024 512 19) merge-19
+                 p5o-c1-w p5o-c1-m p5o-c1-v p5o-c1-s p5o-c1-b p5o-c2-w p5o-c2-m p5o-c2-v p5o-c2-s p5o-c2-b p5o-c3-w p5o-c3-m p5o-c3-v p5o-c3-s p5o-c3-b
+                 p5o-c4-w p5o-c4-m p5o-c4-v p5o-c4-s p5o-c4-b p5o-c5-w p5o-c5-m p5o-c5-v p5o-c5-s p5o-c5-b)))
+
+      [(@full-sum _ (76 128) p3out) (@full-sum _ (38 256) p4out) (@full-sum _ (19 512) p5out)])))
+
+;; ----------------- ENTRY -------------------------
+;; The only place placeholders are built: @uw for a conv kernel, @u1 for a
+;; per-channel batchnorm array. One line per conv+bn layer, in the same
+;; order as @yolov4-backbone-neck's parameter list.
+
+(def (fun (@u1 _ ($c) : [Float $c]) (@undefined (Float) ([$c]))))
+
+(def (fun (@uw _ ($o $i $k) : [Float $o $i $k $k]) (@undefined (Float) ([$o $i $k $k]))))
+
+(entry (main)
+  (@yolov4-backbone-neck _ ()
+    (@undefined (Float) ([3 608 608]))  ;; input image
+
+    ;; --- stem: 3x3 conv at full 608x608 resolution, 3 -> 32 channels ---
+    (@uw _ (32 3 3)) (@u1 _ (32)) (@u1 _ (32)) (@u1 _ (32)) (@u1 _ (32))  ;; stem: 3x3 stem conv
+
+    ;; --- s1: CSP x1, 608 -> 304, 32 -> 64 channels ---
+    (@uw _ (64 32 2)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64))  ;; s1-down: 2x2/2 downsample
+    (@uw _ (32 64 1)) (@u1 _ (32)) (@u1 _ (32)) (@u1 _ (32)) (@u1 _ (32))  ;; s1-skip: CSP skip path 1x1
+    (@uw _ (32 64 1)) (@u1 _ (32)) (@u1 _ (32)) (@u1 _ (32)) (@u1 _ (32))  ;; s1-m0: CSP main path 1x1
+    (@uw _ (16 32 1)) (@u1 _ (16)) (@u1 _ (16)) (@u1 _ (16)) (@u1 _ (16))  ;; s1-r1-r: res block 1: 1x1 reduce
+    (@uw _ (32 16 3)) (@u1 _ (32)) (@u1 _ (32)) (@u1 _ (32)) (@u1 _ (32))  ;; s1-r1-e: res block 1: 3x3 expand
+    (@uw _ (32 32 1)) (@u1 _ (32)) (@u1 _ (32)) (@u1 _ (32)) (@u1 _ (32))  ;; s1-mf: main path final 1x1
+    (@uw _ (64 64 1)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64))  ;; s1-tr: transition 1x1 after concat
+
+    ;; --- s2: CSP x2, 304 -> 152, 64 -> 128 channels ---
+    (@uw _ (128 64 2)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; s2-down: 2x2/2 downsample
+    (@uw _ (64 128 1)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64))  ;; s2-skip: CSP skip path 1x1
+    (@uw _ (64 128 1)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64))  ;; s2-m0: CSP main path 1x1
+    (@uw _ (32 64 1)) (@u1 _ (32)) (@u1 _ (32)) (@u1 _ (32)) (@u1 _ (32))  ;; s2-r1-r: res block 1: 1x1 reduce
+    (@uw _ (64 32 3)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64))  ;; s2-r1-e: res block 1: 3x3 expand
+    (@uw _ (32 64 1)) (@u1 _ (32)) (@u1 _ (32)) (@u1 _ (32)) (@u1 _ (32))  ;; s2-r2-r: res block 2: 1x1 reduce
+    (@uw _ (64 32 3)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64))  ;; s2-r2-e: res block 2: 3x3 expand
+    (@uw _ (64 64 1)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64))  ;; s2-mf: main path final 1x1
+    (@uw _ (128 128 1)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; s2-tr: transition 1x1 after concat
+
+    ;; --- s3: CSP x8, 152 -> 76, 128 -> 256 channels (feeds P3) ---
+    (@uw _ (256 128 2)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; s3-down: 2x2/2 downsample
+    (@uw _ (128 256 1)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; s3-skip: CSP skip path 1x1
+    (@uw _ (128 256 1)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; s3-m0: CSP main path 1x1
+    (@uw _ (64 128 1)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64))  ;; s3-r1-r: res block 1: 1x1 reduce
+    (@uw _ (128 64 3)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; s3-r1-e: res block 1: 3x3 expand
+    (@uw _ (64 128 1)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64))  ;; s3-r2-r: res block 2: 1x1 reduce
+    (@uw _ (128 64 3)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; s3-r2-e: res block 2: 3x3 expand
+    (@uw _ (64 128 1)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64))  ;; s3-r3-r: res block 3: 1x1 reduce
+    (@uw _ (128 64 3)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; s3-r3-e: res block 3: 3x3 expand
+    (@uw _ (64 128 1)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64))  ;; s3-r4-r: res block 4: 1x1 reduce
+    (@uw _ (128 64 3)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; s3-r4-e: res block 4: 3x3 expand
+    (@uw _ (64 128 1)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64))  ;; s3-r5-r: res block 5: 1x1 reduce
+    (@uw _ (128 64 3)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; s3-r5-e: res block 5: 3x3 expand
+    (@uw _ (64 128 1)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64))  ;; s3-r6-r: res block 6: 1x1 reduce
+    (@uw _ (128 64 3)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; s3-r6-e: res block 6: 3x3 expand
+    (@uw _ (64 128 1)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64))  ;; s3-r7-r: res block 7: 1x1 reduce
+    (@uw _ (128 64 3)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; s3-r7-e: res block 7: 3x3 expand
+    (@uw _ (64 128 1)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64)) (@u1 _ (64))  ;; s3-r8-r: res block 8: 1x1 reduce
+    (@uw _ (128 64 3)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; s3-r8-e: res block 8: 3x3 expand
+    (@uw _ (128 128 1)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; s3-mf: main path final 1x1
+    (@uw _ (256 256 1)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; s3-tr: transition 1x1 after concat
+
+    ;; --- s4: CSP x8, 76 -> 38, 256 -> 512 channels (feeds P4) ---
+    (@uw _ (512 256 2)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512))  ;; s4-down: 2x2/2 downsample
+    (@uw _ (256 512 1)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; s4-skip: CSP skip path 1x1
+    (@uw _ (256 512 1)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; s4-m0: CSP main path 1x1
+    (@uw _ (128 256 1)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; s4-r1-r: res block 1: 1x1 reduce
+    (@uw _ (256 128 3)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; s4-r1-e: res block 1: 3x3 expand
+    (@uw _ (128 256 1)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; s4-r2-r: res block 2: 1x1 reduce
+    (@uw _ (256 128 3)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; s4-r2-e: res block 2: 3x3 expand
+    (@uw _ (128 256 1)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; s4-r3-r: res block 3: 1x1 reduce
+    (@uw _ (256 128 3)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; s4-r3-e: res block 3: 3x3 expand
+    (@uw _ (128 256 1)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; s4-r4-r: res block 4: 1x1 reduce
+    (@uw _ (256 128 3)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; s4-r4-e: res block 4: 3x3 expand
+    (@uw _ (128 256 1)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; s4-r5-r: res block 5: 1x1 reduce
+    (@uw _ (256 128 3)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; s4-r5-e: res block 5: 3x3 expand
+    (@uw _ (128 256 1)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; s4-r6-r: res block 6: 1x1 reduce
+    (@uw _ (256 128 3)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; s4-r6-e: res block 6: 3x3 expand
+    (@uw _ (128 256 1)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; s4-r7-r: res block 7: 1x1 reduce
+    (@uw _ (256 128 3)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; s4-r7-e: res block 7: 3x3 expand
+    (@uw _ (128 256 1)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; s4-r8-r: res block 8: 1x1 reduce
+    (@uw _ (256 128 3)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; s4-r8-e: res block 8: 3x3 expand
+    (@uw _ (256 256 1)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; s4-mf: main path final 1x1
+    (@uw _ (512 512 1)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512))  ;; s4-tr: transition 1x1 after concat
+
+    ;; --- s5: CSP x4, 38 -> 19, 512 -> 1024 channels (feeds P5) ---
+    (@uw _ (1024 512 2)) (@u1 _ (1024)) (@u1 _ (1024)) (@u1 _ (1024)) (@u1 _ (1024))  ;; s5-down: 2x2/2 downsample
+    (@uw _ (512 1024 1)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512))  ;; s5-skip: CSP skip path 1x1
+    (@uw _ (512 1024 1)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512))  ;; s5-m0: CSP main path 1x1
+    (@uw _ (256 512 1)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; s5-r1-r: res block 1: 1x1 reduce
+    (@uw _ (512 256 3)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512))  ;; s5-r1-e: res block 1: 3x3 expand
+    (@uw _ (256 512 1)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; s5-r2-r: res block 2: 1x1 reduce
+    (@uw _ (512 256 3)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512))  ;; s5-r2-e: res block 2: 3x3 expand
+    (@uw _ (256 512 1)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; s5-r3-r: res block 3: 1x1 reduce
+    (@uw _ (512 256 3)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512))  ;; s5-r3-e: res block 3: 3x3 expand
+    (@uw _ (256 512 1)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; s5-r4-r: res block 4: 1x1 reduce
+    (@uw _ (512 256 3)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512))  ;; s5-r4-e: res block 4: 3x3 expand
+    (@uw _ (512 512 1)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512))  ;; s5-mf: main path final 1x1
+    (@uw _ (1024 1024 1)) (@u1 _ (1024)) (@u1 _ (1024)) (@u1 _ (1024)) (@u1 _ (1024))  ;; s5-tr: transition 1x1 after concat
+
+    ;; --- pre-SPP 3-conv block, then SPP (maxpool 5/9/13 + concat), then post-SPP 3-conv ---
+    (@uw _ (512 1024 1)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512))  ;; pspp-c1: 1x1 reduce
+    (@uw _ (1024 512 3)) (@u1 _ (1024)) (@u1 _ (1024)) (@u1 _ (1024)) (@u1 _ (1024))  ;; pspp-c2: 3x3
+    (@uw _ (512 1024 1)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512))  ;; pspp-c3: 1x1 reduce
+
+    ;; --- post-SPP 3-conv block: 2048 -> 512 channels, becomes P5 trunk ---
+    (@uw _ (512 2048 1)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512))  ;; post-c1: 1x1 reduce
+    (@uw _ (1024 512 3)) (@u1 _ (1024)) (@u1 _ (1024)) (@u1 _ (1024)) (@u1 _ (1024))  ;; post-c2: 3x3
+    (@uw _ (512 1024 1)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512))  ;; post-c3: 1x1 reduce
+
+    ;; --- PANet top-down 19 -> 38: reduce P5, upsample, lateral from s4, concat ---
+    (@uw _ (256 512 1)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; p5r: 1x1 reduce before upsample
+    (@uw _ (256 512 1)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; s4l: 1x1 lateral on s4
+
+    ;; --- PANet top-down 5-conv block at 38x38 ---
+    (@uw _ (256 512 1)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; p4td-c1: 1x1 reduce
+    (@uw _ (512 256 3)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512))  ;; p4td-c2: 3x3
+    (@uw _ (256 512 1)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; p4td-c3: 1x1 reduce
+    (@uw _ (512 256 3)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512))  ;; p4td-c4: 3x3
+    (@uw _ (256 512 1)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; p4td-c5: 1x1 reduce
+
+    ;; --- PANet top-down 38 -> 76: reduce, upsample, lateral from s3, concat ---
+    (@uw _ (128 256 1)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; p4tdr: 1x1 reduce before upsample
+    (@uw _ (128 256 1)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; s3l: 1x1 lateral on s3
+
+    ;; --- P3 output head input: 5-conv block at 76x76 -> 128 channels ---
+    (@uw _ (128 256 1)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; p3o-c1: 1x1 reduce
+    (@uw _ (256 128 3)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; p3o-c2: 3x3
+    (@uw _ (128 256 1)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; p3o-c3: 1x1 reduce
+    (@uw _ (256 128 3)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; p3o-c4: 3x3
+    (@uw _ (128 256 1)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128)) (@u1 _ (128))  ;; p3o-c5: 1x1 reduce
+
+    ;; --- PANet bottom-up 76 -> 38: strided downsample of P3, concat with top-down P4 ---
+    (@uw _ (256 128 2)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; p3d: 2x2/2 downsample
+
+    ;; --- P4 output head input: 5-conv block at 38x38 -> 256 channels ---
+    (@uw _ (256 512 1)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; p4o-c1: 1x1 reduce
+    (@uw _ (512 256 3)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512))  ;; p4o-c2: 3x3
+    (@uw _ (256 512 1)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; p4o-c3: 1x1 reduce
+    (@uw _ (512 256 3)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512))  ;; p4o-c4: 3x3
+    (@uw _ (256 512 1)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256)) (@u1 _ (256))  ;; p4o-c5: 1x1 reduce
+
+    ;; --- PANet bottom-up 38 -> 19: strided downsample of P4, concat with P5 trunk ---
+    (@uw _ (512 256 2)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512))  ;; p4od: 2x2/2 downsample
+
+    ;; --- P5 output head input: 5-conv block at 19x19 -> 512 channels ---
+    (@uw _ (512 1024 1)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512))  ;; p5o-c1: 1x1 reduce
+    (@uw _ (1024 512 3)) (@u1 _ (1024)) (@u1 _ (1024)) (@u1 _ (1024)) (@u1 _ (1024))  ;; p5o-c2: 3x3
+    (@uw _ (512 1024 1)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512))  ;; p5o-c3: 1x1 reduce
+    (@uw _ (1024 512 3)) (@u1 _ (1024)) (@u1 _ (1024)) (@u1 _ (1024)) (@u1 _ (1024))  ;; p5o-c4: 3x3
+    (@uw _ (512 1024 1)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512)) (@u1 _ (512))  ;; p5o-c5: 1x1 reduce
+    ))

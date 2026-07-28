@@ -137,6 +137,8 @@ intrinsics =
     unOpVal Round = conv $ IntVal . round . asFloat
     unOpVal Ceiling = conv $ IntVal . ceiling . asFloat
     unOpVal Floor = conv $ IntVal . floor . asFloat
+    unOpVal FLn = floatUn log
+    unOpVal FTanh = floatUn tanh
 
     scalarOps :: Map Text (Val m)
     scalarOps =

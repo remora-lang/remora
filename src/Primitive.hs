@@ -24,6 +24,8 @@ data UnOp
   | Round
   | Ceiling
   | Floor
+  | FLn
+  | FTanh
   deriving (Eq, Ord, Show)
 
 instance Pretty UnOp where
@@ -40,6 +42,8 @@ instance Pretty UnOp where
   pretty Round = "round"
   pretty Ceiling = "ceiling"
   pretty Floor = "floor"
+  pretty FLn = "f.ln"
+  pretty FTanh = "f.tanh"
 
 unOps :: [(UnOp, ArrayType v)]
 unOps =
@@ -55,7 +59,9 @@ unOps =
     (Truncate, unT Float Int),
     (Round, unT Float Int),
     (Ceiling, unT Float Int),
-    (Floor, unT Float Int)
+    (Floor, unT Float Int),
+    (FLn, unT Float Float),
+    (FTanh, unT Float Float)
   ]
   where
     unT a r = mkScalarArrayType $ mkScalarArrayType a :-> mkScalarArrayType r

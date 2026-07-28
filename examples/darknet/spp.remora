@@ -1,0 +1,72 @@
+;; ----------------- UTILITIES -------------------------
+(def (fun (@replicate (&t) (@f @s) (in [&t @s]) : [&t @f @s])
+    ((array [] (fn ((x [Int])) in)) (i-app iota/static [@f]))))
+
+(def (fun (@pad/2 (&t) ($n $p) (in [&t $n $n])
+                            (zero [&t]) : [&t (+ $n $p $p) (+ $n $p $p)])
+    (let ((val (vert-pad : [&t $p (+ $p $p $n)]) (@replicate (&t) ([$p (+ $p $p $n)] []) zero))
+          (val (hor-pad : [&t $p]) (@replicate (&t) ([$p] []) zero)))
+      (@append (&t) ($p (+ $n $p) [(+ $p $p $n)])
+         vert-pad
+         (@append (&t) ($n $p [(+ $p $p $n)])
+           (@append (&t) ($p (+ $n $p) []) hor-pad (@append (&t) ($n $p []) in hor-pad))
+           vert-pad)))))
+
+(def (i-fun (idxs-of/2 ($m $n) : [Int $m $n 2])
+     ((fn ((i [Int]))
+        ((fn ((j [Int])) [i j]) (i-app iota/static [$n])))
+      (i-app iota/static [$m]))))
+
+(def (fun (@subarray/2 (&t) ($in-out $m $s)
+                    (in [&t (+ $in-out (* $m $s) 1) (+ $in-out (* $m $s) 1)])
+                    (offset [Int 2]) : [&t (+ $m 1) (+ $m 1)])
+     (@index2d (&t) ((+ $in-out (* $m $s) 1) (+ $in-out (* $m $s) 1))
+                    in
+                     (+ (@replicate (Int) ([(+ $m 1) (+ $m 1)] [2]) offset)
+                        (* (@reify-dim _ ($s)) (i-app idxs-of/2 (+ $m 1) (+ $m 1)))))))
+
+(def (fun (@lifted-subarray/2 (&t) (@shape $in-out $m $s)
+                        (in [&t (+ $in-out (* $m $s) 1) (+ $in-out (* $m $s) 1)])
+                        (offset [Int @shape 2]) : [&t @shape (+ $m 1) (+ $m 1)])
+     (@subarray/2 (&t) ($in-out $m $s) in offset)))
+
+(def (fun (@f-max2d _ (@s) (a [Float @s]) (b [Float @s]) : [Float @s])
+     (f.max a b)))
+
+(def (fun (@max-pool-2d _ ($n-k $k $in-c $p $s)
+                (in [Float $in-c (+ (* $n-k $s) $k) (+ (* $n-k $s) $k)])
+                : [Float $in-c (+ $n-k $p $p 1) (+ $n-k $p $p 1)])
+    (@reduce (Float) ((- $k 1) [(+ $n-k $p $p 1) (+ $n-k $p $p 1)])
+             (@f-max2d _ ([(+ $n-k $p $p 1) (+ $n-k $p $p 1)]))
+      (@reduce (Float) ((- $k 1) [$k (+ $n-k $p $p 1) (+ $n-k $p $p 1)])
+               (@f-max2d _ ([$k (+ $n-k $p $p 1) (+ $n-k $p $p 1)]))
+        (@lifted-subarray/2 (Float) ([$k $k] (- $k 1) (+ $n-k $p $p) $s)
+          (@pad/2 (Float) ((+ (* $n-k $s) $k) (* $p $s)) in -1.0e30)
+            (@replicate (Int) ([$in-c] [$k $k 2])
+              (i-app idxs-of/2 $k $k)))))))
+
+;; ----------------- SPATIAL PYRAMID POOLING -------------------------
+
+;; darknet's SPP: same-padding max-pools of size 5/9/13 (stride 1, so
+;; spatial size is unchanged) concatenated with the input along channels.
+(def (fun (@spp _ ($n $k)
+                (in [Float $k $n $n])
+                : [Float (* 4 $k) $n $n])
+    (let ((val (mp5  : [Float $k $n $n]) (@max-pool-2d _ ((- $n 5) 5 $k 2 1) in))
+          (val (mp9  : [Float $k $n $n]) (@max-pool-2d _ ((- $n 9) 9 $k 4 1) in))
+          (val (mp13 : [Float $k $n $n]) (@max-pool-2d _ ((- $n 13) 13 $k 6 1) in)))
+      (@append (Float) ($k (* 3 $k) [$n $n])
+         mp13
+         (@append (Float) ($k (* 2 $k) [$n $n])
+            mp9
+            (@append (Float) ($k $k [$n $n]) mp5 in))))))
+
+;; 13x13 single channel, values 0..168 row-major (so a max over any
+;; sub-window is its bottom-right corner). At the fully-interior position
+;; [6][6], each same-padding pool's window sits entirely inside the real
+;; data, so its max is exactly the value at that window's bottom-right
+;; corner: mp13 window = whole image -> 168, mp9 window = rows/cols 2..10
+;; -> 140, mp5 window = rows/cols 4..8 -> 112, original -> 84.
+;; Expected at [.][6][6]: [168 140 112 84]
+(entry (main)
+  (@spp _ (13 1) (i->f (i-app iota/static [1 13 13]))))

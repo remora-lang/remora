@@ -1,0 +1,45 @@
+;; ----------------- UTILITIES -------------------------
+(def (fun (@replicate (&t) (@f @s) (in [&t @s]) : [&t @f @s])
+    ((array [] (fn ((x [Int])) in)) (i-app iota/static @f))))
+
+;; ----------------- CHANNEL SPLIT -------------------------
+
+;; index only matches shapes by trailing/suffix dims, so it can't select a
+;; slab along the leading channel axis directly. Flatten to 1D (channels are
+;; the outermost axis, so a channel range is a contiguous run of the flat
+;; array), slice that range, then reshape back.
+(def (fun (@subarray/1 (&t) ($in-out $out)
+                (in [&t (+ $in-out $out)])
+                (offset [Int])
+                : [&t $out])
+     (@index (&t) ((+ $in-out $out)) in
+        (+ offset (i-app iota/static [$out])))))
+
+;; CSP's "partial transition": splits a [2k h w] feature map into two
+;; [k h w] halves along the channel axis. `which` selects the half (0 or 1).
+(def (fun (@channel-half _ ($k $h $w)
+                (in [Float (* 2 $k) $h $w])
+                (which [Int])
+                : [Float $k $h $w])
+    (@reshape (Float) ([(* $k $h $w)] [$k $h $w])
+       (@subarray/1 (Float) ((* $k $h $w) (* $k $h $w))
+          (@reshape (Float) ([(* 2 $k) $h $w] [(* 2 $k $h $w)]) in)
+          (* which (* (@reify-dim _ ($k)) (* (@reify-dim _ ($h)) (@reify-dim _ ($w)))))))))
+
+(def (fun (@channel-split-first _ ($k $h $w) (in [Float (* 2 $k) $h $w]) : [Float $k $h $w])
+     (@channel-half _ ($k $h $w) in 0)))
+
+(def (fun (@channel-split-second _ ($k $h $w) (in [Float (* 2 $k) $h $w]) : [Float $k $h $w])
+     (@channel-half _ ($k $h $w) in 1)))
+
+;; 4 channels split into 2+2, 2x2 spatial each.
+;; Expected: first = [[[1 2] [3 4]] [[5 6] [7 8]]]
+;;           second = [[[9 10] [11 12]] [[13 14] [15 16]]]
+(entry (main)
+  (let ((val (x : [Float 4 2 2])
+             [[[1.0 2.0] [3.0 4.0]]
+              [[5.0 6.0] [7.0 8.0]]
+              [[9.0 10.0] [11.0 12.0]]
+              [[13.0 14.0] [15.0 16.0]]]))
+    [(@channel-split-first _ (2 2 2) x)
+     (@channel-split-second _ (2 2 2) x)]))

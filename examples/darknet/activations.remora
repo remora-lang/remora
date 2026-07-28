@@ -1,0 +1,32 @@
+(def (fun (@leaky-relu _ () (x [Float]) : [Float])
+    (f.max x (f.* 0.1 x))))
+
+(def (fun (@linear _ () (x [Float]) : [Float])
+    x))
+
+(def (val e 2.718281828459045))
+
+(def (fun (@softplus _ () (x [Float]) : [Float])
+     (f.ln (f.+ 1.0 (f.^ e x)))))
+
+(def (fun (@mish _ () (x [Float]) : [Float])
+     (f.* x (f.tanh (@softplus _ () x)))))
+
+(def (fun (@softmax _ ($n) (x [Float $n]) : [Float $n])
+    (let ((val (ex : [Float $n]) (f.^ e x)))
+      (f./ ex (@reduce (Float) ((- $n 1) []) f.+ ex)))))
+
+;; One-hot: bool->f turns the (e == max) mask directly into 1.0/0.0.
+(def (fun (@softmax->class-vector _ ($n) (e [Float $n]) : [Float $n])
+    (bool->f (f.== e (@reduce (Float) ((- $n 1) []) f.max e)))))
+
+;; Expected: leaky-relu [-0.2 -0.1 0 3], linear same as input,
+;; softmax ~[0.0063 0.0170 0.0463 0.9304], class-vector [0 0 0 1],
+;; mish ~[-0.25250 -0.30340 0 2.98654] (mish(0) = 0 exactly: tanh(ln 2) = 0.6)
+(entry (main)
+  (let ((val (x : [Float 4]) [-2.0 -1.0 0.0 3.0]))
+    [(@leaky-relu _ () x)
+     (@linear _ () x)
+     (@softmax _ (4) x)
+     (@softmax->class-vector _ (4) (@softmax _ (4) x))
+     (@mish _ () x)]))

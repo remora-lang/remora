@@ -1,0 +1,30 @@
+;; ----------------- UTILITIES -------------------------
+
+(def (fun (@dot _ ($n-1) (v [Float (+ 1 $n-1)]) (w [Float (+ 1 $n-1)]) : [Float])
+    (@reduce (Float) ($n-1 []) f.+ (f.* v w))))
+
+(def (fun (@lifted_dot _ ($m-1 $o) (v [Float (+ 1 $m-1)]) (M [Float (+ 1 $m-1) $o]) : [Float $o])
+    (@dot _ ($m-1) v (@transpose2d (Float) ((+ 1 $m-1) $o) M))))
+
+(def (fun (@matmul _ ($n $m-1 $o) (xss [Float $n (+ 1 $m-1)])
+                               (yss [Float (+ 1 $m-1) $o]) : [Float $n $o])
+      (@lifted_dot _ ($m-1 $o) xss yss)))
+
+
+;; ----------------- FULLY CONNECTED -------------------------
+
+(def (fun (@vf.+ _ ($n) (a [Float $n]) (b [Float $n]) : [Float $n])
+       (f.+ a b)))
+
+(def (fun (@fc-2d _ ($batch $in $out)
+                (in [Float $batch $in])
+                (w  [Float $in $out])
+                (b  [Float $out])
+                : [Float $batch $out])
+    (@vf.+ _ ($out) (@matmul _ ($batch (- $in 1) $out) in w) b)))
+
+;; expected: [[10.0 10.5 11.0] [30.0 30.5 31.0]]
+(entry (main)
+  (@fc-2d _ (2 4 3) [[0.0 1.0 2.0 3.0] [4.0 5.0 6.0 7.0]]
+                    [[0.5 0.5 0.5] [1.0 1.0 1.0] [1.5 1.5 1.5] [2.0 2.0 2.0]]
+                    [0.0 0.5 1.0]))
