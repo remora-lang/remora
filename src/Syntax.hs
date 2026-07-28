@@ -29,6 +29,7 @@ module Syntax
     patVar,
     unpackPat,
     bindName,
+    bindVars,
     declName,
     AtomBase (..),
     Atom,
@@ -63,6 +64,7 @@ module Syntax
   )
 where
 
+import Data.Foldable (toList)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Text (Text)
@@ -393,6 +395,14 @@ bindName (BindTFun v _ _ _ _ _) = Just v
 bindName (BindIFun v _ _ _ _ _) = Just v
 bindName BindType {} = Nothing
 bindName BindISpace {} = Nothing
+
+bindVars :: (Foldable tp) => BindBase te tp f v -> [v]
+bindVars (BindVal v _ _ _) = [v]
+bindVars (BindFun v _ _ _ _ _) = [v]
+bindVars (BindTFun v _ _ _ _ _) = [v]
+bindVars (BindIFun v _ _ _ _ _) = [v]
+bindVars (BindType tp _ _ _) = toList tp
+bindVars (BindISpace ip _ _) = toList ip
 
 -- | Expressions.
 data ExpBase te tp f v

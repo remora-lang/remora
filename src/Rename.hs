@@ -76,16 +76,8 @@ instance
         <*> applyRename t
         <*> pure pos
   rename (Let bs body t pos) =
-    withRenamedBinders (concatMap binderVars $ NE.toList bs) $
+    withRenamedBinders (concatMap bindVars $ NE.toList bs) $
       Let <$> traverse rename bs <*> rename body <*> applyRename t <*> pure pos
-    where
-      binderVars :: (Foldable tp) => BindBase te tp f v -> [v]
-      binderVars (BindVal v _ _ _) = [v]
-      binderVars (BindFun v _ _ _ _ _) = [v]
-      binderVars (BindTFun v _ _ _ _ _) = [v]
-      binderVars (BindIFun v _ _ _ _ _) = [v]
-      binderVars (BindType tp _ _ _) = toList tp
-      binderVars (BindISpace ip _ _) = toList ip
 
 instance
   ( Traversable tp,
