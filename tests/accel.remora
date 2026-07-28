@@ -6,7 +6,7 @@
 (type *velocity     [Float 3])
 
 (fun (dot (x [Float 3]) (y [Float 3]) : Float)
-  (f.reduce3 f.+ (f.* x y)))
+  (@reduce (Float) (2 []) f.+ (f.* x y)))
 
 (fun (sqrt (x Float) : Float)
   (f.^ x (f./ 1.0 2.0)))
