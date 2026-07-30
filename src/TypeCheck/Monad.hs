@@ -306,9 +306,9 @@ withType ::
   (TypeParam VName, TypeExp VName) ->
   ((TypeParam VName, TypeExp VName) -> m a) ->
   m a
-withType checkTypeExp (p, t) m =
+withType checkTypeExp (p, t) m = do
+  t' <- checkTypeExp t
   withTypeParam p $ \p' -> do
-    t' <- checkTypeExp t
     let f bs =
           bs
             { bindEnvAtomTypes =
@@ -324,9 +324,9 @@ withISpace ::
   (ISpaceParam VName, ISpace VName) ->
   ((ISpaceParam VName, ISpace VName) -> m a) ->
   m a
-withISpace checkISpace pos (p, ext) m =
+withISpace checkISpace pos (p, ext) m = do
+  ext' <- checkISpace ext
   withISpaceParam p $ \p' -> do
-    ext' <- checkISpace ext
     f <- case (p', ext') of
       (DimParam v, Dim d) ->
         pure $

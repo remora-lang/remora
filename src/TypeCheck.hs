@@ -125,7 +125,7 @@ checkExp' expr@(Frame ns es _ pos) = do
   unless (product ns == length es') $
     throwErrorPos pos $
       "Frame shape doesn't match number of elements: " <> prettyText expr
-  pure $ flattenExp $ Frame ns es' (Info $ arrayOf (typeOf e') (intsToShape ns)) pos
+  pure $ frameOf pos ns es'
 checkExp' expr@(EmptyFrame ns te _ pos) = do
   te' <- checkTypeExp te
   unless (product ns == 0) $

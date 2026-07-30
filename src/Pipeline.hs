@@ -72,46 +72,52 @@ typeCheckExpM =
   Uniquify.uniquifyExp
     >=> TypeCheck.checkExp
 
+lambdaLiftM :: UncheckedProg -> PassM Prog
+lambdaLiftM =
+  Uniquify.uniquify
+    >=> TypeCheck.check
+    >=> LambdaLift.lambdaLift
+
+lambdaLiftExpM :: UncheckedExp -> PassM Exp
+lambdaLiftExpM =
+  Uniquify.uniquifyExp
+    >=> TypeCheck.checkExp
+    >=> LambdaLift.lambdaLiftExp
+
 monomorphizeM :: UncheckedProg -> PassM Prog
 monomorphizeM =
-  typeCheckM
+  Uniquify.uniquify
+    >=> TypeCheck.check
+    >=> LambdaLift.lambdaLift
     >=> Monomorphize.monomorphize
 
 monomorphizeExpM :: UncheckedExp -> PassM Exp
 monomorphizeExpM =
   Uniquify.uniquifyExp
     >=> TypeCheck.checkExp
-    >=> Monomorphize.monomorphizeExp
-
-lambdaLiftM :: UncheckedProg -> PassM Prog
-lambdaLiftM =
-  monomorphizeM
-    >=> LambdaLift.lambdaLift
-
-lambdaLiftExpM :: UncheckedExp -> PassM Exp
-lambdaLiftExpM =
-  monomorphizeExpM
     >=> LambdaLift.lambdaLiftExp
+    >=> Monomorphize.monomorphizeExp
 
 compileM :: UncheckedProg -> PassM Text
 compileM =
   Uniquify.uniquify
     >=> TypeCheck.check
-    >=> Monomorphize.monomorphize
     >=> LambdaLift.lambdaLift
+    >=> Monomorphize.monomorphize
     >=> Futhark.compile
 
 compileExpM :: UncheckedExp -> PassM Text
 compileExpM =
   Uniquify.uniquifyExp
     >=> TypeCheck.checkExp
-    >=> Monomorphize.monomorphizeExp
     >=> LambdaLift.lambdaLiftExp
+    >=> Monomorphize.monomorphizeExp
     >=> Futhark.compileExp
 
 interpretM :: [Interpreter.Val] -> UncheckedProg -> PassM Interpreter.Val
 interpretM args =
-  typeCheckM
+  Uniquify.uniquify
+    >=> TypeCheck.check
     >=> Interpreter.interpret args
 
 interpretExpM :: UncheckedExp -> PassM Interpreter.Val

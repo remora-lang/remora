@@ -2,7 +2,7 @@
 {-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Rename (renameExp, Renameable (..), MonadRename (..)) where
+module Rename (renameExp, renameBind, Renameable (..), MonadRename (..)) where
 
 import Control.Monad.Reader
 import Data.Foldable (toList)
@@ -39,6 +39,9 @@ instance (MonadVName m) => MonadRename (RenameM m) where
 
 renameExp :: (MonadVName m) => Exp -> m Exp
 renameExp = flip runReaderT mempty . runRenameM . rename
+
+renameBind :: (MonadVName m) => Bind -> m Bind
+renameBind = flip runReaderT mempty . runRenameM . rename
 
 class Renameable a where
   rename :: (MonadRename m) => a -> m a

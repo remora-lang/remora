@@ -1,70 +1,61 @@
 module Monomorphize (monomorphize, monomorphizeExp) where
 
-import Binds (drainBinds, emitBind)
-import Control.Monad
+import Binds (emitBind)
 import Control.Monad.Error.Class
 import Control.Monad.State
 import Data.Bifunctor
-import Data.Either
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Maybe
+import Intrinsics (isIntrinsic)
 import Monomorphize.Monad
 import Pass (PassM)
 import Prop
-import Rename (renameExp)
+import Rename (renameBind, renameExp)
 import Substitute
 import Syntax hiding
   ( ArrayType,
     AtomType,
     ISpace,
-    Type,
-    TypeExp,
-    unfoldApp,
+    ISpaceParam,
+    bindVars,
   )
 import Util
 import VName
 
 monomorphize :: Prog -> PassM Prog
 monomorphize p =
-  liftEither
-    =<< state (\tag -> runMono tag (monoProg p >>= insertMonoBinds))
-  where
-    insertMonoBinds p' =
-      withMonoBinds p' $ \bs -> Prog $ map Def (NE.toList bs) <> progDecs p'
+  liftEither =<< state (\tag -> runMono tag (monoProg p >>= insertBinds))
 
 monomorphizeExp :: Exp -> PassM Exp
 monomorphizeExp e =
-  liftEither
-    =<< state (\tag -> runMono tag (monoExp e >>= insertMonoBinds))
-  where
-    insertMonoBinds e' =
-      withMonoBinds e' $ \bs -> Let bs e' (Info $ arrayTypeOf e') (posOf e')
-
-withMonoBinds :: a -> (NonEmpty Bind -> a) -> MonoM a
-withMonoBinds none some = do
-  binds <- drainBinds
-  pure $ maybe none some $ NE.nonEmpty binds
+  liftEither =<< state (\tag -> runMono tag (monoExp e >>= insertBindsExp))
 
 monoProg :: Prog -> MonoM Prog
-monoProg (Prog decs) = Prog . catMaybes <$> mapM monoDecl decs
+monoProg (Prog decs) = Prog <$> monoDecls decs
 
-monoDecl :: Decl -> MonoM (Maybe Decl)
-monoDecl (Def b) = do
-  mb <- addBind b
-  traverse (fmap Def . monoBind) mb
-monoDecl (Entry f ps mt body t pos) = do
-  body' <- monoExp body
-  pure $ Just $ Entry f ps mt body' t pos
+-- | A top-level bind is in scope for every declaration that follows it.
+monoDecls :: [Decl] -> MonoM [Decl]
+monoDecls [] = pure []
+monoDecls (Def b : decs) =
+  withBind b $ \kept ->
+    maybe id ((:) . Def) kept <$> monoDecls decs
+monoDecls (Entry f ps mt body t pos : decs) = do
+  entry <-
+    bindVars (patVarTypes ps) $
+      Entry f ps mt <$> monoExp body <*> pure t <*> pure pos
+  (entry :) <$> monoDecls decs
 
 monoAtom :: Atom -> MonoM Atom
 monoAtom a@Base {} = pure a
 monoAtom (Lambda p body t pos) =
-  Lambda p <$> monoExp body <*> pure t <*> pure pos
+  bindVar (patVar p) (arrayTypeOf p) $
+    Lambda p <$> monoExp body <*> pure t <*> pure pos
 monoAtom (TLambda p body t pos) =
   TLambda p <$> monoExp body <*> pure t <*> pure pos
 monoAtom (ILambda p body t pos) =
-  ILambda p <$> monoExp body <*> pure t <*> pure pos
+  bindISpaceParams [p] $
+    ILambda p <$> monoExp body <*> pure t <*> pure pos
 monoAtom (Box i body te t pos) =
   Box i <$> monoExp body <*> pure te <*> pure t <*> pure pos
 
@@ -80,16 +71,22 @@ monoExp (App f arg t pos) =
   App <$> monoExp f <*> monoExp arg <*> pure t <*> pure pos
 monoExp e@TApp {} = monoPolyApp e
 monoExp e@IApp {} = monoPolyApp e
-monoExp (Unbox p x box body t pos) =
-  Unbox p x <$> monoExp box <*> monoExp body <*> pure t <*> pure pos
-monoExp (Let bs body t pos) = do
-  keep <- catMaybes . NE.toList <$> mapM addBind bs
-  binds <- mapM monoBind keep
-  body' <- monoExp body
-  pure $
-    case NE.nonEmpty binds of
-      Nothing -> body'
-      Just bs' -> Let bs' body' t pos
+monoExp (Unbox p x box body t pos) = do
+  box' <- monoExp box
+  let xt =
+        fromMaybe (error "monoExp: unbox of non-existential") $
+          unboxType p $
+            arrayTypeOf box'
+  bindISpaceParams [p] $
+    bindVar x xt $
+      Unbox p x box' <$> monoExp body <*> pure t <*> pure pos
+monoExp (Let bs body t pos) =
+  withBinds (NE.toList bs) $ \kept -> do
+    body' <- monoExp body
+    pure $
+      case NE.nonEmpty kept of
+        Nothing -> body'
+        Just bs' -> Let bs' body' t pos
 monoExp (Struct s t pos) = do
   let (fs, shps, es) = neUnzip3 s
   es' <- mapM monoExp es
@@ -98,147 +95,177 @@ monoExp (Struct s t pos) = do
 monoExp (FieldProj e f t pos) =
   FieldProj <$> monoExp e <*> pure f <*> pure t <*> pure pos
 
-monoBind :: Bind -> MonoM Bind
-monoBind (BindVal x mt e pos) =
-  BindVal x mt <$> monoExp e <*> pure pos
-monoBind (BindFun f ps mt body t pos) =
-  BindFun f ps mt <$> monoExp body <*> pure t <*> pure pos
-monoBind b@BindType {} = pure b
-monoBind b@BindISpace {} = pure b
-monoBind BindTFun {} = error "monoBind: impossible (hopefully)"
-monoBind BindIFun {} = error "monoBind: impossible (hopefully)"
+withBinds :: [Bind] -> ([Bind] -> MonoM a) -> MonoM a
+withBinds [] k = k []
+withBinds (b : bs) k =
+  withBind b $ \mkept ->
+    maybe id bindLocal mkept $ withBinds bs $ k . maybe id (:) mkept
+  where
+    bindLocal :: Bind -> MonoM a -> MonoM a
+    bindLocal kept m =
+      case bindName kept of
+        Just v -> bindVar v (arrayTypeOf kept) m
+        Nothing -> m
+
+withBind :: Bind -> (Maybe Bind -> MonoM a) -> MonoM a
+withBind (BindTFun v ps _ body _ _) m =
+  withPolyDef v (ParamType <$> NE.toList ps) body m
+withBind (BindIFun v ps _ body _ _) m =
+  withPolyDef v (ParamISpace <$> NE.toList ps) body m
+withBind (BindVal v mt e pos) m = do
+  poly <- asPoly e
+  case poly of
+    Just poly' -> bindDef v poly' $ m Nothing
+    Nothing -> do
+      e' <- monoExp e
+      m $ Just $ BindVal v mt e' pos
+withBind (BindFun f ps mt body t pos) m = do
+  body' <- bindVars (patVarTypes $ NE.toList ps) $ monoExp body
+  m $ Just $ BindFun f ps mt body' t pos
+withBind b@(BindISpace ip _ _) m = bindISpaceParams [ip] $ m $ Just b
+withBind b@BindType {} m = m $ Just b
+
+withPolyDef :: VName -> [Param] -> Exp -> (Maybe Bind -> MonoM a) -> MonoM a
+withPolyDef v ps body k =
+  bindDef v (PolyFun (Just v) (ps <> ps') freeBody) $ k Nothing
+  where
+    (ps', freeBody) = unfoldLambda body
 
 monoPolyApp :: Exp -> MonoM Exp
-monoPolyApp e = resolveApp e >>= checkMono
-  where
-    checkMono Left {} =
-      throwError "monomorphize: unsupported: partially applied polymorphic value"
-    checkMono (Right e') = pure e'
-
-addBind :: Bind -> MonoM (Maybe Bind)
-addBind b
-  | Just v <- bindName b,
-    Just (ps, body) <- bindParams b = do
-      let (ps', freeBody) = unfoldAbs body
-      insertDef v (PolyFun (Just v) (ps <> ps') freeBody)
-      pure Nothing
-addBind (BindVal v _ e _)
-  | Just poly <- asPoly e = do
-      insertDef v poly
-      pure Nothing
-addBind b = pure $ Just b
-
-bindParams :: Bind -> Maybe ([Param], Exp)
-bindParams (BindTFun _ ps _ body _ _) = Just (Left <$> NE.toList ps, body)
-bindParams (BindIFun _ ps _ body _ _) = Just (Right <$> NE.toList ps, body)
-bindParams _ = Nothing
-
-unfoldAbs :: Exp -> ([Param], Exp)
-unfoldAbs e
-  | Just (TLambda p inner _ _) <- asScalar e =
-      first (Left p :) $ unfoldAbs inner
-  | Just (ILambda p inner _ _) <- asScalar e =
-      first (Right p :) $ unfoldAbs inner
-  | Let (b :| []) (Var f _ _) _ _ <- e,
-    bindName b == Just f,
-    Just (ps, body) <- bindParams b =
-      first (ps <>) $ unfoldAbs body
-  | otherwise = ([], e)
-
-asPoly :: Exp -> Maybe Poly
-asPoly (Array s as (Info (et :@ _)) _)
-  | isPolymorphic et =
-      Just $ PolyArray s (atomToPoly <$> as)
-asPoly _ = Nothing
-
-unfoldApp :: Exp -> (Exp, [Arg])
-unfoldApp = second reverse . unfoldApp'
-  where
-    unfoldApp' (TApp tf te _ _) =
-      case fromAtomType te of
-        Just at -> second (Left at :) $ unfoldApp' tf
-        Nothing -> error "unfoldApp: not atom type"
-    unfoldApp' (IApp f is _ _) =
-      second (Right is :) $ unfoldApp' f
-    unfoldApp' e = (e, mempty)
-
-resolveApp :: Exp -> MonoM (Either Poly Exp)
-resolveApp e = do
-  resolved <- resolveFun f
-  case resolved of
-    Right e' ->
-      pure $
-        Right $
-          case e' of
-            -- This should always be an intrinsic
-            Var v _ pos ->
-              Var v (Info $ arrayTypeOf e) pos
-            _ -> e'
-    Left poly -> do
+monoPolyApp e = do
+  poly <- asPoly f
+  case poly of
+    Nothing -> unresolved
+    Just poly' -> do
       cached <- lookupCached
       case cached of
-        Just v' -> pure $ Right $ Var v' (Info $ arrayTypeOf e) noSrcPos
+        Just e' -> pure e'
         Nothing -> do
-          result <- foldM step (Left poly) args
-          case result of
-            Right (Var v' _ _)
-              | Var v _ _ <- f -> do
-                  emitMonoVName (v, args) v'
-                  pure result
-            -- Only happens in the 'PolyArray' case.
-            _ -> pure result
+          result <- instantiate =<< specialize poly' args
+          case f of
+            Var v _ _ -> emitMonoExp (v, args) result
+            _ -> pure ()
+          pure result
   where
-    (f, args) = unfoldApp e
+    (f, args) = unfoldArgs e
 
-    resolveFun fn@(Var v _ _) =
-      maybe (Right fn) Left <$> lookupDef v
-    resolveFun fn =
-      maybe (Right <$> monoExp fn) (pure . Left) $ asPoly fn
+    unresolved =
+      case f of
+        -- This should always be an intrinsic
+        Var v _ pos
+          | isIntrinsic v ->
+              pure $ Var v (Info $ arrayTypeOf e) pos
+        _ ->
+          throwError $
+            "monoPolyApp: unresolved polymorphic value applied to "
+              <> prettyText (length args)
+              <> " argument(s):\n"
+              <> prettyText e
 
     lookupCached =
       case f of
         Var v _ _ -> lookupMono v args
         _ -> pure Nothing
 
-    step (Left poly) arg = specialize poly arg
-    step (Right _) _ = error "resolveApp: over-applied"
+specialize :: Poly -> [Arg] -> MonoM Poly
+specialize poly [] = pure poly
+specialize (PolyFun mv (p : ps) body) (arg : args) =
+  specialize (PolyFun mv ps $ substitute (argSubst p arg) body) args
+specialize (PolyFun mv [] body) args = do
+  poly <- asPoly f
+  case poly of
+    Just poly' -> specialize poly' $ bodyArgs <> args
+    Nothing
+      | Var v _ _ <- f,
+        isIntrinsic v ->
+          pure $ PolyFun mv [] $ foldl applyArg body args
+      | otherwise ->
+          throwError $
+            "specialize: unresolved polymorphic value:\n" <> prettyText body
+  where
+    (f, bodyArgs) = unfoldArgs body
+specialize (PolyArray s ps) args =
+  PolyArray s <$> mapM (`specialize` args) ps
 
-specialize :: Poly -> Arg -> MonoM (Either Poly Exp)
-specialize (PolyFun mv (p : ps) body) arg
-  | null ps = do
-      v <- maybe (newVName "mono") (newVName . (<> "_mono") . varName) mv
-      body'' <- monoExp =<< renameExp body'
-      emitBind $ BindVal v Nothing body'' noSrcPos
-      pure $ Right $ Var v (Info $ arrayTypeOf body'') noSrcPos
-  | otherwise = pure $ Left $ PolyFun mv ps body'
-  where
-    subst =
-      case (p, arg) of
-        (Left tp, Left at) -> substAtomVar (unTypeParam tp) at
-        (Right ip, Right is) -> substISpaceVar (unISpaceParam ip) is
-        _ -> error "specialize: abstraction/argument kind mismatch"
-    body' = substitute subst body
-specialize (PolyFun _ [] _) _ = error "specialize: over-applied"
-specialize (PolyArray s ps) arg = do
-  results <- mapM (`specialize` arg) ps
+applyArg :: Exp -> Arg -> Exp
+applyArg e (ArgType at) = applyTypeArg e at
+applyArg e (ArgISpace isp) = applyISpaceArg e isp
+
+argSubst :: Param -> Arg -> Subst VName
+argSubst (ParamType tp) (ArgType at) = substAtomVar (unTypeParam tp) at
+argSubst (ParamISpace ip) (ArgISpace isp) = substISpaceVar (unISpaceParam ip) isp
+argSubst _ _ = error "argSubst: parameter/argument mismatch"
+
+instantiate :: Poly -> MonoM Exp
+instantiate (PolyFun mv [] body) = do
+  v <- maybe (newVName "mono") (newVName . (<> "_mono") . varName) mv
+  body' <- monoExp =<< renameExp body
+  (values, ispaces) <- captured body'
+  bind <-
+    renameBind $
+      addISpaceParams ispaces $
+        case NE.nonEmpty $ map (uncurry mkParam) values of
+          Nothing -> BindVal v Nothing body' noSrcPos
+          Just ps -> mkFunBind v ps body'
+  emitBind bind
   pure $
-    case partitionEithers $ NE.toList results of
-      ([], es) -> Right $ frame $ NE.fromList es
-      (p : ps', []) -> Left $ PolyArray s (p :| ps')
-      _ -> error "specialize: mix of argument types"
+    mkApp
+      (foldl mkISpaceApp (mkVar (bindNameOf bind) $ arrayTypeOf bind) ispaces)
+      (map (uncurry mkVar) values)
+instantiate (PolyArray s ps) = do
+  es <- mapM instantiate ps
+  pure $ frameOf (posOf $ NE.head es) s es
+instantiate PolyFun {} =
+  throwError "instantiate: unsupported: partially applied poly value"
+
+bindParams :: Bind -> Maybe ([Param], Exp)
+bindParams (BindTFun _ ps _ body _ _) = Just (ParamType <$> NE.toList ps, body)
+bindParams (BindIFun _ ps _ body _ _) = Just (ParamISpace <$> NE.toList ps, body)
+bindParams _ = Nothing
+
+unfoldLambda :: Exp -> ([Param], Exp)
+unfoldLambda e
+  | Just (TLambda p inner _ _) <- asScalar e =
+      first (ParamType p :) $ unfoldLambda inner
+  | Just (ILambda p inner _ _) <- asScalar e =
+      first (ParamISpace p :) $ unfoldLambda inner
+  | Let (b :| []) (Var f _ _) _ _ <- e,
+    bindName b == Just f,
+    Just (ps, body) <- bindParams b =
+      first (ps <>) $ unfoldLambda body
+  | otherwise = ([], e)
+
+asPoly :: Exp -> MonoM (Maybe Poly)
+asPoly (Var v _ _) = lookupDef v
+asPoly (Array s as (Info (et :@ _)) _)
+  | isPolymorphic et =
+      pure $ Just $ PolyArray s (atomToPoly <$> as)
+asPoly (Frame s es (Info (et :@ _)) _)
+  | isPolymorphic et = do
+      polys <- mapM asPoly es
+      pure $ PolyArray s <$> sequence polys
+asPoly _ = pure Nothing
+
+unfoldArgs :: Exp -> (Exp, [Arg])
+unfoldArgs = second reverse . unfoldArgs'
   where
-    frame es@(e :| _) =
-      flattenExp $ Frame s es (Info $ arrayOf (typeOf e) (intsToShape s)) (posOf e)
+    unfoldArgs' (TApp tf te _ _) =
+      case fromAtomType te of
+        Just at -> second (ArgType at :) $ unfoldArgs' tf
+        Nothing -> error "unfoldArgs: not atom type"
+    unfoldArgs' (IApp f is _ _) =
+      second (ArgISpace is :) $ unfoldArgs' f
+    unfoldArgs' e = (e, mempty)
 
 atomToPoly :: Atom -> Poly
 atomToPoly (TLambda p body _ _) =
-  PolyFun Nothing (Left p : ps) freeBody
+  PolyFun Nothing (ParamType p : ps) freeBody
   where
-    (ps, freeBody) = unfoldAbs body
+    (ps, freeBody) = unfoldLambda body
 atomToPoly (ILambda p body _ _) =
-  PolyFun Nothing (Right p : ps) freeBody
+  PolyFun Nothing (ParamISpace p : ps) freeBody
   where
-    (ps, freeBody) = unfoldAbs body
+    (ps, freeBody) = unfoldLambda body
 atomToPoly _ = error "atomToPoly"
 
 isPolymorphic :: AtomType -> Bool

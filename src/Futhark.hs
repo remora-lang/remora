@@ -155,7 +155,7 @@ compileName v = F.nameFromText (varName v)
 
 etaExpand :: Exp -> FutharkM (F.Lambda F.SOACS)
 etaExpand e@(Var f (Info fty) _) =
-  case unrollArrow fty of
+  case unfoldArrow fty of
     ([], _) -> error $ "etaExpand: not a function type\n" ++ show e
     (paramTys, retTy) -> do
       params <- forM paramTys $ \t -> do
@@ -320,10 +320,10 @@ compileExp' (App (App (Var v _ _) op _ _) arg (Info (t, pframe)) _)
           F.Var <$> bind t' (F.BasicOp $ F.SubExp res)
         _ -> error "compileExp': the typechecker has problems, man."
 compileExp' e@(App _ _ (Info (t, pframe)) _) = do
-  let (f, allArgs) = unrollApp e
+  let (f, allArgs) = unfoldApp e
   case intShape pframe of
     ds | isScalar (typeOf f) -> do
-      let (paramTys, _) = unrollArrow (arrayTypeOf f)
+      let (paramTys, _) = unfoldArrow (arrayTypeOf f)
       args <- zipWithM mkArg paramTys allArgs
       fname <- compileFunExp f
       t' <- compileArrayType t

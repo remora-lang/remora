@@ -8,6 +8,7 @@ module Prop
     HasType (..),
     HasShape (..),
     isScalar,
+    isLambda,
     IsType (..),
     (@=),
     (\\),
@@ -16,27 +17,39 @@ module Prop
     convertTypeExp,
     convertAtomTypeExp,
     convertArrayTypeExp,
-    unrollArrow,
+    unfoldArrow,
     peelArrayType,
     arrayOf,
     findRet,
-    unrollApp,
     scalarize,
-    mkLambda,
+    frameOf,
     mkFunBind,
-    mkFunBindM,
     mkApp,
+    mkVar,
+    mkParam,
+    patVarTypes,
+    applyTypeArg,
+    applyISpaceArg,
+    mkTypeApp,
+    mkISpaceApp,
+    bindNameOf,
+    addTypeParams,
+    addISpaceParams,
+    addTermParams,
     unboxType,
+    insertBinds,
+    insertBindsExp,
   )
 where
 
+import Binds
 import Control.Applicative
+import Control.Monad.State (MonadState)
 import Data.Bifunctor (first, second)
 import Data.Foldable (find)
 import Data.Functor qualified
 import Data.List.NonEmpty qualified as NE
 import Data.Maybe
-import Data.Text (Text)
 import ISpace
 import Prettyprinter
 import Substitute
@@ -72,6 +85,13 @@ instance HasArrayType (Type VName) where
   arrayTypeOf_ (AtomType et) = et :@ mempty
   arrayTypeOf_ (ArrayType t) = t
 
+instance HasArrayType Bind where
+  arrayTypeOf_ (BindVal _ _ e _) = arrayTypeOf e
+  arrayTypeOf_ (BindFun _ _ _ _ (Info t) _) = mkScalarArrayType t
+  arrayTypeOf_ (BindTFun _ _ _ _ (Info t) _) = mkScalarArrayType t
+  arrayTypeOf_ (BindIFun _ _ _ _ (Info t) _) = mkScalarArrayType t
+  arrayTypeOf_ b = error $ "arrayTypeOf: not a value bind: " <> prettyString b
+
 scalarTypeOf :: Atom -> AtomType VName
 scalarTypeOf = normType . scalarTypeOf_
   where
@@ -86,18 +106,15 @@ baseTypeOf BoolVal {} = Bool
 baseTypeOf IntVal {} = Int
 baseTypeOf FloatVal {} = Float
 
+isLambda :: Atom -> Bool
+isLambda Lambda {} = True
+isLambda TLambda {} = True
+isLambda ILambda {} = True
+isLambda _ = False
+
 scalarize :: Atom -> Exp
 scalarize a =
   Array mempty (pure a) (Info $ mkScalarArrayType $ scalarTypeOf a) (posOf a)
-
-mkLambda :: NE.NonEmpty Pat -> Exp -> Atom
-mkLambda (p NE.:| ps) body =
-  case ps of
-    [] -> lam p body
-    (q : qs) -> lam p $ scalarize $ mkLambda (q NE.:| qs) body
-  where
-    lam pat b =
-      Lambda pat b (Info $ arrayTypeOf pat :-> arrayTypeOf b) (posOf pat)
 
 mkFunBind :: VName -> NE.NonEmpty Pat -> Exp -> Bind
 mkFunBind name params body =
@@ -109,10 +126,6 @@ mkFunBind name params body =
     (Info $ (arrayTypeOf <$> params) `arrowType` arrayTypeOf body)
     noSrcPos
 
-mkFunBindM :: (MonadVName m) => Text -> NE.NonEmpty Pat -> Exp -> m Bind
-mkFunBindM name params body =
-  mkFunBind <$> newVName name <*> pure params <*> pure body
-
 mkApp :: Exp -> [Exp] -> Exp
 mkApp = foldl app
   where
@@ -120,6 +133,107 @@ mkApp = foldl app
       case arrayTypeOf f of
         (_ :-> ra) :@ _ -> App f arg (Info (ra, mempty)) (posOf f)
         _ -> error "mkApp: illegal non-func"
+
+mkVar :: VName -> ArrayType VName -> Exp
+mkVar v t = Var v (Info t) noSrcPos
+
+mkParam :: VName -> ArrayType VName -> Pat
+mkParam v t = PatId v (ArrayType t) (Info t) noSrcPos
+
+patVarTypes :: [Pat] -> [(VName, ArrayType VName)]
+patVarTypes = map $ \p -> (patVar p, arrayTypeOf p)
+
+convertISpaceParam :: ISpaceParam VName -> ISpace VName
+convertISpaceParam (ShapeParam v) = Shape $ ShapeVar v
+convertISpaceParam (DimParam v) = Dim $ DimVar v
+
+applyTypeArg :: Exp -> AtomType VName -> Exp
+applyTypeArg e at =
+  case arrayTypeOf e of
+    Forall p r :@ frame ->
+      TApp e (AtomType at) (Info $ instantiated r frame) noSrcPos
+      where
+        instantiated t =
+          arrayOf $ ArrayType $ substitute (substAtomVar (unTypeParam p) at) t
+    _ -> error $ "applyTypeArg: not a forall: " <> prettyString e
+
+applyISpaceArg :: Exp -> ISpace VName -> Exp
+applyISpaceArg e isp =
+  case arrayTypeOf e of
+    Pi p r :@ frame ->
+      IApp e isp (Info $ instantiated r frame) noSrcPos
+      where
+        instantiated t =
+          arrayOf $ ArrayType $ substitute (substISpaceVar (unISpaceParam p) isp) t
+    _ -> error $ "applyISpaceArg: not a pi: " <> prettyString e
+
+mkTypeApp :: Exp -> VName -> Exp
+mkTypeApp e = applyTypeArg e . AtomTypeVar
+
+mkISpaceApp :: Exp -> ISpaceParam VName -> Exp
+mkISpaceApp e = applyISpaceArg e . convertISpaceParam
+
+bindNameOf :: Bind -> VName
+bindNameOf b =
+  fromMaybe (error $ "bindNameOf: nameless bind: " <> prettyString b) $ bindName b
+
+bindToExp :: Bind -> Exp
+bindToExp b =
+  Let (b NE.:| []) (mkVar (bindNameOf b) t) (Info t) noSrcPos
+  where
+    t = arrayTypeOf b
+
+addTypeParams :: [VName] -> Bind -> Bind
+addTypeParams [] inner = inner
+addTypeParams (tv : tvs) inner =
+  BindTFun
+    (bindNameOf inner)
+    ps
+    Nothing
+    (bindToExp inner)
+    (Info $ forallType ps $ arrayTypeOf inner)
+    noSrcPos
+  where
+    ps = AtomTypeParam <$> tv NE.:| tvs
+
+addISpaceParams :: [ISpaceParam VName] -> Bind -> Bind
+addISpaceParams [] inner = inner
+addISpaceParams (ip : ips) inner =
+  BindIFun
+    (bindNameOf inner)
+    ps
+    Nothing
+    (bindToExp inner)
+    (Info $ piType ps $ arrayTypeOf inner)
+    noSrcPos
+  where
+    ps = ip NE.:| ips
+
+addTermParams :: [Pat] -> Bind -> Bind
+addTermParams [] inner = inner
+addTermParams (p : ps) inner =
+  case inner of
+    BindFun _ ps' _ body _ _ -> mkFunBind v (NE.prependList (p : ps) ps') body
+    _ -> mkFunBind v (p NE.:| ps) $ bindToExp inner
+  where
+    v = bindNameOf inner
+
+frameOf :: SourcePos -> [Int] -> NE.NonEmpty Exp -> Exp
+frameOf pos s es =
+  flattenExp $
+    Frame s es (Info $ arrayOf (typeOf $ NE.head es) (intsToShape s)) pos
+
+insertBinds :: (MonadState s m, HasBinds s) => Prog -> m Prog
+insertBinds p = do
+  bs <- drainBinds
+  pure $ Prog $ map Def bs <> progDecs p
+
+insertBindsExp :: (MonadState s m, HasBinds s) => Exp -> m Exp
+insertBindsExp e = do
+  bs <- drainBinds
+  pure $ case NE.nonEmpty bs of
+    Nothing -> e
+    Just bs' -> Let bs' e (Info $ arrayTypeOf e) (posOf e)
 
 unboxType :: ISpaceParam VName -> ArrayType VName -> Maybe (ArrayType VName)
 unboxType ip boxt =
@@ -232,11 +346,11 @@ isScalar x = shapeOf x @= mempty
 
 infix 4 @=
 
--- | Unroll a curried function type into its parameter types and return type.
-unrollArrow :: (Ord v) => ArrayType v -> ([ArrayType v], ArrayType v)
-unrollArrow ((param :-> ret) :@ s)
-  | s @= mempty = first (param :) (unrollArrow ret)
-unrollArrow t = ([], t)
+-- | Unfold a curried function type into its parameter types and return type.
+unfoldArrow :: (Ord v) => ArrayType v -> ([ArrayType v], ArrayType v)
+unfoldArrow ((param :-> ret) :@ s)
+  | s @= mempty = first (param :) (unfoldArrow ret)
+unfoldArrow t = ([], t)
 
 peelArrayType :: (Ord v) => ArrayType v -> ArrayType v
 peelArrayType (a :@ s) = a :@ peelShape s
@@ -246,12 +360,7 @@ arrayOf (AtomType et) s = et :@ s
 arrayOf (ArrayType (et :@ s')) s = et :@ (s <> s')
 
 findRet :: (Ord v) => AtomType v -> ArrayType v
-findRet = snd . unrollArrow . mkScalarArrayType
-
--- | Unroll a curried app.
-unrollApp :: ExpBase te tp f v -> (ExpBase te tp f v, [ExpBase te tp f v])
-unrollApp (App f x _ _) = second (++ [x]) (unrollApp f)
-unrollApp x = (x, [])
+findRet = snd . unfoldArrow . mkScalarArrayType
 
 -- | Shape suffix subtraction; given shapes @(++ s1 s2)@ and @t@ if @t == s2@ then
 -- returns @Just s1@. Otherwise fails with @Nothing@.

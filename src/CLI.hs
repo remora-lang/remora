@@ -50,9 +50,9 @@ data RemoraMode
         expr :: Maybe String,
         uniquify :: Bool,
         typeCheck :: Bool,
-        monomorphize :: Bool,
         lambdalift :: Bool,
-        serialize :: Bool
+        monomorphize :: Bool,
+        json :: Bool
       }
   deriving (Data, Typeable, Show, Eq)
 
@@ -108,9 +108,9 @@ dev =
       expr = Nothing &= help "Run the pass on an expression passed as an argument.",
       uniquify = False &= help "Uniquify and expand array type var syntactic sugar.",
       typeCheck = False &= help "Type check.",
-      monomorphize = False &= help "Monomorphize.",
-      lambdalift = False &= help "Monomorphize & lambda lift.",
-      serialize = False &= help "Serialize an input program to JSON."
+      lambdalift = False &= help "Lambda lift.",
+      monomorphize = False &= help "Lambda lift & monomorphize.",
+      json = False &= help "Serialize an input program to JSON."
     }
 
 mode :: Mode (CmdArgs RemoraMode)
@@ -145,16 +145,7 @@ main = do
             (\prog -> flip Pipeline.interpret prog =<< mapM evalArg margs)
             input
       liftIO $ T.putStrLn $ prettyText v
-    run (Dev mfile mexpr uniq check mono lift serialize)
-      | lift = do
-          input <- parseInput mfile mexpr
-          out <-
-            except $
-              either
-                (fmap prettyText . Pipeline.lambdaLiftExp)
-                (fmap prettyText . Pipeline.lambdaLift)
-                input
-          liftIO $ T.putStrLn out
+    run (Dev mfile mexpr uniq check lift mono json)
       | uniq = do
           input <- parseInput mfile mexpr
           out <-
@@ -173,6 +164,15 @@ main = do
                 (fmap prettyText . Pipeline.typeCheck)
                 input
           liftIO $ T.putStrLn out
+      | lift = do
+          input <- parseInput mfile mexpr
+          out <-
+            except $
+              either
+                (fmap prettyText . Pipeline.lambdaLiftExp)
+                (fmap prettyText . Pipeline.lambdaLift)
+                input
+          liftIO $ T.putStrLn out
       | mono = do
           input <- parseInput mfile mexpr
           out <-
@@ -182,11 +182,13 @@ main = do
                 (fmap prettyText . Pipeline.monomorphize)
                 input
           liftIO $ T.putStrLn out
-      | serialize = do
+      | json = do
           input <- parseInput mfile mexpr
           liftIO $ serializeAST input
       | otherwise =
-          except $ Left "remora dev: specify --uniquify, --typecheck, --monomorphize or --lambdalift"
+          except $
+            Left
+              "remora dev: specify --uniquify, --typecheck, --lambdalift or --monomorphize"
     run (Futhark mfile mexpr mbackend) = do
       input <- parseInput mfile mexpr
       ir <- except $ either Pipeline.compileExp Pipeline.compile input

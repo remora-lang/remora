@@ -257,10 +257,9 @@ withType ::
   (TypeParamExp Text, TypeExp Text) ->
   ((TypeParam VName, TypeExp VName) -> m a) ->
   m a
-withType uniquifyTypeExp (p, t) m =
-  withSourceTypeParam p $ \p' -> do
-    t' <- uniquifyTypeExp t
-    m (p', t')
+withType uniquifyTypeExp (p, t) m = do
+  t' <- uniquifyTypeExp t
+  withSourceTypeParam p $ \p' -> m (p', t')
 
 -- | Bind an index binding.
 withISpace ::
@@ -270,10 +269,9 @@ withISpace ::
   (ISpaceParam Text, ISpace Text) ->
   ((ISpaceParam VName, ISpace VName) -> m a) ->
   m a
-withISpace uniquifyISpace _ (p, ext) m =
-  withISpaceParam p $ \p' -> do
-    ext' <- uniquifyISpace ext
-    m (p', ext')
+withISpace uniquifyISpace _ (p, ext) m = do
+  ext' <- uniquifyISpace ext
+  withISpaceParam p $ \p' -> m (p', ext')
 
 -- | Do many binds.
 binds :: (a -> (c -> x) -> x) -> [a] -> ([c] -> x) -> x

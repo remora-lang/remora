@@ -1,4 +1,4 @@
-module Intrinsics (intrinsics, maxIntrinsicTag) where
+module Intrinsics (intrinsics, maxIntrinsicTag, isIntrinsic) where
 
 import Control.Monad
 import Data.Bifunctor
@@ -19,6 +19,9 @@ intrinsics = fst intrinsics'
 
 maxIntrinsicTag :: Tag
 maxIntrinsicTag = snd intrinsics'
+
+isIntrinsic :: VName -> Bool
+isIntrinsic v = varTag v < maxIntrinsicTag
 
 intrinsics' :: (Map VName (ArrayType VName), Tag)
 intrinsics' =
@@ -243,8 +246,10 @@ intrinsics' =
                scalar $
                  piType (NE.fromList [DimParam "d", ShapeParam "s"]) $
                    scalar $
-                     Int :@ ShapeDim (DimVar "d")
-                       :-> Float :@ ShapeVar "s"
+                     Int
+                       :@ ShapeDim (DimVar "d")
+                       :-> Float
+                       :@ ShapeVar "s"
              ),
              ( "reify-dim",
                scalar $
