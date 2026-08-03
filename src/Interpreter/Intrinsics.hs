@@ -12,6 +12,7 @@ import Data.Map (Map)
 import Data.Map qualified as M
 import Data.Text (Text)
 import Data.Text qualified as T
+import Data.ByteString.Lazy qualified as B
 import Debug.Trace (trace)
 import Interpreter.Value
 import Intrinsics qualified
@@ -20,6 +21,7 @@ import Syntax hiding (Add, Mul, Sub, asScalar)
 import System.IO.Unsafe (unsafePerformIO)
 import Util
 import VName
+import Data.Binary.Get (getFloatle, runGet)
 
 type Intrinsics m = [IntrinsicVal m]
 
@@ -273,6 +275,16 @@ intrinsics =
               appendFile (valToString filename) (prettyString msg ++ "\n")
               pure v
     intrinsic "read-file" = undefined
+    intrinsic "read-file-f32bin" =
+      iFun2 $ \_ i ->
+        pure $ vFun1 $ \filename ->
+          case i of
+            Right shp ->
+                pure $ unsafePerformIO $ do
+                    file <- B.readFile (valToString filename)
+                    let floats = runGet (mapM (const getFloatle) [0..(product shp - 1)]) file
+                    pure $ ValArray shp (ValBase . FloatVal <$> floats)
+            _ -> error "read-file-f32bin: provided index not a shape"
     intrinsic "reify-dim" =
       iFun1 $ pure . ValBase . IntVal . asDim
     intrinsic "reify-shape" =

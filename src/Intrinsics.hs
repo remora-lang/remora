@@ -239,6 +239,13 @@ intrinsics' =
                            :-> AtomTypeVar "t"
                            :@ ShapeVar "s"
              ),
+             ( "read-file-f32bin",
+               scalar $
+                 piType (NE.fromList [DimParam "d", ShapeParam "s"]) $
+                   scalar $
+                     Int :@ ShapeDim (DimVar "d")
+                       :-> Float :@ ShapeVar "s"
+             ),
              ( "reify-dim",
                scalar $
                  Pi (DimParam "d") $

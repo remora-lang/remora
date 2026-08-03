@@ -23,3 +23,8 @@ cabal.project.local~
 .ghc.environment.*
 *~
 result
+
+# darknet checkpoint and the per-array split derived from it
+examples/darknet/*.weights
+examples/darknet/weights/
+examples/darknet/*_608.bin

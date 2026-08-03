@@ -74,7 +74,8 @@ library
       directory,
       aeson >= 2.0,
       aeson-pretty,
-      bytestring
+      bytestring,
+      binary >= 0.8.9.3
 
     hs-source-dirs:   src
 
