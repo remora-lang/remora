@@ -29,17 +29,28 @@ def main() -> int:
             layer = fields[1]
             filters = fields[3]
             win_dim = fields[4]
+            stride = fields[6]
             input_dim = fields[7]
             input_depth = fields[9]
             output_dim = fields[11]
             output_depth = fields[13]
+            pad = int(win_dim) // 2
             output_combined = int(output_dim) * int(output_dim)
             n_minus_k = int(input_dim) - int(win_dim)
-            defn_str = f'''(def (entry conv2d/layer_{layer}
+            prediv = int(input_dim) + 2 * pad - int(win_dim)
+            q = prediv // int(stride)
+            r = prediv %  int(stride)
+            # defn_str = f'''(def (fun conv2d/layer_{layer}
+            #     (in [Float {input_depth} {input_dim} {input_dim}])
+            #     (w [Float {filters} {win_dim} {win_dim}])
+            #     : [Float {output_depth} {output_combined}]
+            #   (@conv2d (Float) ({n_minus_k} {win_dim} {input_depth} {output_depth} 1) in w)))
+            # '''
+            defn_str = f'''(def (fun conv2d-rem/layer_{layer}
                 (in [Float {input_depth} {input_dim} {input_dim}])
                 (w [Float {filters} {win_dim} {win_dim}])
                 : [Float {output_depth} {output_combined}]
-              (@conv2d (Float) ({n_minus_k} {win_dim} {input_depth} {output_depth} 1) in w)))
+              (@conv2d/rem _ ({q} {win_dim} {input_depth} {output_depth} {pad} {stride} {r}) in w)))
             '''
             print(defn_str)
     return 0

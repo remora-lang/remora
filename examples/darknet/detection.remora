@@ -1,0 +1,109 @@
+;; darknet's [yolo] layer: decodes a 255-channel head output into detections.
+;;
+;; Channel layout is anchor-major, channel = anchor*(5+classes) + attribute,
+;; each attribute a full SxS plane (darknet's entry_index). So every quantity
+;; we need is a contiguous channel range, which @planes slices.
+;;
+;; Decode (forward_yolo_layer + get_yolo_box, new_coords=0):
+;;   x = (col + sigmoid(tx)*sxy - 0.5*(sxy-1)) / S
+;;   y = (row + sigmoid(ty)*sxy - 0.5*(sxy-1)) / S
+;;   w = exp(tw) * anchor-w / net       h likewise
+;;   obj, classes = sigmoid   (per-class logistic, not softmax)
+;; Coordinates come out normalized to [0,1] relative to the image.
+
+;; ----------------- UTILITIES -------------------------
+
+(def (fun (@replicate (&t) (@f @s) (in [&t @s]) : [&t @f @s])
+    ((array [] (fn ((x [Int])) in)) (i-app iota/static [@f]))))
+
+(def (i-fun (idxs-of/2 ($m $n) : [Int $m $n 2])
+     ((fn ((i [Int]))
+        ((fn ((j [Int])) [i j]) (i-app iota/static [$n])))
+      (i-app iota/static [$m]))))
+
+(def (fun (@subarray/1 (&t) ($in-out $out)
+                (in [&t (+ $in-out $out)])
+                (offset [Int])
+                : [&t $out])
+     (@index (&t) ((+ $in-out $out)) in
+        (+ offset (i-app iota/static [$out])))))
+
+(def (val e 2.718281828459045))
+
+(def (fun (@sigmoid _ () (x [Float]) : [Float])
+     (f./ 1.0 (f.+ 1.0 (f.^ e (f.- 0.0 x))))))
+
+;; ----------------- CHANNEL SLICING -------------------------
+
+;; $n planes starting at channel `start`. Flatten to 1-D (channels are the
+;; outermost axis, so a channel range is contiguous), slice, reshape back.
+(def (fun (@planes _ ($c $n $s)
+                (in [Float $c $s $s])
+                (start [Int])
+                : [Float $n $s $s])
+    (@reshape (Float) ([(* $n $s $s)] [$n $s $s])
+       (@subarray/1 (Float) ((* (- $c $n) $s $s) (* $n $s $s))
+          (@reshape (Float) ([$c $s $s] [(* $c $s $s)]) in)
+          (* start (* (@reify-dim _ ($s)) (@reify-dim _ ($s))))))))
+
+(def (fun (@plane _ ($c $s) (in [Float $c $s $s]) (i [Int]) : [Float $s $s])
+    (@reshape (Float) ([1 $s $s] [$s $s]) (@planes _ ($c 1 $s) in i))))
+
+;; ----------------- YOLO DECODE -------------------------
+
+;; One anchor's block of (5 + $classes) planes -> an SxS grid of detections.
+;; Lifting does the anchors: applying this to [Float 3 (5+classes) S S] with
+;; aw/ah/sxy as [Float 3] yields [det 3 S S].
+(def (fun (@yolo-anchor _ ($s $classes)
+                (block [Float (+ 5 $classes) $s $s])
+                (aw [Float]) (ah [Float])
+                (sxy [Float]) (net [Float])
+                : [{(x [Float]) (y [Float]) (w [Float]) (h [Float])
+                    (obj [Float]) (classes [Float $classes])} $s $s])
+    (let ((type *plane [Float $s $s])
+          (val (grid : [Int $s $s 2]) (i-app idxs-of/2 $s $s))
+          (val (row : *plane) (i->f (@index (Int) (2) grid 0)))
+          (val (col : *plane) (i->f (@index (Int) (2) grid 1)))
+          (val (sf : [Float]) (i->f (@reify-dim _ ($s))))
+          (val (shift : [Float]) (f.* -0.5 (f.- sxy 1.0)))
+          (val (tx : *plane) (@plane _ ((+ 5 $classes) $s) block 0))
+          (val (ty : *plane) (@plane _ ((+ 5 $classes) $s) block 1))
+          (val (tw : *plane) (@plane _ ((+ 5 $classes) $s) block 2))
+          (val (th : *plane) (@plane _ ((+ 5 $classes) $s) block 3))
+          (val (tobj : *plane) (@plane _ ((+ 5 $classes) $s) block 4))
+          (val (tcls : [Float $classes $s $s])
+               (@planes _ ((+ 5 $classes) $classes $s) block 5))
+          ;; classes must be the trailing axis so the record field's cell
+          ;; shape is [$classes] and the frame comes out as [$s $s]
+          (val (cls : [Float $s $s $classes])
+               (@reshape (Float) ([(* $s $s) $classes] [$s $s $classes])
+                  (@transpose2d (Float) ($classes (* $s $s))
+                     (@flatten (Float) ($s $s []) tcls)))))
+      {(x [] (f./ (f.+ col (f.+ (f.* (@sigmoid _ () tx) sxy) shift)) sf))
+       (y [] (f./ (f.+ row (f.+ (f.* (@sigmoid _ () ty) sxy) shift)) sf))
+       (w [] (f./ (f.* (f.^ e tw) aw) net))
+       (h [] (f./ (f.* (f.^ e th) ah) net))
+       (obj [] (@sigmoid _ () tobj))
+       (classes [$classes] (@sigmoid _ () cls))})))
+
+;; 2x2 grid, 1 class, 3 anchors, every logit = 2.0, anchors 304/608/1216 and
+;; the real per-scale scale_x_y 1.2/1.1/1.05. Exercises grid row/col, anchor
+;; lifting, per-anchor sizes, per-anchor scale_x_y, sigmoid and exp at once.
+;;   sigmoid(2) = 0.8807971, exp(2) = 7.389056
+;;   off(sxy) = sigmoid(2)*sxy - 0.5*(sxy-1);  x = (col + off)/2, y = (row + off)/2
+;;     anchor0 sxy=1.2 : off=0.9569565  w = 7.389056*304/608  = 3.694528
+;;     anchor1 sxy=1.1 : off=0.9188768  w = 7.389056*608/608  = 7.389056
+;;     anchor2 sxy=1.05: off=0.8998369  w = 7.389056*1216/608 = 14.778112
+;; Expected [x y w obj], each [3 2 2]:
+;;   x   = [[[0.4784782 0.9784782] x2] [[0.4594384 0.9594384] x2] [[0.4499185 0.9499185] x2]]
+;;   y   = same values but varying down the rows instead of across
+;;   w   = [[3.694528 ...]] [[7.389056 ...]] [[14.778112 ...]]
+;;   obj = all 0.8807971
+;;
+;; NOTE: all-zero logits cannot test scale_x_y -- sigmoid(0)*s - 0.5*(s-1) is
+;; 0.5 for every s -- which is why the logits here are 2.0.
+(entry (main)
+  (let ((val (blocks : [Float 3 6 2 2]) (@replicate (Float) ([3 6 2 2] []) 2.0))
+        (val d (@yolo-anchor _ (2 1) blocks
+                  [304.0 608.0 1216.0] [304.0 608.0 1216.0] [1.2 1.1 1.05] 608.0)))
+    [(field d x) (field d y) (field d w) (field d obj)]))
