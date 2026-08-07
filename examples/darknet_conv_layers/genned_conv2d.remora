@@ -1,0 +1,624 @@
+;;                            1234567890123456789012
+(@read-file (Int) (22 (dims)) "../darknet_conv.remora")
+
+(entry (main)
+       123)
+
+(def (entry conv2d/layer_0
+                (in [Float 3 608 608])
+                (w [Float 32 3 3])
+                : [Float 32 369664]
+              (@conv2d (Float) (605 3 3 32 1) in w)))
+            
+(def (entry conv2d/layer_2
+                (in [Float 64 304 304])
+                (w [Float 64 1 1])
+                : [Float 64 92416]
+              (@conv2d (Float) (303 1 64 64 1) in w)))
+            
+(def (entry conv2d/layer_4
+                (in [Float 64 304 304])
+                (w [Float 64 1 1])
+                : [Float 64 92416]
+              (@conv2d (Float) (303 1 64 64 1) in w)))
+            
+(def (entry conv2d/layer_5
+                (in [Float 64 304 304])
+                (w [Float 32 1 1])
+                : [Float 32 92416]
+              (@conv2d (Float) (303 1 64 32 1) in w)))
+            
+(def (entry conv2d/layer_6
+                (in [Float 32 304 304])
+                (w [Float 64 3 3])
+                : [Float 64 92416]
+              (@conv2d (Float) (301 3 32 64 1) in w)))
+            
+(def (entry conv2d/layer_8
+                (in [Float 64 304 304])
+                (w [Float 64 1 1])
+                : [Float 64 92416]
+              (@conv2d (Float) (303 1 64 64 1) in w)))
+            
+(def (entry conv2d/layer_10
+                (in [Float 128 304 304])
+                (w [Float 64 1 1])
+                : [Float 64 92416]
+              (@conv2d (Float) (303 1 128 64 1) in w)))
+            
+(def (entry conv2d/layer_12
+                (in [Float 128 152 152])
+                (w [Float 64 1 1])
+                : [Float 64 23104]
+              (@conv2d (Float) (151 1 128 64 1) in w)))
+            
+(def (entry conv2d/layer_14
+                (in [Float 128 152 152])
+                (w [Float 64 1 1])
+                : [Float 64 23104]
+              (@conv2d (Float) (151 1 128 64 1) in w)))
+            
+(def (entry conv2d/layer_15
+                (in [Float 64 152 152])
+                (w [Float 64 1 1])
+                : [Float 64 23104]
+              (@conv2d (Float) (151 1 64 64 1) in w)))
+            
+(def (entry conv2d/layer_16
+                (in [Float 64 152 152])
+                (w [Float 64 3 3])
+                : [Float 64 23104]
+              (@conv2d (Float) (149 3 64 64 1) in w)))
+            
+(def (entry conv2d/layer_18
+                (in [Float 64 152 152])
+                (w [Float 64 1 1])
+                : [Float 64 23104]
+              (@conv2d (Float) (151 1 64 64 1) in w)))
+            
+(def (entry conv2d/layer_19
+                (in [Float 64 152 152])
+                (w [Float 64 3 3])
+                : [Float 64 23104]
+              (@conv2d (Float) (149 3 64 64 1) in w)))
+            
+(def (entry conv2d/layer_21
+                (in [Float 64 152 152])
+                (w [Float 64 1 1])
+                : [Float 64 23104]
+              (@conv2d (Float) (151 1 64 64 1) in w)))
+            
+(def (entry conv2d/layer_23
+                (in [Float 128 152 152])
+                (w [Float 128 1 1])
+                : [Float 128 23104]
+              (@conv2d (Float) (151 1 128 128 1) in w)))
+            
+(def (entry conv2d/layer_25
+                (in [Float 256 76 76])
+                (w [Float 128 1 1])
+                : [Float 128 5776]
+              (@conv2d (Float) (75 1 256 128 1) in w)))
+            
+(def (entry conv2d/layer_27
+                (in [Float 256 76 76])
+                (w [Float 128 1 1])
+                : [Float 128 5776]
+              (@conv2d (Float) (75 1 256 128 1) in w)))
+            
+(def (entry conv2d/layer_28
+                (in [Float 128 76 76])
+                (w [Float 128 1 1])
+                : [Float 128 5776]
+              (@conv2d (Float) (75 1 128 128 1) in w)))
+            
+(def (entry conv2d/layer_29
+                (in [Float 128 76 76])
+                (w [Float 128 3 3])
+                : [Float 128 5776]
+              (@conv2d (Float) (73 3 128 128 1) in w)))
+            
+(def (entry conv2d/layer_31
+                (in [Float 128 76 76])
+                (w [Float 128 1 1])
+                : [Float 128 5776]
+              (@conv2d (Float) (75 1 128 128 1) in w)))
+            
+(def (entry conv2d/layer_32
+                (in [Float 128 76 76])
+                (w [Float 128 3 3])
+                : [Float 128 5776]
+              (@conv2d (Float) (73 3 128 128 1) in w)))
+            
+(def (entry conv2d/layer_34
+                (in [Float 128 76 76])
+                (w [Float 128 1 1])
+                : [Float 128 5776]
+              (@conv2d (Float) (75 1 128 128 1) in w)))
+            
+(def (entry conv2d/layer_35
+                (in [Float 128 76 76])
+                (w [Float 128 3 3])
+                : [Float 128 5776]
+              (@conv2d (Float) (73 3 128 128 1) in w)))
+            
+(def (entry conv2d/layer_37
+                (in [Float 128 76 76])
+                (w [Float 128 1 1])
+                : [Float 128 5776]
+              (@conv2d (Float) (75 1 128 128 1) in w)))
+            
+(def (entry conv2d/layer_38
+                (in [Float 128 76 76])
+                (w [Float 128 3 3])
+                : [Float 128 5776]
+              (@conv2d (Float) (73 3 128 128 1) in w)))
+            
+(def (entry conv2d/layer_40
+                (in [Float 128 76 76])
+                (w [Float 128 1 1])
+                : [Float 128 5776]
+              (@conv2d (Float) (75 1 128 128 1) in w)))
+            
+(def (entry conv2d/layer_41
+                (in [Float 128 76 76])
+                (w [Float 128 3 3])
+                : [Float 128 5776]
+              (@conv2d (Float) (73 3 128 128 1) in w)))
+            
+(def (entry conv2d/layer_43
+                (in [Float 128 76 76])
+                (w [Float 128 1 1])
+                : [Float 128 5776]
+              (@conv2d (Float) (75 1 128 128 1) in w)))
+            
+(def (entry conv2d/layer_44
+                (in [Float 128 76 76])
+                (w [Float 128 3 3])
+                : [Float 128 5776]
+              (@conv2d (Float) (73 3 128 128 1) in w)))
+            
+(def (entry conv2d/layer_46
+                (in [Float 128 76 76])
+                (w [Float 128 1 1])
+                : [Float 128 5776]
+              (@conv2d (Float) (75 1 128 128 1) in w)))
+            
+(def (entry conv2d/layer_47
+                (in [Float 128 76 76])
+                (w [Float 128 3 3])
+                : [Float 128 5776]
+              (@conv2d (Float) (73 3 128 128 1) in w)))
+            
+(def (entry conv2d/layer_49
+                (in [Float 128 76 76])
+                (w [Float 128 1 1])
+                : [Float 128 5776]
+              (@conv2d (Float) (75 1 128 128 1) in w)))
+            
+(def (entry conv2d/layer_50
+                (in [Float 128 76 76])
+                (w [Float 128 3 3])
+                : [Float 128 5776]
+              (@conv2d (Float) (73 3 128 128 1) in w)))
+            
+(def (entry conv2d/layer_52
+                (in [Float 128 76 76])
+                (w [Float 128 1 1])
+                : [Float 128 5776]
+              (@conv2d (Float) (75 1 128 128 1) in w)))
+            
+(def (entry conv2d/layer_54
+                (in [Float 256 76 76])
+                (w [Float 256 1 1])
+                : [Float 256 5776]
+              (@conv2d (Float) (75 1 256 256 1) in w)))
+            
+(def (entry conv2d/layer_56
+                (in [Float 512 38 38])
+                (w [Float 256 1 1])
+                : [Float 256 1444]
+              (@conv2d (Float) (37 1 512 256 1) in w)))
+            
+(def (entry conv2d/layer_58
+                (in [Float 512 38 38])
+                (w [Float 256 1 1])
+                : [Float 256 1444]
+              (@conv2d (Float) (37 1 512 256 1) in w)))
+            
+(def (entry conv2d/layer_59
+                (in [Float 256 38 38])
+                (w [Float 256 1 1])
+                : [Float 256 1444]
+              (@conv2d (Float) (37 1 256 256 1) in w)))
+            
+(def (entry conv2d/layer_60
+                (in [Float 256 38 38])
+                (w [Float 256 3 3])
+                : [Float 256 1444]
+              (@conv2d (Float) (35 3 256 256 1) in w)))
+            
+(def (entry conv2d/layer_62
+                (in [Float 256 38 38])
+                (w [Float 256 1 1])
+                : [Float 256 1444]
+              (@conv2d (Float) (37 1 256 256 1) in w)))
+            
+(def (entry conv2d/layer_63
+                (in [Float 256 38 38])
+                (w [Float 256 3 3])
+                : [Float 256 1444]
+              (@conv2d (Float) (35 3 256 256 1) in w)))
+            
+(def (entry conv2d/layer_65
+                (in [Float 256 38 38])
+                (w [Float 256 1 1])
+                : [Float 256 1444]
+              (@conv2d (Float) (37 1 256 256 1) in w)))
+            
+(def (entry conv2d/layer_66
+                (in [Float 256 38 38])
+                (w [Float 256 3 3])
+                : [Float 256 1444]
+              (@conv2d (Float) (35 3 256 256 1) in w)))
+            
+(def (entry conv2d/layer_68
+                (in [Float 256 38 38])
+                (w [Float 256 1 1])
+                : [Float 256 1444]
+              (@conv2d (Float) (37 1 256 256 1) in w)))
+            
+(def (entry conv2d/layer_69
+                (in [Float 256 38 38])
+                (w [Float 256 3 3])
+                : [Float 256 1444]
+              (@conv2d (Float) (35 3 256 256 1) in w)))
+            
+(def (entry conv2d/layer_71
+                (in [Float 256 38 38])
+                (w [Float 256 1 1])
+                : [Float 256 1444]
+              (@conv2d (Float) (37 1 256 256 1) in w)))
+            
+(def (entry conv2d/layer_72
+                (in [Float 256 38 38])
+                (w [Float 256 3 3])
+                : [Float 256 1444]
+              (@conv2d (Float) (35 3 256 256 1) in w)))
+            
+(def (entry conv2d/layer_74
+                (in [Float 256 38 38])
+                (w [Float 256 1 1])
+                : [Float 256 1444]
+              (@conv2d (Float) (37 1 256 256 1) in w)))
+            
+(def (entry conv2d/layer_75
+                (in [Float 256 38 38])
+                (w [Float 256 3 3])
+                : [Float 256 1444]
+              (@conv2d (Float) (35 3 256 256 1) in w)))
+            
+(def (entry conv2d/layer_77
+                (in [Float 256 38 38])
+                (w [Float 256 1 1])
+                : [Float 256 1444]
+              (@conv2d (Float) (37 1 256 256 1) in w)))
+            
+(def (entry conv2d/layer_78
+                (in [Float 256 38 38])
+                (w [Float 256 3 3])
+                : [Float 256 1444]
+              (@conv2d (Float) (35 3 256 256 1) in w)))
+            
+(def (entry conv2d/layer_80
+                (in [Float 256 38 38])
+                (w [Float 256 1 1])
+                : [Float 256 1444]
+              (@conv2d (Float) (37 1 256 256 1) in w)))
+            
+(def (entry conv2d/layer_81
+                (in [Float 256 38 38])
+                (w [Float 256 3 3])
+                : [Float 256 1444]
+              (@conv2d (Float) (35 3 256 256 1) in w)))
+            
+(def (entry conv2d/layer_83
+                (in [Float 256 38 38])
+                (w [Float 256 1 1])
+                : [Float 256 1444]
+              (@conv2d (Float) (37 1 256 256 1) in w)))
+            
+(def (entry conv2d/layer_85
+                (in [Float 512 38 38])
+                (w [Float 512 1 1])
+                : [Float 512 1444]
+              (@conv2d (Float) (37 1 512 512 1) in w)))
+            
+(def (entry conv2d/layer_87
+                (in [Float 1024 19 19])
+                (w [Float 512 1 1])
+                : [Float 512 361]
+              (@conv2d (Float) (18 1 1024 512 1) in w)))
+            
+(def (entry conv2d/layer_89
+                (in [Float 1024 19 19])
+                (w [Float 512 1 1])
+                : [Float 512 361]
+              (@conv2d (Float) (18 1 1024 512 1) in w)))
+            
+(def (entry conv2d/layer_90
+                (in [Float 512 19 19])
+                (w [Float 512 1 1])
+                : [Float 512 361]
+              (@conv2d (Float) (18 1 512 512 1) in w)))
+            
+(def (entry conv2d/layer_91
+                (in [Float 512 19 19])
+                (w [Float 512 3 3])
+                : [Float 512 361]
+              (@conv2d (Float) (16 3 512 512 1) in w)))
+            
+(def (entry conv2d/layer_93
+                (in [Float 512 19 19])
+                (w [Float 512 1 1])
+                : [Float 512 361]
+              (@conv2d (Float) (18 1 512 512 1) in w)))
+            
+(def (entry conv2d/layer_94
+                (in [Float 512 19 19])
+                (w [Float 512 3 3])
+                : [Float 512 361]
+              (@conv2d (Float) (16 3 512 512 1) in w)))
+            
+(def (entry conv2d/layer_96
+                (in [Float 512 19 19])
+                (w [Float 512 1 1])
+                : [Float 512 361]
+              (@conv2d (Float) (18 1 512 512 1) in w)))
+            
+(def (entry conv2d/layer_97
+                (in [Float 512 19 19])
+                (w [Float 512 3 3])
+                : [Float 512 361]
+              (@conv2d (Float) (16 3 512 512 1) in w)))
+            
+(def (entry conv2d/layer_99
+                (in [Float 512 19 19])
+                (w [Float 512 1 1])
+                : [Float 512 361]
+              (@conv2d (Float) (18 1 512 512 1) in w)))
+            
+(def (entry conv2d/layer_100
+                (in [Float 512 19 19])
+                (w [Float 512 3 3])
+                : [Float 512 361]
+              (@conv2d (Float) (16 3 512 512 1) in w)))
+            
+(def (entry conv2d/layer_102
+                (in [Float 512 19 19])
+                (w [Float 512 1 1])
+                : [Float 512 361]
+              (@conv2d (Float) (18 1 512 512 1) in w)))
+            
+(def (entry conv2d/layer_104
+                (in [Float 1024 19 19])
+                (w [Float 1024 1 1])
+                : [Float 1024 361]
+              (@conv2d (Float) (18 1 1024 1024 1) in w)))
+            
+(def (entry conv2d/layer_105
+                (in [Float 1024 19 19])
+                (w [Float 512 1 1])
+                : [Float 512 361]
+              (@conv2d (Float) (18 1 1024 512 1) in w)))
+            
+(def (entry conv2d/layer_106
+                (in [Float 512 19 19])
+                (w [Float 1024 3 3])
+                : [Float 1024 361]
+              (@conv2d (Float) (16 3 512 1024 1) in w)))
+            
+(def (entry conv2d/layer_107
+                (in [Float 1024 19 19])
+                (w [Float 512 1 1])
+                : [Float 512 361]
+              (@conv2d (Float) (18 1 1024 512 1) in w)))
+            
+(def (entry conv2d/layer_114
+                (in [Float 2048 19 19])
+                (w [Float 512 1 1])
+                : [Float 512 361]
+              (@conv2d (Float) (18 1 2048 512 1) in w)))
+            
+(def (entry conv2d/layer_115
+                (in [Float 512 19 19])
+                (w [Float 1024 3 3])
+                : [Float 1024 361]
+              (@conv2d (Float) (16 3 512 1024 1) in w)))
+            
+(def (entry conv2d/layer_116
+                (in [Float 1024 19 19])
+                (w [Float 512 1 1])
+                : [Float 512 361]
+              (@conv2d (Float) (18 1 1024 512 1) in w)))
+            
+(def (entry conv2d/layer_117
+                (in [Float 512 19 19])
+                (w [Float 256 1 1])
+                : [Float 256 361]
+              (@conv2d (Float) (18 1 512 256 1) in w)))
+            
+(def (entry conv2d/layer_120
+                (in [Float 512 38 38])
+                (w [Float 256 1 1])
+                : [Float 256 1444]
+              (@conv2d (Float) (37 1 512 256 1) in w)))
+            
+(def (entry conv2d/layer_122
+                (in [Float 512 38 38])
+                (w [Float 256 1 1])
+                : [Float 256 1444]
+              (@conv2d (Float) (37 1 512 256 1) in w)))
+            
+(def (entry conv2d/layer_123
+                (in [Float 256 38 38])
+                (w [Float 512 3 3])
+                : [Float 512 1444]
+              (@conv2d (Float) (35 3 256 512 1) in w)))
+            
+(def (entry conv2d/layer_124
+                (in [Float 512 38 38])
+                (w [Float 256 1 1])
+                : [Float 256 1444]
+              (@conv2d (Float) (37 1 512 256 1) in w)))
+            
+(def (entry conv2d/layer_125
+                (in [Float 256 38 38])
+                (w [Float 512 3 3])
+                : [Float 512 1444]
+              (@conv2d (Float) (35 3 256 512 1) in w)))
+            
+(def (entry conv2d/layer_126
+                (in [Float 512 38 38])
+                (w [Float 256 1 1])
+                : [Float 256 1444]
+              (@conv2d (Float) (37 1 512 256 1) in w)))
+            
+(def (entry conv2d/layer_127
+                (in [Float 256 38 38])
+                (w [Float 128 1 1])
+                : [Float 128 1444]
+              (@conv2d (Float) (37 1 256 128 1) in w)))
+            
+(def (entry conv2d/layer_130
+                (in [Float 256 76 76])
+                (w [Float 128 1 1])
+                : [Float 128 5776]
+              (@conv2d (Float) (75 1 256 128 1) in w)))
+            
+(def (entry conv2d/layer_132
+                (in [Float 256 76 76])
+                (w [Float 128 1 1])
+                : [Float 128 5776]
+              (@conv2d (Float) (75 1 256 128 1) in w)))
+            
+(def (entry conv2d/layer_133
+                (in [Float 128 76 76])
+                (w [Float 256 3 3])
+                : [Float 256 5776]
+              (@conv2d (Float) (73 3 128 256 1) in w)))
+            
+(def (entry conv2d/layer_134
+                (in [Float 256 76 76])
+                (w [Float 128 1 1])
+                : [Float 128 5776]
+              (@conv2d (Float) (75 1 256 128 1) in w)))
+            
+(def (entry conv2d/layer_135
+                (in [Float 128 76 76])
+                (w [Float 256 3 3])
+                : [Float 256 5776]
+              (@conv2d (Float) (73 3 128 256 1) in w)))
+            
+(def (entry conv2d/layer_136
+                (in [Float 256 76 76])
+                (w [Float 128 1 1])
+                : [Float 128 5776]
+              (@conv2d (Float) (75 1 256 128 1) in w)))
+            
+(def (entry conv2d/layer_137
+                (in [Float 128 76 76])
+                (w [Float 256 3 3])
+                : [Float 256 5776]
+              (@conv2d (Float) (73 3 128 256 1) in w)))
+            
+(def (entry conv2d/layer_138
+                (in [Float 256 76 76])
+                (w [Float 255 1 1])
+                : [Float 255 5776]
+              (@conv2d (Float) (75 1 256 255 1) in w)))
+            
+(def (entry conv2d/layer_143
+                (in [Float 512 38 38])
+                (w [Float 256 1 1])
+                : [Float 256 1444]
+              (@conv2d (Float) (37 1 512 256 1) in w)))
+            
+(def (entry conv2d/layer_144
+                (in [Float 256 38 38])
+                (w [Float 512 3 3])
+                : [Float 512 1444]
+              (@conv2d (Float) (35 3 256 512 1) in w)))
+            
+(def (entry conv2d/layer_145
+                (in [Float 512 38 38])
+                (w [Float 256 1 1])
+                : [Float 256 1444]
+              (@conv2d (Float) (37 1 512 256 1) in w)))
+            
+(def (entry conv2d/layer_146
+                (in [Float 256 38 38])
+                (w [Float 512 3 3])
+                : [Float 512 1444]
+              (@conv2d (Float) (35 3 256 512 1) in w)))
+            
+(def (entry conv2d/layer_147
+                (in [Float 512 38 38])
+                (w [Float 256 1 1])
+                : [Float 256 1444]
+              (@conv2d (Float) (37 1 512 256 1) in w)))
+            
+(def (entry conv2d/layer_148
+                (in [Float 256 38 38])
+                (w [Float 512 3 3])
+                : [Float 512 1444]
+              (@conv2d (Float) (35 3 256 512 1) in w)))
+            
+(def (entry conv2d/layer_149
+                (in [Float 512 38 38])
+                (w [Float 255 1 1])
+                : [Float 255 1444]
+              (@conv2d (Float) (37 1 512 255 1) in w)))
+            
+(def (entry conv2d/layer_154
+                (in [Float 1024 19 19])
+                (w [Float 512 1 1])
+                : [Float 512 361]
+              (@conv2d (Float) (18 1 1024 512 1) in w)))
+            
+(def (entry conv2d/layer_155
+                (in [Float 512 19 19])
+                (w [Float 1024 3 3])
+                : [Float 1024 361]
+              (@conv2d (Float) (16 3 512 1024 1) in w)))
+            
+(def (entry conv2d/layer_156
+                (in [Float 1024 19 19])
+                (w [Float 512 1 1])
+                : [Float 512 361]
+              (@conv2d (Float) (18 1 1024 512 1) in w)))
+            
+(def (entry conv2d/layer_157
+                (in [Float 512 19 19])
+                (w [Float 1024 3 3])
+                : [Float 1024 361]
+              (@conv2d (Float) (16 3 512 1024 1) in w)))
+            
+(def (entry conv2d/layer_158
+                (in [Float 1024 19 19])
+                (w [Float 512 1 1])
+                : [Float 512 361]
+              (@conv2d (Float) (18 1 1024 512 1) in w)))
+            
+(def (entry conv2d/layer_159
+                (in [Float 512 19 19])
+                (w [Float 1024 3 3])
+                : [Float 1024 361]
+              (@conv2d (Float) (16 3 512 1024 1) in w)))
+            
+(def (entry conv2d/layer_160
+                (in [Float 1024 19 19])
+                (w [Float 255 1 1])
+                : [Float 255 361]
+              (@conv2d (Float) (18 1 1024 255 1) in w)))
+            

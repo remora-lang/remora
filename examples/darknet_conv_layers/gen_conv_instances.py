@@ -35,7 +35,7 @@ def main() -> int:
             output_depth = fields[13]
             output_combined = int(output_dim) * int(output_dim)
             n_minus_k = int(input_dim) - int(win_dim)
-            defn_str = f'''(def (fun conv2d/layer_{layer}
+            defn_str = f'''(def (entry conv2d/layer_{layer}
                 (in [Float {input_depth} {input_dim} {input_dim}])
                 (w [Float {filters} {win_dim} {win_dim}])
                 : [Float {output_depth} {output_combined}]
