@@ -235,6 +235,8 @@ binops :: [((T.Text, AtomType), F.BinOp)]
 binops =
   [ (("+", Int), F.Add F.Int32 F.OverflowWrap),
     (("-", Int), F.Sub F.Int32 F.OverflowWrap),
+    (("*", Int), F.Mul F.Int32 F.OverflowWrap),
+    (("/", Int), F.SDiv F.Int32 F.Safe),
     (("f.*", Float), F.FMul F.Float32),
     (("f.+", Float), F.FAdd F.Float32),
     (("f.-", Float), F.FSub F.Float32),
