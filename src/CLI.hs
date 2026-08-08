@@ -17,6 +17,7 @@ import Serializer ()
 import Syntax
 import System.Console.CmdArgs hiding (args)
 import System.Console.CmdArgs qualified as CmdArgs
+import System.Exit (exitFailure)
 import System.FilePath (dropExtension, takeFileName, (</>))
 import System.IO
 import System.Process
@@ -127,8 +128,12 @@ mode =
 main :: IO ()
 main = do
   passed_mode <- cmdArgsRun mode
-  either T.putStrLn pure =<< runExceptT (run passed_mode)
+  either problem pure =<< runExceptT (run passed_mode)
   where
+    problem s = do
+      T.hPutStrLn stderr s
+      exitFailure
+
     run :: RemoraMode -> ExceptT Error IO ()
     run REPL = liftIO CLI.REPL.repl
     run (Interpret mfile mexpr margs) = do
@@ -196,7 +201,7 @@ main = do
                 ir
     run (Parse mfile mexpr) = do
       input <- parseInput mfile mexpr
-      liftIO $ T.putStrLn $ either prettyText prettyText input
+      liftIO $ either (problem . prettyText) (T.putStrLn . prettyText) input
 
     parseInput ::
       Maybe FilePath ->
