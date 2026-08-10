@@ -320,7 +320,7 @@ pExp =
     ]
   where
     pFieldProj =
-      lKeyword "field" *> (FieldProj <$> pExp <*> lId) 
+      lKeyword "field" *> (FieldProj <$> pExp <*> lId)
     pStructField =
       parens $ (,,) <$> lId <*> pShape <*> pExp
     pApp = pAnyApp App pExp Nothing

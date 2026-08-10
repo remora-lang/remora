@@ -1,4 +1,5 @@
-;; expected: 7
+;; ==
+;; output { 7 }
 (entry (main)
 (let (
   (val (n : Int) 3)

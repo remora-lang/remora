@@ -1,5 +1,6 @@
-;; expected: [[6 7] [9 10]]
-; add a matrix and a vector
+;; add a matrix and a vector
+;; ==
+;; output { [[6 7] [9 10]] }
 (entry (main)
 (+ [[1 2] [3 4]] [5 6])
 )

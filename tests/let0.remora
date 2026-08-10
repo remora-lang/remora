@@ -1,5 +1,6 @@
-;; expected: 15
-; let vals
+;; let vals
+;; ==
+;; output { 15 }
 (entry (main)
 (let (
   (val (x : Int) 5)

@@ -1,4 +1,5 @@
-;; expected: 12
+;; ==
+;; output { 12 }
 (entry (main)
 (((fn ((x Int)) (fn ((y Int)) (+ x y))) 5) 7)
 )

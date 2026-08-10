@@ -1,4 +1,5 @@
-;; expected: 9
+;; ==
+;; output { 9 }
 (entry (main)
 (let (
   (val (a : Int) 2)

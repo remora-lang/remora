@@ -1,5 +1,6 @@
-;; expected: [1 2 3 4]
-; flatten
+;; flatten
+;; ==
+;; output { [1 2 3 4] }
 (entry (main)
 (let (
   (val (xss : [Int 2 2]) [[1 2] [3 4]])

@@ -1,4 +1,5 @@
-;; expected: 3
+;; ==
+;; output { 3 }
 (entry (main)
 (let (
   (t-fun (fst (&t)) (fn ((x &t) (y &t)) x))

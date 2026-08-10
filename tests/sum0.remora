@@ -1,4 +1,5 @@
-;; expected: 5050
+;; ==
+;; output { 5050 }
 (entry (main)
 (@sum _ ([101]) (@iota/static _ ([101])))
 )

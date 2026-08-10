@@ -1,4 +1,5 @@
-;; expected: 15
+;; ==
+;; output { 15 }
 (entry (main)
 (let (
   (fun (add (x Int) (y Int) : Int) (+ x y))

@@ -1,4 +1,5 @@
-;; expected: 32.0
+;; ==
+;; output { 32.0 }
 (entry (main)
 (let (
 (fun (dot (x [Float 3]) (y [Float 3]) : Float)

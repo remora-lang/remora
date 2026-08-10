@@ -1,5 +1,6 @@
-;; expected: [1 2 3]
-; box
+;; box
+;; ==
+;; output { [1 2 3] }
 (entry (main)
 (let (
 

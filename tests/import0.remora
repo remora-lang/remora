@@ -1,4 +1,5 @@
-;; expected: 32.0
+;; ==
+;; output { 32.0 }
 (import "dotlib.remora")
 
 (entry (main)

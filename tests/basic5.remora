@@ -1,5 +1,6 @@
-;; expected: [4 6]
-; closures
+;; closures
+;; ==
+;; output { [4 6] }
 (entry (main)
 (let (
 

@@ -1,68 +1,40 @@
 module Main (main) where
 
-import Data.Char (isSpace)
-import Data.List (isPrefixOf, sort, stripPrefix)
-import Data.Maybe (listToMaybe, mapMaybe)
+import CLI.Futhark (FutharkBackend (..))
+import CLI.Test
 import Data.Text qualified as T
-import Imports qualified
-import Parser qualified
-import Pass (runPassIO)
-import Pipeline qualified
-import System.Directory (listDirectory)
-import System.FilePath (takeExtension, (</>))
+import Data.Text.IO qualified as T
+import System.FilePath (takeFileName)
 import Test.Tasty
 import Test.Tasty.HUnit
-import Util (prettyString)
 
--- | A super basic test harnness to serve in the interim before we get `remora
--- test`.
-
--- | Directory scanned for @.remora@ test programs.
 testsDir :: FilePath
 testsDir = "tests"
 
+options :: Options
+options =
+  Options
+    { optionsBackend = C,
+      optionsModes = [Interpret], -- TODO: fix once we fix the backend
+      optionsTags = mempty,
+      optionsExcludeTags = mempty
+    }
+
 main :: IO ()
 main = do
-  files <- listDirectory testsDir
-  let remoraFiles =
-        sort [f | f <- files, takeExtension f == ".remora", not ("." `isPrefixOf` f)]
-  cases <- concat <$> mapM mkCase remoraFiles
+  cases <- concat <$> (mapM mkCase =<< testFiles testsDir)
   defaultMain $ testGroup "remora" cases
 
--- | Test files must contain a @;; expected:@ line.
 mkCase :: FilePath -> IO [TestTree]
-mkCase name = do
-  let path = testsDir </> name
-  src <- readFile path
-  pure $ case expectedValue src of
-    Nothing -> []
-    Just expected ->
-      [ testCase name $ do
-          result <- runPassIO $ Imports.resolveImports path $ T.pack src
-          case result >>= Pipeline.interpret mempty of
-            Left err ->
-              assertFailure $ "evaluation failed:\n" <> T.unpack err
-            Right val ->
-              let actual = prettyString val
-               in assertBool
-                    ("expected: " <> expected <> "\nbut got:  " <> actual)
-                    (normalize actual == canonical expected)
+mkCase path = do
+  source <- T.readFile path
+  pure $ case testBlock path source of
+    Left err -> [testCase (takeFileName path) $ assertFailure $ T.unpack err]
+    Right Nothing -> []
+    Right (Just block) ->
+      [ testCase (takeFileName path) $ do
+          outcome <- runTest options path source block
+          case outcome of
+            Passed -> pure ()
+            Failed message -> assertFailure $ T.unpack message
       ]
-
--- | When the expected valuable is valid Remora syntax, interpret it.
-canonical :: String -> String
-canonical expected =
-  case Parser.parseExp "<expected>" (T.pack expected) >>= Pipeline.interpretExp of
-    Right val -> normalize $ prettyString val
-    Left _ -> normalize expected
-
-expectedValue :: String -> Maybe String
-expectedValue = listToMaybe . mapMaybe parseLine . lines
-  where
-    parseLine l = trim <$> stripPrefix ";; expected:" (dropWhile isSpace l)
-
-normalize :: String -> String
-normalize = concat . words
-
-trim :: String -> String
-trim = f . f where f = reverse . dropWhile isSpace

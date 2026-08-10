@@ -1,4 +1,5 @@
-;; expected: [5 5]
+;; ==
+;; output { [5 5] }
 (entry (main)
 (let (
   (t-fun (dup (&t)) (fn ((x &t)) [x x]))

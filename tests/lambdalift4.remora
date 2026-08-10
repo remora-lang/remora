@@ -1,4 +1,5 @@
-;; expected: [11 12 13]
+;; ==
+;; output { [11 12 13] }
 (entry (main)
 (let (
   (val (y : Int) 10)

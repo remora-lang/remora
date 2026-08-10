@@ -1,5 +1,6 @@
-;; expected: 3
-; add two integers
+;; add two integers
+;; ==
+;; output { 3 }
 (entry (main)
 (+ 1 2)
 )

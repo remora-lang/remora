@@ -1,4 +1,5 @@
-;; expected: 1
+;; ==
+;; output { 1 }
 (entry (main)
 ((i-app (t-app head Int) 2 (dims)) [1 2 3])
 )

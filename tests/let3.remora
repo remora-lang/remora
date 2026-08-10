@@ -1,4 +1,5 @@
-;; expected: [5 7 9]
+;; ==
+;; output { [5 7 9] }
 (entry (main)
 (let (
   (type &MyInt Int)

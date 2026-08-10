@@ -1,4 +1,5 @@
-;; expected: 15
+;; ==
+;; output { 15 }
 (def (fun (add (x Int) (y Int) : Int) (+ x y)))
 (def (fun (mul (x Int) (y Int)) (* x y)))
 (def (val (x : Int) 1))

@@ -1,4 +1,5 @@
-;; expected: 5
+;; ==
+;; output { 5 }
 (entry (main)
   (@reify-dim _ (5))
 )

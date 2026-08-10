@@ -1,3 +1,4 @@
-;; expected: [[3 4] [1 2]]
+;; ==
+;; output { [[3 4] [1 2]] }
 (entry (main)
 (@reverse (Int) (2 [2]) [[1 2] [3 4]]))

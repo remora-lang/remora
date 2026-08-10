@@ -1,6 +1,11 @@
+{-# OPTIONS_GHC -fno-cse #-}
+
 module CLI (main) where
 
+import CLI.Futhark (FutharkBackend (..), backendOptions)
 import CLI.REPL qualified
+import CLI.Test qualified
+import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (ExceptT (..), except, runExceptT)
 import Data.Aeson.Encode.Pretty (encodePretty)
@@ -15,7 +20,7 @@ import Pass (runPassIO)
 import Pipeline qualified
 import Serializer ()
 import Syntax
-import System.Console.CmdArgs hiding (args)
+import System.Console.CmdArgs hiding (args, modes)
 import System.Console.CmdArgs qualified as CmdArgs
 import System.Exit (exitFailure)
 import System.FilePath (dropExtension, takeFileName, (</>))
@@ -23,11 +28,6 @@ import System.IO
 import System.Process
 import Util
 import Prelude hiding (exp)
-
-data FutharkBackend
-  = C
-  | CUDA
-  deriving (Data, Typeable, Show, Eq)
 
 data RemoraMode
   = REPL
@@ -44,6 +44,13 @@ data RemoraMode
   | Parse
       { file :: Maybe FilePath,
         expr :: Maybe String
+      }
+  | Test
+      { paths :: [FilePath],
+        backend :: Maybe FutharkBackend,
+        modes :: [String],
+        tags :: [String],
+        excludeTags :: [String]
       }
   | Dev
       { file :: Maybe FilePath,
@@ -101,6 +108,46 @@ futhark =
         "If neither -f nor -e is passed, will read input from stdin."
       ]
 
+test :: RemoraMode
+test =
+  Test
+    { paths = [] &= CmdArgs.args &= typ "FILES",
+      backend =
+        Nothing
+          &= name "backend"
+          &= help "Backend used by compiled tests (c|cuda). Defaults to c."
+          &= typ "c|cuda",
+      modes =
+        []
+          &= explicit
+          &= name "modes"
+          &= help "Run tests in these modes, ignoring their modes directive."
+          &= typ "interpret|compile",
+      tags =
+        []
+          &= explicit
+          &= name "tags"
+          &= help "Only run tests carrying one of these tags."
+          &= typ "TAGS",
+      excludeTags =
+        []
+          &= explicit
+          &= name "exclude-tags"
+          &= help "Skip tests carrying any of these tags."
+          &= typ "TAGS"
+    }
+    &= details
+      [ "Run the test blocks of the passed Remora files.",
+        "",
+        "Tests are interpreted and compiled unless their modes directive says",
+        "otherwise. Passing --modes overrides every test, e.g. to interpret all",
+        "of them:",
+        "> remora test --modes interpret tests/",
+        "",
+        "The --modes, --tags and --exclude-tags flags each accept several values",
+        "separated by spaces, and may be passed more than once."
+      ]
+
 dev :: RemoraMode
 dev =
   Dev
@@ -116,11 +163,12 @@ dev =
 mode :: Mode (CmdArgs RemoraMode)
 mode =
   cmdArgsMode $
-    modes
+    CmdArgs.modes
       [ REPL,
         interpret,
         futhark,
         parse,
+        test,
         dev
       ]
       &= program "remora"
@@ -145,6 +193,17 @@ main = do
             (\prog -> flip Pipeline.interpret prog =<< mapM evalArg margs)
             input
       liftIO $ T.putStrLn $ prettyText v
+    run (Test test_paths mbackend mmodes mtags mexclude) = do
+      test_modes <- except $ traverse CLI.Test.readMode $ concatMap words mmodes
+      let options =
+            CLI.Test.Options
+              { CLI.Test.optionsBackend = fromMaybe C mbackend,
+                CLI.Test.optionsModes = test_modes,
+                CLI.Test.optionsTags = map T.pack $ concatMap words mtags,
+                CLI.Test.optionsExcludeTags = map T.pack $ concatMap words mexclude
+              }
+      failed <- liftIO $ CLI.Test.runTests options test_paths
+      when (failed > 0) $ liftIO exitFailure
     run (Dev mfile mexpr uniq check lift mono json)
       | uniq = do
           input <- parseInput mfile mexpr
@@ -241,16 +300,7 @@ main = do
       readProcess
         "futhark"
         ( ["dev"]
-            <> backendArgs backend
+            <> backendOptions backend
             <> [src]
         )
         []
-      where
-        backendArgs C =
-          [ "--seq-mem",
-            "--backend=c"
-          ]
-        backendArgs CUDA =
-          [ "--gpu-mem",
-            "--backend=cuda"
-          ]

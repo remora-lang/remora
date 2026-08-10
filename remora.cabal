@@ -24,13 +24,17 @@ library
     exposed-modules:
       Binds
       CLI
+      CLI.Futhark
       CLI.REPL
+      CLI.Test
+      CLI.Test.Parser
       Free
       Futhark
       Imports
       Interpreter
       Interpreter.Intrinsics
       Interpreter.Value
+      Interpreter.Value.Parser
       Intrinsics
       ISpace
       LambdaLift
@@ -60,6 +64,8 @@ library
     build-depends:
       base >=4.19.2.0,
       megaparsec,
+      parser-combinators,
+      regex-tdfa,
       text,
       prettyprinter,
       mtl,
@@ -71,6 +77,9 @@ library
       filepath,
       sbv >= 14,
       futhark,
+      futhark-data,
+      temporary,
+      vector,
       directory,
       aeson >= 2.0,
       aeson-pretty,

@@ -109,7 +109,7 @@ compileAtomType :: AtomType -> FutharkM F.Type
 compileAtomType Bool = pure $ F.Prim F.Bool
 compileAtomType Int = pure $ F.Prim $ F.IntType F.Int32
 compileAtomType Float = pure $ F.Prim $ F.FloatType F.Float32
-compileAtomType t = error $ "compileAtomType: unhandled:\n" ++ show t
+compileAtomType t = error $ "compileAtomType: unhandled:\n" ++ prettyString t
 
 compileArrayType :: ArrayType -> FutharkM F.Type
 compileArrayType (t :@ shape) = do
@@ -120,12 +120,12 @@ compileArrayType (t :@ shape) = do
     compileShape :: Shape -> FutharkM F.Shape
     compileShape (ShapeDim d) = F.Shape . pure <$> compileDim d
     compileShape (Concat ds) = mconcat <$> mapM compileShape ds
-    compileShape s = error $ "compileShape: unhandled:\n" ++ show s
+    compileShape s = error $ "compileShape: unhandled:\n" ++ prettyString s
 
     compileDim :: Dim -> FutharkM F.SubExp
     compileDim (DimN x) =
       pure $ F.Constant $ F.IntValue $ F.Int64Value $ fromIntegral x
-    compileDim d = error $ "compileDim: unhandled:\n" ++ show d
+    compileDim d = error $ "compileDim: unhandled:\n" ++ prettyString d
 
 compileType :: Type -> FutharkM F.Type
 compileType (Syntax.AtomType t) = compileAtomType t
@@ -144,7 +144,7 @@ compileAtom (Base (IntVal x) _ _) =
   pure $ F.Constant $ F.IntValue $ F.Int32Value $ fromIntegral x
 compileAtom (Base (FloatVal x) _ _) =
   pure $ F.Constant $ F.FloatValue $ F.Float32Value x
-compileAtom e = error $ "compileAtom: unhandled:\n" ++ show e
+compileAtom e = error $ "compileAtom: unhandled:\n" ++ prettyString e
 
 compileVName :: VName -> F.VName
 compileVName v =
@@ -156,7 +156,7 @@ compileName v = F.nameFromText (varName v)
 etaExpand :: Exp -> FutharkM (F.Lambda F.SOACS)
 etaExpand e@(Var f (Info fty) _) =
   case unfoldArrow fty of
-    ([], _) -> error $ "etaExpand: not a function type\n" ++ show e
+    ([], _) -> error $ "etaExpand: not a function type\n" ++ prettyString e
     (paramTys, retTy) -> do
       params <- forM paramTys $ \t -> do
         x <- newVar
@@ -171,12 +171,12 @@ etaExpand e@(Var f (Info fty) _) =
             F.lambdaReturnType = [retTy'],
             F.lambdaBody = body
           }
-etaExpand e = error $ "etaExpand: unhandled\n" ++ show e
+etaExpand e = error $ "etaExpand: unhandled\n" ++ prettyString e
 
 mkSizeSubExp :: Shape -> F.SubExp
 mkSizeSubExp (ShapeDim (DimN n)) =
   F.Constant $ F.IntValue $ F.Int64Value $ fromIntegral n
-mkSizeSubExp s = error $ "sizeOfShape: unhandled\n" ++ show s
+mkSizeSubExp s = error $ "sizeOfShape: unhandled\n" ++ prettyString s
 
 idLambda :: [F.Type] -> FutharkM (F.Lambda F.SOACS)
 idLambda ts = do
@@ -229,7 +229,7 @@ compileFunExp :: Exp -> FutharkM F.Name
 compileFunExp (Array [] (Lambda param body (Info t) _ NE.:| []) _ _) =
   liftLambda [param] body t
 compileFunExp (Var f _ _) = pure $ F.nameFromText $ varName f
-compileFunExp e = error $ "compileFunExp: unhandled\n" ++ show e
+compileFunExp e = error $ "compileFunExp: unhandled\n" ++ prettyString e
 
 binops :: [((T.Text, AtomType), F.BinOp)]
 binops =
@@ -329,10 +329,10 @@ compileExp' e@(App _ _ (Info (t, pframe)) _) = do
       t' <- compileArrayType t
       res <- withMapNest ds t args (compileApp fname)
       F.Var <$> bind t' (F.BasicOp $ F.SubExp res)
-    _ -> error $ "compileExp': unhandled lifted apply with func array:\n" ++ show e
+    _ -> error $ "compileExp': unhandled lifted apply with func array:\n" ++ prettyString e
 compileExp' (Let bs e _ _) =
   mapM_ compileBind bs >> compileExp' e
-compileExp' e = error $ "compileExp': unhandled:\n" ++ show e
+compileExp' e = error $ "compileExp': unhandled:\n" ++ prettyString e
 
 intDim :: Dim -> Int
 intDim =
@@ -560,7 +560,7 @@ compileBind (BindVal v _ e _) = do
   e' <- F.BasicOp . F.SubExp <$> compileExp' e
   let v' = F.VName (F.nameFromText (varName v)) (getTag (varTag v))
   emit $ F.Let (F.Pat [F.PatElem v' t]) (F.defAux ()) e'
-compileBind b = error $ "compileBind: unhandled " ++ show b
+compileBind b = error $ "compileBind: unhandled " ++ prettyString b
 
 valueType :: F.Type -> F.ValueType
 valueType (F.Prim pt) =

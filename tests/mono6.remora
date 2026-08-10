@@ -1,4 +1,5 @@
-;; expected: [5 5]
+;; ==
+;; output { [5 5] }
 (entry (main)
 (let (
   (val fs [(t-fn (&t) (fn ((x &t)) x)) (t-fn (&t) (fn ((x &t)) x))])

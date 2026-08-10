@@ -1,5 +1,6 @@
-;; expected: [3 6]
-; add two length-2 vectors
+;; add two length-2 vectors
+;; ==
+;; output { [3 6] }
 (entry (main)
 (let (
 

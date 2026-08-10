@@ -1,4 +1,5 @@
-;; expected: [1 2 3]
+;; ==
+;; output { [1 2 3] }
 (entry (main)
   (unbox ($r x (@reify-shape _ ([1 2 3]))) x)
 )

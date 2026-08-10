@@ -19,6 +19,7 @@ module Interpreter.Value
 where
 
 import Data.List qualified as L
+import Data.Text (Text)
 import Prettyprinter
 import Syntax hiding
   ( Atom,
@@ -34,7 +35,6 @@ import Syntax hiding
 import Syntax qualified
 import Util
 import VName
-import Data.Text (Text)
 
 type Type = Syntax.Type VName
 
@@ -67,6 +67,16 @@ instance Show (Val m) where
   show ValTFun {} = "ValTFun <#tfun>"
   show ValIFun {} = "ValIFun <#ifun>"
   show (ValRecord fs) = "VarRecord " <> show fs
+
+instance Eq (Val m) where
+  ValArray [] [v] == w = v == w
+  v == ValArray [] [w] = v == w
+  ValVar v == ValVar w = v == w
+  ValBase a == ValBase b = a == b
+  ValArray s vs == ValArray t ws = s == t && vs == ws
+  ValBox is v == ValBox js w = is == js && v == w
+  ValRecord fs == ValRecord gs = fs == gs
+  _ == _ = False
 
 instance Pretty (Val m) where
   pretty (ValVar v) = pretty v
