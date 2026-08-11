@@ -8,6 +8,7 @@ import CLI.Test qualified
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (ExceptT (..), except, runExceptT)
+import Data.Aeson (ToJSON)
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.ByteString.Lazy qualified as B
 import Data.Maybe
@@ -18,6 +19,7 @@ import Imports qualified
 import Parser qualified
 import Pass (runPassIO)
 import Pipeline qualified
+import Prettyprinter (Pretty)
 import Serializer ()
 import Syntax
 import System.Console.CmdArgs hiding (args, modes)
@@ -55,6 +57,7 @@ data RemoraMode
   | Dev
       { file :: Maybe FilePath,
         expr :: Maybe String,
+        parse_ :: Bool,
         uniquify :: Bool,
         typeCheck :: Bool,
         lambdalift :: Bool,
@@ -153,12 +156,20 @@ dev =
   Dev
     { file = Nothing &= help "Run the pass on the passed file.",
       expr = Nothing &= help "Run the pass on an expression passed as an argument.",
+      parse_ = False &= help "Parse only.",
       uniquify = False &= help "Uniquify and expand array type var syntactic sugar.",
       typeCheck = False &= help "Type check.",
       lambdalift = False &= help "Lambda lift.",
       monomorphize = False &= help "Lambda lift & monomorphize.",
-      json = False &= help "Serialize an input program to JSON."
+      json = False &= help "Serialize the result of the pass to JSON."
     }
+    &= details
+      [ "Run a single compiler pass.",
+        "",
+        "The optional -j flag determines the output format.",
+        "",
+        "If neither -f nor -e is passed, will read input from stdin."
+      ]
 
 mode :: Mode (CmdArgs RemoraMode)
 mode =
@@ -204,50 +215,40 @@ main = do
               }
       failed <- liftIO $ CLI.Test.runTests options test_paths
       when (failed > 0) $ liftIO exitFailure
-    run (Dev mfile mexpr uniq check lift mono json)
-      | uniq = do
-          input <- parseInput mfile mexpr
-          out <-
-            except $
-              either
-                (fmap prettyText . Pipeline.uniquifyExp)
-                (fmap prettyText . Pipeline.uniquify)
-                input
-          liftIO $ T.putStrLn out
-      | check = do
-          input <- parseInput mfile mexpr
-          out <-
-            except $
-              either
-                (fmap prettyText . Pipeline.typeCheckExp)
-                (fmap prettyText . Pipeline.typeCheck)
-                input
-          liftIO $ T.putStrLn out
-      | lift = do
-          input <- parseInput mfile mexpr
-          out <-
-            except $
-              either
-                (fmap prettyText . Pipeline.lambdaLiftExp)
-                (fmap prettyText . Pipeline.lambdaLift)
-                input
-          liftIO $ T.putStrLn out
-      | mono = do
-          input <- parseInput mfile mexpr
-          out <-
-            except $
-              either
-                (fmap prettyText . Pipeline.monomorphizeExp)
-                (fmap prettyText . Pipeline.monomorphize)
-                input
-          liftIO $ T.putStrLn out
-      | json = do
-          input <- parseInput mfile mexpr
-          liftIO $ serializeAST input
+    run (Dev mfile mexpr pars uniq check lift mono json)
+      | pars = devPass pure pure
+      | uniq = devPass Pipeline.uniquifyExp Pipeline.uniquify
+      | check = devPass Pipeline.typeCheckExp Pipeline.typeCheck
+      | lift = devPass Pipeline.lambdaLiftExp Pipeline.lambdaLift
+      | mono = devPass Pipeline.monomorphizeExp Pipeline.monomorphize
       | otherwise =
           except $
             Left
-              "remora dev: specify --uniquify, --typecheck, --lambdalift or --monomorphize"
+              "remora dev: specify --parse, --uniquify, --typecheck, --lambdalift or --monomorphize"
+      where
+        devPass ::
+          (Pretty a, ToJSON a, Pretty b, ToJSON b) =>
+          (UncheckedExp -> Either Error a) ->
+          (UncheckedProg -> Either Error b) ->
+          ExceptT Error IO ()
+        devPass onExp onProg = do
+          input <- parseInput mfile mexpr
+          out <-
+            except $
+              either
+                (fmap putResult . onExp)
+                (fmap putResult . onProg)
+                input
+          liftIO out
+
+        putResult ::
+          (Pretty a, ToJSON a) =>
+          a ->
+          IO ()
+        putResult
+          | json = B.putStr . (<> "\n") . encodePretty
+          | otherwise = T.putStrLn . prettyText
+
     run (Futhark mfile mexpr mbackend) = do
       input <- parseInput mfile mexpr
       ir <- except $ either Pipeline.compileExp Pipeline.compile input
@@ -275,12 +276,6 @@ main = do
       Right
         <$> ExceptT
           (runPassIO $ Imports.resolveImports (sourceName mfile) input)
-
-    serializeAST ::
-      Either UncheckedExp UncheckedProg ->
-      IO ()
-    serializeAST =
-      liftIO . B.putStr . either encodePretty encodePretty
 
     sourceName :: Maybe FilePath -> FilePath
     sourceName = fromMaybe "<cli>"
