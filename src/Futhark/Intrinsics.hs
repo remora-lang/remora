@@ -149,10 +149,10 @@ mapValues f xs t = do
   fxs <- argVars "xs" xs
   zipWithM f fxs ts
 
-reshapeTo :: F.Name -> ArrayType -> F.VName -> FutharkM F.SubExp
+reshapeTo :: F.Name -> F.Type -> F.VName -> FutharkM F.SubExp
 reshapeTo name t v = do
   rank <- F.arrayRank <$> F.lookupType v
-  shape <- F.arrayShape <$> compileArrayType t
+  let shape = F.arrayShape t
   F.letSubExp name $
     F.BasicOp $
       F.Reshape v $
@@ -273,9 +273,9 @@ intrinsic "sum" [Arg xs] _ = do
   fmap singleton $
     compileReduce (F.Reduce F.Commutative lam [constInt64 0]) =<< compileFlatten xs
 intrinsic "flatten" [Arg xs] t =
-  fmap singleton $ reshapeTo "flatten" t =<< argVar "xs" xs
+  mapValues (flip $ reshapeTo "flatten") xs t
 intrinsic "reshape" [Arg xs] t =
-  fmap singleton $ reshapeTo "reshape" t =<< argVar "xs" xs
+  mapValues (flip $ reshapeTo "reshape") xs t
 intrinsic "transpose2d" [Arg xs] _ = do
   fxs <- argVar "xs" xs
   fmap singleton $ F.letSubExp "transpose" $ F.BasicOp $ F.Rearrange fxs [1, 0]
@@ -307,9 +307,10 @@ intrinsic "fold-right" [FunArg op, Arg acc, Arg xs] _ = do
         ps -> error $ "fold-right: operator takes " ++ show (length ps) ++ " parameters"
 intrinsic "trace" [Arg _, Arg x] _ = pure $ argSExps x
 intrinsic "trace-file" [Arg _, Arg _, Arg x] _ = pure $ argSExps x
-intrinsic "iota/static" [] t =
+intrinsic "iota/static" [] t = do
+  rt <- compileArrayType t
   fmap singleton $
-    reshapeTo "iota" t
+    reshapeTo "iota" rt
       =<< F.letExp "iota" (F.iota64 $ constInt64 $ product $ intShape $ arrayTypeShape t)
 intrinsic "undefined" [] t = do
   failure <-
