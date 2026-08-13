@@ -5,9 +5,9 @@ module CLI (main) where
 import CLI.Futhark (FutharkBackend (..), compileAndRun, compileBackend)
 import CLI.REPL qualified
 import CLI.Test qualified
-import Control.Monad (when)
+import Control.Monad (unless, when)
 import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Trans.Except (ExceptT (..), except, runExceptT)
+import Control.Monad.Trans.Except (ExceptT (..), except, runExceptT, throwE)
 import Data.Aeson (ToJSON)
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.ByteString.Lazy qualified as B
@@ -290,9 +290,17 @@ main = do
       | mono = devPass Pipeline.monomorphizeExp Pipeline.monomorphize
       | defun = devPass Pipeline.defunctionalizeExp Pipeline.defunctionalize
       | otherwise =
-          except $
-            Left
-              "remora dev: specify --parse, --uniquify, --typecheck, --lambdalift, --monomorphize or --defunctionalize"
+          throwE $
+            "remora dev: specify one of "
+              <> T.intercalate
+                ", "
+                [ "--parse",
+                  "--uniquify",
+                  "--typecheck",
+                  "--lambdalift",
+                  "--monomorphize",
+                  "--defunctionalize"
+                ]
       where
         devPass ::
           (Pretty a, ToJSON a, Pretty b, ToJSON b) =>
@@ -318,6 +326,13 @@ main = do
           | otherwise = T.putStrLn . prettyText
     run (Futhark mfile mexpr mbackend do_run mentry margs) = do
       input <- parseInput mfile mexpr
+      unless do_run $ do
+        unless (null margs) $
+          throwE $
+            "remora futhark: program arguments require --run, but got: "
+              <> T.unwords (map T.pack margs)
+        when (isJust mentry) $
+          throwE "remora futhark: --entry requires --run."
       ir <- except $ either Pipeline.compileExp Pipeline.compile input
       case (do_run, mbackend) of
         (False, Nothing) -> liftIO $ T.putStrLn $ prettyText ir
@@ -348,7 +363,7 @@ main = do
     parseInput Nothing (Just s) =
       Left <$> except (Parser.parseExp (sourceName Nothing) (T.pack s))
     parseInput mfile _ = do
-      input <- liftIO $ handleInput mfile
+      input <- handleInput mfile
       Right
         <$> ExceptT
           (runPassIO $ Imports.resolveImports (sourceName mfile) input)
@@ -356,9 +371,13 @@ main = do
     sourceName :: Maybe FilePath -> FilePath
     sourceName = fromMaybe "<cli>"
 
-    handleInput :: Maybe FilePath -> IO Text
-    handleInput (Just path) = T.readFile path
-    handleInput Nothing = T.getContents
+    handleInput :: Maybe FilePath -> ExceptT Error IO Text
+    handleInput (Just path) = liftIO $ T.readFile path
+    handleInput Nothing = do
+      interactive <- liftIO $ hIsTerminalDevice stdin
+      when interactive $
+        throwE "No program given: pass a file with -f, an expression with -e, or pipe a program on stdin."
+      liftIO T.getContents
 
     evalArg s =
       Pipeline.interpretExp
