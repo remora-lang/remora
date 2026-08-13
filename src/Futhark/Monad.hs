@@ -1,18 +1,24 @@
 {-# LANGUAGE TypeFamilies #-}
 
 module Futhark.Monad
-  ( FutharkM,
-    runFutharkM,
-    Arg (..),
+  ( ArrayType,
     SExpArg (..),
-    ArrayType,
+    Arg (..),
+    argSExp,
+    FutharkM,
+    runFutharkM,
     mkBody,
     assertNoStms,
     addFunction,
+    addOpaqueType,
+    bindRecord,
+    lookupRecord,
     compileVName,
-    compileArrayType,
     constInt64,
     intShape,
+    valueCount,
+    compileArrayTypes,
+    compileArrayType,
   )
 where
 
@@ -20,7 +26,10 @@ import Control.Monad (unless)
 import Control.Monad.Error.Class
 import Control.Monad.State
 import Control.Monad.Trans.Except
+import Data.Foldable (find, toList)
 import Data.Int (Int64)
+import Data.Map (Map)
+import Data.Map qualified as M
 import Data.Maybe (fromMaybe)
 import Futhark.Analysis.PrimExp.Convert qualified as F
 import Futhark.Builder (BuilderT, MonadBuilder (..), runBuilderT)
@@ -42,7 +51,7 @@ type ArrayType = Syntax.ArrayType VName
 
 data SExpArg = SExpArg
   { argFrame :: [Int],
-    argSExp :: F.SubExp,
+    argSExps :: [F.SubExp],
     argType :: ArrayType
   }
   deriving (Show, Eq)
@@ -52,9 +61,22 @@ data Arg
   | FunArg (F.Lambda F.SOACS)
   deriving (Show, Eq)
 
+argSExp :: SExpArg -> F.SubExp
+argSExp arg =
+  case argSExps arg of
+    [se] -> se
+    ses ->
+      error $
+        unlines
+          [ "argSExp: " <> show (length ses) <> " values for argument of type:",
+            prettyString $ argType arg
+          ]
+
 data St = St
   { stateNameSource :: VNameSource,
-    stateFuns :: [F.FunDef F.SOACS]
+    stateFuns :: [F.FunDef F.SOACS],
+    stateRecords :: Map VName [F.SubExp],
+    stateOpaques :: [(F.Name, F.OpaqueType)]
   }
 
 instance MonadFreshNames (StateT St (Except Error)) where
@@ -83,13 +105,19 @@ instance MonadBuilder FutharkM where
 runFutharkM ::
   Tag ->
   FutharkM a ->
-  Either Error (a, F.Stms F.SOACS, [F.FunDef F.SOACS], Tag)
+  Either Error (a, F.Stms F.SOACS, [F.FunDef F.SOACS], F.OpaqueTypes, Tag)
 runFutharkM tag (FutharkM m) = do
   ((x, stms), s) <- runExcept $ runStateT (runBuilderT m mempty) initialState
   let VNameSource counter = stateNameSource s
-  pure (x, stms, reverse $ stateFuns s, Tag counter)
+  pure
+    ( x,
+      stms,
+      reverse $ stateFuns s,
+      F.OpaqueTypes [(name, (t, Nothing)) | (name, t) <- reverse $ stateOpaques s],
+      Tag counter
+    )
   where
-    initialState = St (newNameSource $ getTag tag) mempty
+    initialState = St (newNameSource $ getTag tag) mempty mempty mempty
 
 mkBody :: FutharkM [F.SubExp] -> FutharkM (F.Body F.SOACS)
 mkBody = F.buildBody_ . (fmap . fmap) F.subExpRes
@@ -106,6 +134,24 @@ addFunction :: F.FunDef F.SOACS -> FutharkM ()
 addFunction fun =
   FutharkM $ lift $ modify $ \s -> s {stateFuns = fun : stateFuns s}
 
+addOpaqueType :: F.OpaqueType -> FutharkM F.Name
+addOpaqueType t = do
+  types <- FutharkM $ lift $ gets stateOpaques
+  case find ((== t) . snd) types of
+    Just (name, _) -> pure name
+    Nothing -> do
+      let name = F.nameFromString $ "record_" <> show (length types)
+      FutharkM $ lift $ modify $ \s -> s {stateOpaques = (name, t) : stateOpaques s}
+      pure name
+
+bindRecord :: VName -> [F.SubExp] -> FutharkM ()
+bindRecord v ses =
+  FutharkM $ lift $ modify $ \s ->
+    s {stateRecords = M.insert v ses $ stateRecords s}
+
+lookupRecord :: VName -> FutharkM (Maybe [F.SubExp])
+lookupRecord v = FutharkM $ lift $ gets $ (M.!? v) . stateRecords
+
 compileVName :: VName -> F.VName
 compileVName v =
   F.VName (F.nameFromText $ varName v) (getTag $ varTag v)
@@ -118,13 +164,6 @@ intShape shape =
   fromMaybe (error $ "intShape: not statically known: " ++ prettyString shape) $
     shapeToInts (dimToInt $ const Nothing) (const Nothing) $
       normShape shape
-
-compileAtomType :: AtomType -> FutharkM F.Type
-compileAtomType Bool = pure $ F.Prim F.Bool
-compileAtomType Int = pure $ F.Prim $ F.IntType F.Int64
-compileAtomType Float = pure $ F.Prim $ F.FloatType F.Float32
-compileAtomType t =
-  error $ unlines ["compileAtomType: unhandled:", prettyString t]
 
 compileDim :: Dim -> FutharkM F.SubExp
 compileDim dim = F.toSubExp "dim" =<< dimExp dim
@@ -147,7 +186,30 @@ compileShape = compileNormShape . normShape
     compileNormShape (ShapeVar v) =
       error $ "compileShape: existential shape of unknown rank: " ++ prettyString v
 
-compileArrayType :: ArrayType -> FutharkM F.Type
-compileArrayType (t :@ shape) = do
+compileAtomType :: AtomType -> FutharkM F.Type
+compileAtomType Bool = pure $ F.Prim F.Bool
+compileAtomType Int = pure $ F.Prim $ F.IntType F.Int64
+compileAtomType Float = pure $ F.Prim $ F.FloatType F.Float32
+compileAtomType t =
+  error $ unlines ["compileAtomType: unhandled:", prettyString t]
+
+valueCount :: ArrayType -> Int
+valueCount (Record fs :@ _) = sum $ fmap (valueCount . snd) fs
+valueCount _ = 1
+
+compileArrayTypes :: ArrayType -> FutharkM [F.Type]
+compileArrayTypes (Record fs :@ frame) =
+  concat <$> mapM fieldTypes (toList fs)
+  where
+    fieldTypes (_, ft :@ fshape) = compileArrayTypes $ ft :@ (frame <> fshape)
+compileArrayTypes (t :@ shape) = do
   t' <- compileAtomType t
-  F.arrayOfShape t' . F.Shape <$> compileShape shape
+  pure . F.arrayOfShape t' . F.Shape <$> compileShape shape
+
+compileArrayType :: ArrayType -> FutharkM F.Type
+compileArrayType t = do
+  ts <- compileArrayTypes t
+  case ts of
+    [t'] -> pure t'
+    _ ->
+      error $ unlines ["compileArrayType: not a single value:", prettyString t]

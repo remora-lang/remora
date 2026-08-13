@@ -1,0 +1,11 @@
+;; ==
+;; input { [1.0 2.0] [10.0 20.0] }
+;; output { [11.0 22.0] }
+
+(entry (main (a [Float 2]) (b [Float 2]))
+  (let ((type &pair {(u [Float]) (v [Float])})
+        (fun (mk (x [Float]) (y [Float]) : &pair)
+          {(u [] x) (v [] y)})
+        (fun (add (p &pair) : Float)
+          (f.+ (field p u) (field p v))))
+    (add (mk a b))))
