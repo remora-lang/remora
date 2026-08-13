@@ -98,16 +98,17 @@ nestArrayLits ds elems t =
 mkArg :: ArrayType -> Exp -> FutharkM Arg
 mkArg t x | isFunctionType t = FunArg <$> compileFunArg x
   where
-    compileFunArg e@(Var f (Info fty) _) =
-      case unfoldArrow fty of
-        ([], _) ->
-          error $ unlines ["compileFunArg: not a function type:", prettyString e]
-        (paramTys, retTy) -> do
-          params <- forM paramTys $ \t' -> F.newParam "x" =<< compileArrayType t'
-          let args =
-                zipWith (\p -> Arg . SExpArg [] (F.Var $ F.paramName p)) params paramTys
+    compileFunArg e
+      | (f@(Var f' _ _), applied) <- unfoldApp e,
+        (paramTys, retTy) <- unfoldArrow $ arrayTypeOf f,
+        (appliedTys, missingTys) <- splitAt (length applied) paramTys,
+        not $ null missingTys = do
+          appliedArgs <- zipWithM mkArg appliedTys applied
+          params <- forM missingTys $ \t' -> F.newParam "x" =<< compileArrayType t'
+          let missingArgs =
+                zipWith (\p -> Arg . SExpArg [] (F.Var $ F.paramName p)) params missingTys
           F.mkLambda params $
-            singleton . F.subExpRes <$> applyName f args retTy
+            singleton . F.subExpRes <$> applyName f' (appliedArgs <> missingArgs) retTy
     compileFunArg e =
       error $ unlines ["compileFunArg: unhandled:", prettyString e]
 mkArg t_param x = do

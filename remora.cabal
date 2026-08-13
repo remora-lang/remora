@@ -28,6 +28,7 @@ library
       CLI.REPL
       CLI.Test
       CLI.Test.Parser
+      Defunctionalize
       Free
       Futhark
       Futhark.Intrinsics

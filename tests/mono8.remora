@@ -1,0 +1,11 @@
+;; ==
+;; tags { existential }
+;; output { 10 }
+(entry (main)
+(let (
+  (i-fun (mysum (@s)) (fn ((xs [Int @s])) (@sum _ (@s) xs)))
+)
+  (unbox (@q contents (@iota _ (1) [5]))
+    (@mysum _ (@q) contents))
+)
+)

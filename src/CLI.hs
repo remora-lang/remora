@@ -66,6 +66,7 @@ data RemoraMode
         typeCheck :: Bool,
         lambdalift :: Bool,
         monomorphize :: Bool,
+        defunctionalize :: Bool,
         json :: Bool
       }
   deriving (Data, Typeable, Show, Eq)
@@ -198,6 +199,7 @@ dev =
       typeCheck = False &= help "Type check.",
       lambdalift = False &= help "Lambda lift.",
       monomorphize = False &= help "Lambda lift & monomorphize.",
+      defunctionalize = False &= help "Lambda lift, monomorphize & defunctionalize.",
       json = False &= help "Serialize the result of the pass to JSON."
     }
     &= details
@@ -259,16 +261,17 @@ main = do
               }
       failed <- liftIO $ CLI.Test.runTests options test_paths
       when (failed > 0) $ liftIO exitFailure
-    run (Dev mfile mexpr pars uniq check lift mono json)
+    run (Dev mfile mexpr pars uniq check lift mono defun json)
       | pars = devPass pure pure
       | uniq = devPass Pipeline.uniquifyExp Pipeline.uniquify
       | check = devPass Pipeline.typeCheckExp Pipeline.typeCheck
       | lift = devPass Pipeline.lambdaLiftExp Pipeline.lambdaLift
       | mono = devPass Pipeline.monomorphizeExp Pipeline.monomorphize
+      | defun = devPass Pipeline.defunctionalizeExp Pipeline.defunctionalize
       | otherwise =
           except $
             Left
-              "remora dev: specify --parse, --uniquify, --typecheck, --lambdalift or --monomorphize"
+              "remora dev: specify --parse, --uniquify, --typecheck, --lambdalift, --monomorphize or --defunctionalize"
       where
         devPass ::
           (Pretty a, ToJSON a, Pretty b, ToJSON b) =>

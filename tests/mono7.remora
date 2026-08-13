@@ -1,0 +1,10 @@
+;; ==
+;; output { 4 }
+(entry (main)
+(let (
+  (val k 2)
+  (t-fun (konst (&t)) (fn ((x &t)) k))
+)
+  (+ ((t-app konst Int) 7) ((t-app konst Bool) #t))
+)
+)
