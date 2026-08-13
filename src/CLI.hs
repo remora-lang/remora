@@ -2,7 +2,7 @@
 
 module CLI (main) where
 
-import CLI.Futhark (FutharkBackend (..), backendOptions)
+import CLI.Futhark (FutharkBackend (..), compileAndRun, compileBackend)
 import CLI.REPL qualified
 import CLI.Test qualified
 import Control.Monad (when)
@@ -25,9 +25,8 @@ import Syntax
 import System.Console.CmdArgs hiding (args, modes)
 import System.Console.CmdArgs qualified as CmdArgs
 import System.Exit (exitFailure)
-import System.FilePath (dropExtension, takeFileName, (</>))
+import System.FilePath (dropExtension, takeFileName)
 import System.IO
-import System.Process
 import Util
 import Prelude hiding (exp)
 
@@ -42,7 +41,10 @@ data RemoraMode
   | Futhark
       { file :: Maybe FilePath,
         expr :: Maybe String,
-        backend :: Maybe FutharkBackend
+        backend :: Maybe FutharkBackend,
+        run_ :: Bool,
+        entry :: Maybe String,
+        args :: [String]
       }
   | Parse
       { file :: Maybe FilePath,
@@ -114,12 +116,31 @@ futhark =
         Nothing
           &= name "backend"
           &= help "Emit backend code (c|cuda). If omitted, print Futhark IR."
-          &= typ "c|cuda"
+          &= typ "c|cuda",
+      run_ =
+        False
+          &= explicit
+          &= name "run"
+          &= help "Compile and run, printing the result.",
+      entry =
+        Nothing
+          &= explicit
+          &= name "entry"
+          &= help "Entry point to run. Defaults to main."
+          &= typ "NAME",
+      args = [] &= CmdArgs.args
     }
     &= details
       [ "Turn a Remora program into Futhark.",
         "",
-        "If neither -f nor -e is passed, will read input from stdin."
+        "If neither -f nor -e is passed, will read input from stdin.",
+        "",
+        "With --run the program is compiled to a temporary directory and run on",
+        "the passed arguments, rather than written out:",
+        "> remora futhark --run -f prog.remora 2 3",
+        "> remora futhark --run --entry dot -f prog.remora \"[1.0 2.0]\" \"[3.0 4.0]\"",
+        "",
+        "Without --run, --backend writes the generated code beside the source."
       ]
 
 test :: RemoraMode
@@ -236,13 +257,13 @@ main = do
     run REPL = liftIO CLI.REPL.repl
     run (Interpret mfile mexpr mentry margs) = do
       input <- parseInput mfile mexpr
-      let entry_point = maybe CLI.Test.defaultEntry T.pack mentry
       v <-
         except $
           either
             Pipeline.interpretExp
             ( \prog ->
-                flip (Pipeline.interpret entry_point) prog =<< mapM evalArg margs
+                flip (Pipeline.interpret $ entryPoint mentry) prog
+                  =<< mapM evalArg margs
             )
             input
       liftIO $ T.putStrLn $ prettyText v
@@ -295,18 +316,27 @@ main = do
         putResult
           | json = B.putStr . (<> "\n") . encodePretty
           | otherwise = T.putStrLn . prettyText
-    run (Futhark mfile mexpr mbackend) = do
+    run (Futhark mfile mexpr mbackend do_run mentry margs) = do
       input <- parseInput mfile mexpr
       ir <- except $ either Pipeline.compileExp Pipeline.compile input
-      case mbackend of
-        Nothing -> liftIO $ T.putStrLn $ prettyText ir
-        Just backend ->
-          liftIO $
-            putStrLn
-              =<< futharkCompile
-                backend
-                (takeFileName $ dropExtension $ sourceName mfile)
+      case (do_run, mbackend) of
+        (False, Nothing) -> liftIO $ T.putStrLn $ prettyText ir
+        (False, Just backend) -> do
+          out <- ExceptT $ compileBackend backend "." base_name ir
+          liftIO $ T.putStr out
+        (True, _) -> do
+          input_args <- except $ mapM evalArg margs
+          v <-
+            ExceptT $
+              compileAndRun
+                (fromMaybe C mbackend)
+                base_name
                 ir
+                (entryPoint mentry)
+                input_args
+          liftIO $ T.putStrLn $ prettyText v
+      where
+        base_name = takeFileName $ dropExtension $ sourceName mfile
     run (Parse mfile mexpr) = do
       input <- parseInput mfile mexpr
       liftIO $ either (problem . prettyText) (T.putStrLn . prettyText) input
@@ -334,14 +364,5 @@ main = do
       Pipeline.interpretExp
         =<< Parser.parseExp "<arg>" (T.pack s)
 
-    futharkCompile :: FutharkBackend -> String -> Text -> IO String
-    futharkCompile backend fname ir = do
-      let src = "." </> (fname <> ".fut_soacs")
-      T.writeFile src ir
-      readProcess
-        "futhark"
-        ( ["dev"]
-            <> backendOptions backend
-            <> [src]
-        )
-        []
+    entryPoint :: Maybe String -> Text
+    entryPoint = maybe CLI.Test.defaultEntry T.pack

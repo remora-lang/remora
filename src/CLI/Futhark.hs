@@ -1,6 +1,6 @@
 module CLI.Futhark
   ( FutharkBackend (..),
-    backendOptions,
+    compileBackend,
     compileAndRun,
   )
 where
@@ -42,9 +42,7 @@ compileAndRun ::
   IO (Either Error Interpreter.Val)
 compileAndRun backend name ir entry input =
   withSystemTempDirectory "remora" $ \dir -> do
-    let source = dir </> name <.> "fut_soacs"
-    T.writeFile source ir
-    compiled <- run "futhark" (["dev"] <> backendOptions backend <> [source]) mempty
+    compiled <- compileBackend backend dir name ir
     case compiled of
       Left err -> pure $ Left err
       Right _ ->
@@ -52,15 +50,22 @@ compileAndRun backend name ir entry input =
           Left err -> pure $ Left err
           Right stdin ->
             (futharkOutput =<<)
-              <$> run (dir </> name) ["-e", T.unpack entry] stdin
-  where
-    run program arguments stdin = do
-      result <- try $ readProcessWithExitCode program arguments $ T.unpack stdin
-      pure $ case result of
-        Left err -> Left $ T.pack $ show (err :: IOException)
-        Right (ExitSuccess, out, _) -> Right $ T.pack out
-        Right (ExitFailure _, out, err) ->
-          Left $ T.pack $ if null err then out else err
+              <$> runProgram (dir </> name) ["-e", T.unpack entry] stdin
+
+compileBackend :: FutharkBackend -> FilePath -> String -> Text -> IO (Either Error Text)
+compileBackend backend dir name ir = do
+  let source = dir </> name <.> "fut_soacs"
+  T.writeFile source ir
+  runProgram "futhark" (["dev"] <> backendOptions backend <> [source]) mempty
+
+runProgram :: FilePath -> [String] -> Text -> IO (Either Error Text)
+runProgram program arguments stdin = do
+  result <- try $ readProcessWithExitCode program arguments $ T.unpack stdin
+  pure $ case result of
+    Left err -> Left $ T.pack $ show (err :: IOException)
+    Right (ExitSuccess, out, _) -> Right $ T.pack out
+    Right (ExitFailure _, out, err) ->
+      Left $ T.pack $ if null err then out else err
 
 futharkInput :: [Interpreter.Val] -> Either Error Text
 futharkInput = fmap T.unlines . mapM value
