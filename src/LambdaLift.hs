@@ -131,8 +131,17 @@ liftLambda lam = do
 mkLambdaBindM :: Atom -> LiftM Bind
 mkLambdaBindM (Lambda p body _ _) = do
   v <- newVName "lam"
-  body' <- bindVar (patVar p) (arrayTypeOf p) $ liftExp body
-  pure $ mkFunBind v (p :| []) body'
+  uncurry (mkFunBind v) <$> flattenLambdas p body
+  where
+    flattenLambdas param e =
+      bindVar (patVar param) (arrayTypeOf param) $
+        case asScalar e of
+          Just (Lambda param' inner _ _) -> do
+            (ps, body') <- flattenLambdas param' inner
+            pure (param NE.<| ps, body')
+          _ -> do
+            body' <- liftExp e
+            pure (param :| [], body')
 mkLambdaBindM (TLambda tp body _ _) = do
   v <- newVName "tlam"
   body' <- bindTypeParams [tp] $ liftExp body
