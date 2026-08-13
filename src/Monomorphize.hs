@@ -1,6 +1,6 @@
 module Monomorphize (monomorphize, monomorphizeExp) where
 
-import Binds (emitBind)
+import Binds (collectBinds, emitBind)
 import Control.Monad.Error.Class
 import Control.Monad.State
 import Data.Bifunctor
@@ -38,13 +38,14 @@ monoProg (Prog decs) = Prog <$> monoDecls decs
 monoDecls :: [Decl] -> MonoM [Decl]
 monoDecls [] = pure []
 monoDecls (Def b : decs) =
-  withBind b $ \kept ->
-    maybe id ((:) . Def) kept <$> monoDecls decs
+  withBind b $ \instances kept ->
+    ((map Def instances <> maybe [] (pure . Def) kept) <>) <$> monoDecls decs
 monoDecls (Entry f ps mt body t pos : decs) = do
-  entry <-
-    bindVars (patVarTypes ps) $
-      Entry f ps mt <$> monoExp body <*> pure t <*> pure pos
-  (entry :) <$> monoDecls decs
+  (entry, instances) <-
+    collectBinds $
+      bindVars (patVarTypes ps) $
+        Entry f ps mt <$> monoExp body <*> pure t <*> pure pos
+  ((map Def instances <> [entry]) <>) <$> monoDecls decs
 
 monoAtom :: Atom -> MonoM Atom
 monoAtom a@Base {} = pure a
@@ -98,7 +99,8 @@ monoExp (FieldProj e f t pos) =
 withBinds :: [Bind] -> ([Bind] -> MonoM a) -> MonoM a
 withBinds [] k = k []
 withBinds (b : bs) k =
-  withBind b $ \mkept ->
+  withBind b $ \instances mkept -> do
+    mapM_ emitBind instances
     maybe id bindLocal mkept $ withBinds bs $ k . maybe id (:) mkept
   where
     bindLocal :: Bind -> MonoM a -> MonoM a
@@ -107,7 +109,7 @@ withBinds (b : bs) k =
         Just v -> bindVar v (arrayTypeOf kept) m
         Nothing -> m
 
-withBind :: Bind -> (Maybe Bind -> MonoM a) -> MonoM a
+withBind :: Bind -> ([Bind] -> Maybe Bind -> MonoM a) -> MonoM a
 withBind (BindTFun v ps _ body _ _) m =
   withPolyDef v (ParamType <$> NE.toList ps) body m
 withBind (BindIFun v ps _ body _ _) m =
@@ -115,19 +117,20 @@ withBind (BindIFun v ps _ body _ _) m =
 withBind (BindVal v mt e pos) m = do
   poly <- asPoly e
   case poly of
-    Just poly' -> bindDef v poly' $ m Nothing
+    Just poly' -> bindDef v poly' $ m mempty Nothing
     Nothing -> do
-      e' <- monoExp e
-      m $ Just $ BindVal v mt e' pos
+      (e', instances) <- collectBinds $ monoExp e
+      m instances $ Just $ BindVal v mt e' pos
 withBind (BindFun f ps mt body t pos) m = do
-  body' <- bindVars (patVarTypes $ NE.toList ps) $ monoExp body
-  m $ Just $ BindFun f ps mt body' t pos
-withBind b@(BindISpace ip _ _) m = bindISpaceParams [ip] $ m $ Just b
-withBind b@BindType {} m = m $ Just b
+  (body', instances) <-
+    collectBinds $ bindVars (patVarTypes $ NE.toList ps) $ monoExp body
+  m instances $ Just $ BindFun f ps mt body' t pos
+withBind b@(BindISpace ip _ _) m = bindISpaceParams [ip] $ m mempty $ Just b
+withBind b@BindType {} m = m mempty $ Just b
 
-withPolyDef :: VName -> [Param] -> Exp -> (Maybe Bind -> MonoM a) -> MonoM a
+withPolyDef :: VName -> [Param] -> Exp -> ([Bind] -> Maybe Bind -> MonoM a) -> MonoM a
 withPolyDef v ps body k =
-  bindDef v (PolyFun (Just v) (ps <> ps') freeBody) $ k Nothing
+  bindDef v (PolyFun (Just v) (ps <> ps') freeBody) $ k mempty Nothing
   where
     (ps', freeBody) = unfoldLambda body
 

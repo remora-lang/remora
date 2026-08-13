@@ -4,7 +4,8 @@
 -- doesn't actually matter in practice.
 module LambdaLift (lambdaLift, lambdaLiftExp) where
 
-import Binds (emitBind)
+import Binds (collectBinds, emitBind)
+import Control.Monad (forM)
 import Control.Monad.State (state)
 import Data.List (partition)
 import Data.List.NonEmpty (NonEmpty (..))
@@ -27,7 +28,9 @@ lambdaLiftExp e =
   state $ \tag -> runLift tag $ liftExp e >>= insertBindsExp
 
 liftProg :: Prog -> LiftM Prog
-liftProg (Prog decs) = Prog <$> mapM liftDecl decs
+liftProg (Prog decs) = fmap (Prog . concat) $ forM decs $ \dec -> do
+  (dec', lifted) <- collectBinds $ liftDecl dec
+  pure $ map Def lifted <> [dec']
 
 liftDecl :: Decl -> LiftM Decl
 liftDecl (Def b) = Def <$> liftBind b

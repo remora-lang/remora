@@ -281,7 +281,10 @@ instance
     Let (NE.zipWith substitute substs bs) (substitute (NE.last substs) body) (substitute s t) pos
     where
       substs = NE.scanl (\acc b -> foldl without acc $ bindVars b) s bs
-  substitute s (Struct fs i pos) =
-    Struct (NE.map (second (substitute s)) fs) i pos
-  substitute s (FieldProj e f i pos) =
-    FieldProj (substitute s e) f i pos
+  substitute s (Struct fs t pos) =
+    Struct
+      (NE.map (\(f, sh, e) -> (f, substitute s sh, substitute s e)) fs)
+      (substitute s t)
+      pos
+  substitute s (FieldProj e f t pos) =
+    FieldProj (substitute s e) f (substitute s t) pos
