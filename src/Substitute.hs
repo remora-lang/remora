@@ -85,8 +85,11 @@ without s v =
 class Substitutable v a | a -> v where
   substitute :: (Ord v) => Subst v -> a -> a
 
+substVar :: (Ord v) => Subst v -> v -> v
+substVar s v = fromMaybe v $ substVars s M.!? v
+
 instance Substitutable VName VName where
-  substitute s v = fromMaybe v $ substVars s M.!? v
+  substitute = substVar
 
 instance (Substitutable v a) => Substitutable v [a] where
   substitute = map . substitute
@@ -195,7 +198,11 @@ instance
   substitute s (Base b t pos) =
     Base b (substitute s t) pos
   substitute s (Lambda pat body t pos) =
-    Lambda (substitute s pat) (substitute s body) (substitute s t) pos
+    Lambda
+      (substitute s pat)
+      (substitute (s `without` patVar pat) body)
+      (substitute s t)
+      pos
   substitute s (TLambda tp body t pos) =
     TLambda
       tp
@@ -225,7 +232,13 @@ instance
   substitute s (BindISpace ip isp pos) =
     BindISpace ip (substitute s isp) pos
   substitute s (BindFun x pats mte body t pos) =
-    BindFun x (substitute s pats) (substitute s mte) (substitute s body) (substitute s t) pos
+    BindFun
+      x
+      (substitute s pats)
+      (substitute s mte)
+      (substitute (foldl without s $ fmap patVar pats) body)
+      (substitute s t)
+      pos
   substitute s (BindTFun x tps mte body t pos) =
     let s' = foldl without s $ concatMap toList tps
      in BindTFun x tps (substitute s' mte) (substitute s' body) (substitute s t) pos
@@ -241,7 +254,7 @@ instance
   Substitutable v (ExpBase te tp f v)
   where
   substitute s (Var x t pos) =
-    Var x (substitute s t) pos
+    Var (substVar s x) (substitute s t) pos
   substitute s (Array dims as t pos) =
     Array dims (substitute s as) (substitute s t) pos
   substitute s (EmptyArray dims te t pos) =
@@ -261,7 +274,7 @@ instance
       ip
       x
       (substitute s box)
-      (substitute (s `without` unISpaceParam ip) body)
+      (substitute (foldl without s [unISpaceParam ip, x]) body)
       (substitute s t)
       pos
   substitute s (Let bs body t pos) =
