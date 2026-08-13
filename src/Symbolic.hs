@@ -5,7 +5,6 @@
 
 module Symbolic
   ( maximumShape,
-    askShapes,
     (@=),
     (\\),
   )
@@ -15,6 +14,7 @@ import Control.Monad
 import Control.Monad.State.Class
 import Control.Monad.Trans
 import Control.Monad.Trans.State (StateT, evalStateT)
+import Data.List (isPrefixOf)
 import Data.Map (Map)
 import Data.Map qualified as M
 import Data.SBV hiding (MonadSymbolic, Symbolic, free, prove, sat, symbolic)
@@ -124,30 +124,44 @@ instance SolverContext (Symbolic v) where
   contextState = lift contextState
   internalVariable = lift . internalVariable
 
-askShapes ::
-  (Ord v, Pretty v) =>
-  (SShape -> SShape -> SBool) ->
-  Shape v ->
-  Shape v ->
-  Bool
-askShapes op s t =
+data ShapeRel = ShapeEq | ShapePrefixOf
+
+askShapes :: (Ord v, Pretty v) => ShapeRel -> Shape v -> Shape v -> Bool
+askShapes rel s t
+  | normShape s == normShape t = True
+  | Just ds <- toInts s,
+    Just es <- toInts t =
+      relates rel ds es
+  | otherwise = proveShapes rel s t
+  where
+    toInts = shapeToInts (dimToInt $ const Nothing) (const Nothing)
+    relates ShapeEq = (==)
+    relates ShapePrefixOf = isPrefixOf
+
+proveShapes :: (Ord v, Pretty v) => ShapeRel -> Shape v -> Shape v -> Bool
+proveShapes rel s t =
   let (ThmResult res) = unsafePerformIO $ do
-        prove $ op <$> toSShape s <*> toSShape t
+        prove $ symRel <$> toSShape s <*> toSShape t
    in case res of
         Unsatisfiable _ _ -> True
         _else -> False
+  where
+    symRel =
+      case rel of
+        ShapeEq -> (.==)
+        ShapePrefixOf -> SL.isPrefixOf
 
 (@=) :: (Ord v, Pretty v) => Shape v -> Shape v -> Bool
-(@=) = askShapes (.==)
+(@=) = askShapes ShapeEq
 
 maximumShape :: (Ord v, Pretty v, Foldable t) => t (Shape v) -> Maybe (Shape v)
 maximumShape =
   foldM
     ( \next shape ->
-        if askShapes SL.isPrefixOf shape next
+        if askShapes ShapePrefixOf shape next
           then pure next
           else
-            if askShapes SL.isPrefixOf next shape
+            if askShapes ShapePrefixOf next shape
               then pure shape
               else mempty
     )
