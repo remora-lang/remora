@@ -35,11 +35,12 @@ initEnv = Env mempty mempty mempty
 
 data St = St
   { stateBinds :: [Bind],
+    stateLifted :: Map VName Exp,
     stateTag :: Tag
   }
 
 initSt :: Tag -> St
-initSt = St mempty
+initSt = St mempty mempty
 
 instance HasBinds St where
   getBinds = stateBinds
@@ -67,6 +68,12 @@ instance MonadVName LiftM where
 
 lookupVar :: VName -> LiftM (Maybe ArrayType)
 lookupVar v = asks (M.lookup v . envVars)
+
+addLifted :: VName -> Exp -> LiftM ()
+addLifted v e = modify $ \st -> st {stateLifted = M.insert v e $ stateLifted st}
+
+lookupLifted :: VName -> LiftM (Maybe Exp)
+lookupLifted v = gets $ M.lookup v . stateLifted
 
 bindVar :: VName -> ArrayType -> LiftM a -> LiftM a
 bindVar v t = bindVars [(v, t)]
@@ -110,14 +117,14 @@ appCaptured v capt t =
     foldl mkISpaceApp (foldl mkTypeApp (mkVar v t) $ capturedTypes capt) $
       capturedISpaces capt
 
-captured :: Atom -> LiftM Captured
-captured atom =
+captured :: (Free VName a) => a -> LiftM Captured
+captured x =
   Captured
     <$> (catMaybes <$> traverse capturedTerm (S.toList $ freeTermVars free))
     <*> traverse capturedType (S.toList $ freeTypeVars free)
     <*> traverse capturedISpace (S.toList $ freeISpaceVars free)
   where
-    free = freeVars atom
+    free = freeVars x
 
     capturedTerm v = (fmap . fmap) (v,) $ lookupVar v
 

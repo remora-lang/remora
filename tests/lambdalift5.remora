@@ -1,0 +1,13 @@
+;; ==
+;; output { 12 }
+(entry (main)
+(let (
+  (val (g : Int) 5)
+)
+  (let (
+    (fun (h (x Int)) (+ x g))
+  )
+    ((fn ((y Int)) (h y)) 7)
+  )
+)
+)

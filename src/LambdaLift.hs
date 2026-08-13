@@ -6,6 +6,7 @@ module LambdaLift (lambdaLift, lambdaLiftExp) where
 
 import Binds (emitBind)
 import Control.Monad.State (state)
+import Data.List (partition)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Maybe
@@ -58,7 +59,7 @@ liftBind b@BindType {} = pure b
 liftBind b@BindISpace {} = pure b
 
 liftExp :: Exp -> LiftM Exp
-liftExp e@Var {} = pure e
+liftExp e@(Var v _ _) = fromMaybe e <$> lookupLifted v
 liftExp e@EmptyArray {} = pure e
 liftExp e@EmptyFrame {} = pure e
 liftExp (Array [] (atom :| []) _ _)
@@ -91,12 +92,16 @@ liftExp (Unbox ip x box body t pos) = do
 liftExp (Let binds body t pos) = do
   binds' <- liftBinds $ NE.toList binds
   body' <- withBinds binds' $ liftExp body
-  pure $ Let (NE.fromList binds') body' t pos
+  pure $ case NE.nonEmpty binds' of
+    Nothing -> body'
+    Just bs' -> Let bs' body' t pos
   where
     liftBinds [] = pure []
     liftBinds (b : bs) = do
-      b' <- liftBind b
-      (b' :) <$> withBind b' (liftBinds bs)
+      kept <- liftLocalFun =<< liftBind b
+      case kept of
+        Nothing -> liftBinds bs
+        Just b' -> (b' :) <$> withBind b' (liftBinds bs)
 liftExp (Struct s t pos) = do
   let (fs, shps, es) = neUnzip3 s
   es' <- mapM liftExp es
@@ -110,16 +115,37 @@ liftAtom a@Base {} = pure a
 liftAtom (Box i body te t pos) =
   Box i <$> liftExp body <*> pure te <*> pure t <*> pure pos
 liftAtom a@Lambda {} =
-  error $ "liftAtom: unlifted lambda: " <> prettyString a
+  error $ unlines ["liftAtom: unlifted lambda:", prettyString a]
 liftAtom a@TLambda {} =
-  error $ "liftAtom: unlifted lambda: " <> prettyString a
+  error $ unlines ["liftAtom: unlifted lambda:", prettyString a]
 liftAtom a@ILambda {} =
-  error $ "liftAtom: unlifted lambda: " <> prettyString a
+  error $ unlines ["liftAtom: unlifted lambda:", prettyString a]
+
+liftLocalFun :: Bind -> LiftM (Maybe Bind)
+liftLocalFun b@(BindFun f params mt body t pos) = do
+  capt <- captured b
+  case partition (isFunctionType . snd) $ capturedTerms capt of
+    ([], _) -> do
+      f' <- newVName $ varName f
+      addLifted f =<< hoistBind (BindFun f' params mt body t pos)
+      pure Nothing
+    (_, []) -> pure $ Just b
+    (funs, vals) ->
+      error $
+        unlines
+          [ "liftLocalFun: cannot lift " <> prettyString f <> ":",
+            "captures functions " <> prettyString (map fst funs),
+            "and values " <> prettyString (map fst vals),
+            prettyString b
+          ]
+liftLocalFun b = pure $ Just b
 
 liftLambda :: Atom -> LiftM Exp
-liftLambda lam = do
-  capt <- captured lam
-  inner <- mkLambdaBindM lam
+liftLambda lam = hoistBind =<< mkLambdaBindM lam
+
+hoistBind :: Bind -> LiftM Exp
+hoistBind inner = do
+  capt <- captured inner
   bind <-
     renameBind $
       addTypeParams (capturedTypes capt) $
@@ -151,4 +177,4 @@ mkLambdaBindM (ILambda ip body _ _) = do
   body' <- bindISpaceParams [ip] $ liftExp body
   pure $ BindIFun v (ip :| []) Nothing body' (Info $ Pi ip $ arrayTypeOf body') noSrcPos
 mkLambdaBindM atom =
-  error $ "mkLambdaBindM: not a lambda: " <> prettyString atom
+  error $ unlines ["mkLambdaBindM: not a lambda:", prettyString atom]
