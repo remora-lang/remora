@@ -1,0 +1,5 @@
+;; ==
+;; output { 24 }
+(entry (main)
+((i-app (t-app reduce Int) 3 (dims)) * [1 2 3 4])
+)

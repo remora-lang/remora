@@ -14,15 +14,17 @@ module Util
     noSrcPos,
     (.>),
     splitOn,
+    chunksOf,
     for,
     neUnzip3,
     neZipWithM,
-    neZip3
+    neZip3,
   )
 where
 
 import Control.Applicative
 import Control.Monad
+import Data.List.NonEmpty qualified as NE
 import Data.Text (Text)
 import Data.Text qualified as T
 import Prettyprinter
@@ -32,7 +34,6 @@ import Text.Megaparsec.Pos
   ( SourcePos (..),
     mkPos,
   )
-import qualified Data.List.NonEmpty as NE
 
 type Error = T.Text
 
@@ -74,11 +75,13 @@ asumM = fmap asum . sequence
 
 neUnzip3 :: NE.NonEmpty (a, b, c) -> (NE.NonEmpty a, NE.NonEmpty b, NE.NonEmpty c)
 neUnzip3 ((x, y, z) NE.:| r) = (x NE.:| xs, y NE.:| ys, z NE.:| zs)
-  where (xs, ys, zs) = unzip3 r
+  where
+    (xs, ys, zs) = unzip3 r
 
 neZip3 :: NE.NonEmpty a -> NE.NonEmpty b -> NE.NonEmpty c -> NE.NonEmpty (a, b, c)
 neZip3 (x NE.:| xs) (y NE.:| ys) (z NE.:| zs) = (x, y, z) NE.:| r
-  where r = zip3 xs ys zs
+  where
+    r = zip3 xs ys zs
 
 neZipWithM :: (Applicative m) => (a -> b -> m c) -> NE.NonEmpty a -> NE.NonEmpty b -> m (NE.NonEmpty c)
 neZipWithM f xs ys = sequenceA (NE.zipWith f xs ys)
@@ -99,6 +102,10 @@ splitOn [] _ = []
 splitOn xs delim = case span (/= delim) xs of
   (m, []) -> [m]
   (m, _ : rest) -> m : splitOn rest delim
+
+chunksOf :: Int -> [a] -> [[a]]
+chunksOf _ [] = []
+chunksOf n as = take n as : chunksOf n (drop n as)
 
 for :: [a] -> (a -> b) -> [b]
 for = flip map

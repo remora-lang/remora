@@ -1,0 +1,5 @@
+;; ==
+;; output { 7 }
+(entry (main)
+((i-app (t-app reduce/zero Int) 0 (dims)) + 7 (array [0] Int))
+)

@@ -6,13 +6,15 @@ module Interpreter.Intrinsics
 where
 
 import Control.Monad
+import Data.Binary.Get (getFloatle, runGet)
 import Data.Bits hiding (And)
+import Data.ByteString.Lazy qualified as B
+import Data.Foldable (foldrM)
 import Data.List qualified as L
 import Data.Map (Map)
 import Data.Map qualified as M
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.ByteString.Lazy qualified as B
 import Debug.Trace (trace)
 import Interpreter.Value
 import Intrinsics qualified
@@ -21,7 +23,6 @@ import Syntax hiding (Add, Mul, Sub, asScalar)
 import System.IO.Unsafe (unsafePerformIO)
 import Util
 import VName
-import Data.Binary.Get (getFloatle, runGet)
 
 type Intrinsics m = [IntrinsicVal m]
 
@@ -199,6 +200,15 @@ intrinsics =
              in case cells of
                   c : cs -> foldM (applyFun op) c cs
                   [] -> error "reduce: empty array"
+    intrinsic "reduce/zero" =
+      tFun1 $ \_ ->
+        pure $ iFun2 $ \_ s ->
+          pure $ vFun3 $ \opv zero arr ->
+            let op = asScalar opv
+                s' = asShape s
+                (shape, elems) = asArray arr
+                cells = map (ValArray s') $ split (product $ shape \\ s') (product s') elems
+             in foldM (applyFun op) zero cells
     intrinsic "fold" =
       tFun2 $ \_ _ ->
         pure $ iFun3 $ \_ s _ ->
@@ -208,6 +218,15 @@ intrinsics =
                 (shape, elems) = asArray arr
                 cells = map (ValArray s') $ split (product $ shape \\ s') (product s') elems
              in foldM (applyFun op) zero cells
+    intrinsic "fold-right" =
+      tFun2 $ \_ _ ->
+        pure $ iFun3 $ \_ s _ ->
+          pure $ vFun3 $ \opv zero arr ->
+            let op = asScalar opv
+                s' = asShape s
+                (shape, elems) = asArray arr
+                cells = map (ValArray s') $ split (product $ shape \\ s') (product s') elems
+             in foldrM (applyFun op) zero cells
     intrinsic "sum" =
       let valSum (ValBase (IntVal x)) = x
           valSum (ValArray _ vs) = Prelude.sum $ map valSum vs
@@ -280,10 +299,10 @@ intrinsics =
         pure $ vFun1 $ \filename ->
           case i of
             Right shp ->
-                pure $ unsafePerformIO $ do
-                    file <- B.readFile (valToString filename)
-                    let floats = runGet (mapM (const getFloatle) [0..(product shp - 1)]) file
-                    pure $ ValArray shp (ValBase . FloatVal <$> floats)
+              pure $ unsafePerformIO $ do
+                file <- B.readFile (valToString filename)
+                let floats = runGet (mapM (const getFloatle) [0 .. (product shp - 1)]) file
+                pure $ ValArray shp (ValBase . FloatVal <$> floats)
             _ -> error "read-file-f32bin: provided index not a shape"
     intrinsic "reify-dim" =
       iFun1 $ pure . ValBase . IntVal . asDim

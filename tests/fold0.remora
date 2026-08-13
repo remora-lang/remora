@@ -1,0 +1,5 @@
+;; ==
+;; output { 90 }
+(entry (main)
+(@fold (Int Int) (3 [] []) - 100 [1 2 3 4])
+)

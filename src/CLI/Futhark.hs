@@ -64,7 +64,7 @@ futharkOutput out =
     Nothing -> Left $ "cannot read program output:\n" <> out
 
 futharkValue :: F.Value -> Either Error Interpreter.Val
-futharkValue (F.I32Value shape vec) =
+futharkValue (F.I64Value shape vec) =
   Right $ toVal shape $ map (IntVal . fromIntegral) $ SVec.toList vec
 futharkValue (F.F32Value shape vec) =
   Right $ toVal shape $ map FloatVal $ SVec.toList vec

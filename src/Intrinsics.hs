@@ -106,6 +106,17 @@ intrinsics' =
                              arrayOf (ArrayType elem_t) (ShapeDim $ DimN 1 <> DimVar "d")
                         in scalar $ NE.fromList [op_t, arg_t] `arrowType` elem_t
              ),
+             ( "reduce/zero",
+               scalar $
+                 Forall (AtomTypeParam "t") $
+                   scalar $
+                     piType (NE.fromList [DimParam "d", ShapeParam "s"]) $
+                       let elem_t = AtomTypeVar "t" :@ ShapeVar "s"
+                           op_t = scalar $ NE.fromList [elem_t, elem_t] `arrowType` elem_t
+                           arg_t =
+                             arrayOf (ArrayType elem_t) (ShapeDim $ DimVar "d")
+                        in scalar $ NE.fromList [op_t, elem_t, arg_t] `arrowType` elem_t
+             ),
              ( "sum",
                scalar $
                  Pi (ShapeParam "s") $
@@ -192,12 +203,24 @@ intrinsics' =
              ),
              ( "fold",
                scalar $
-                 forallType (NE.fromList [AtomTypeParam "t", AtomTypeParam "t2"]) $
+                 forallType (NE.fromList [AtomTypeParam "t1", AtomTypeParam "t2"]) $
                    scalar $
-                     piType (NE.fromList [DimParam "d", ShapeParam "s", ShapeParam "s2"]) $
-                       let elem_t = AtomTypeVar "t" :@ ShapeVar "s"
+                     piType (NE.fromList [DimParam "d", ShapeParam "s1", ShapeParam "s2"]) $
+                       let elem_t = AtomTypeVar "t1" :@ ShapeVar "s1"
                            acc_t = AtomTypeVar "t2" :@ ShapeVar "s2"
                            op_t = scalar $ NE.fromList [acc_t, elem_t] `arrowType` acc_t
+                           arg_t =
+                             arrayOf (ArrayType elem_t) (ShapeDim $ DimN 1 <> DimVar "d")
+                        in scalar $ NE.fromList [op_t, acc_t, arg_t] `arrowType` acc_t
+             ),
+             ( "fold-right",
+               scalar $
+                 forallType (NE.fromList [AtomTypeParam "t1", AtomTypeParam "t2"]) $
+                   scalar $
+                     piType (NE.fromList [DimParam "d", ShapeParam "s1", ShapeParam "s2"]) $
+                       let elem_t = AtomTypeVar "t1" :@ ShapeVar "s1"
+                           acc_t = AtomTypeVar "t2" :@ ShapeVar "s2"
+                           op_t = scalar $ NE.fromList [elem_t, acc_t] `arrowType` acc_t
                            arg_t =
                              arrayOf (ArrayType elem_t) (ShapeDim $ DimN 1 <> DimVar "d")
                         in scalar $ NE.fromList [op_t, acc_t, arg_t] `arrowType` acc_t

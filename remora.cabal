@@ -30,6 +30,8 @@ library
       CLI.Test.Parser
       Free
       Futhark
+      Futhark.Intrinsics
+      Futhark.Monad
       Imports
       Interpreter
       Interpreter.Intrinsics

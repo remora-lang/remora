@@ -18,6 +18,7 @@ module Prop
     convertAtomTypeExp,
     convertArrayTypeExp,
     unfoldArrow,
+    isFunctionType,
     peelArrayType,
     arrayOf,
     findRet,
@@ -351,6 +352,10 @@ unfoldArrow :: (Ord v) => ArrayType v -> ([ArrayType v], ArrayType v)
 unfoldArrow ((param :-> ret) :@ s)
   | s @= mempty = first (param :) (unfoldArrow ret)
 unfoldArrow t = ([], t)
+
+isFunctionType :: ArrayType v -> Bool
+isFunctionType ((_ :-> _) :@ _) = True
+isFunctionType _ = False
 
 peelArrayType :: (Ord v) => ArrayType v -> ArrayType v
 peelArrayType (a :@ s) = a :@ peelShape s

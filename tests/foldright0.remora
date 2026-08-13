@@ -1,0 +1,5 @@
+;; ==
+;; output { 98 }
+(entry (main)
+(@fold-right (Int Int) (3 [] []) - 100 [1 2 3 4])
+)
