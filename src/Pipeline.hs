@@ -56,8 +56,8 @@ compile = runPass . compileM
 compileExp :: UncheckedExp -> Either Error Text
 compileExp = runPass . compileExpM
 
-interpret :: [Interpreter.Val] -> UncheckedProg -> Either Error Interpreter.Val
-interpret args = runPass . interpretM args
+interpret :: Text -> [Interpreter.Val] -> UncheckedProg -> Either Error Interpreter.Val
+interpret entry args = runPass . interpretM entry args
 
 interpretExp :: UncheckedExp -> Either Error Interpreter.Val
 interpretExp = runPass . interpretExpM
@@ -114,11 +114,11 @@ compileExpM =
     >=> Monomorphize.monomorphizeExp
     >=> Futhark.compileExp
 
-interpretM :: [Interpreter.Val] -> UncheckedProg -> PassM Interpreter.Val
-interpretM args =
+interpretM :: Text -> [Interpreter.Val] -> UncheckedProg -> PassM Interpreter.Val
+interpretM entry args =
   Uniquify.uniquify
     >=> TypeCheck.check
-    >=> Interpreter.interpret args
+    >=> Interpreter.interpret entry args
 
 interpretExpM :: UncheckedExp -> PassM Interpreter.Val
 interpretExpM =

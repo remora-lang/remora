@@ -37,6 +37,7 @@ data TestBlock = TestBlock
   { testDescription :: Text,
     testTags :: [Text],
     testModes :: [Mode],
+    testEntry :: Maybe Text,
     testRuns :: [TestRun]
   }
 
@@ -105,7 +106,7 @@ divider :: Text
 divider = "=="
 
 directives :: [Text]
-directives = ["tags", "modes", "input", "output", "error"]
+directives = ["tags", "modes", "entry", "input", "output", "error"]
 
 keywords :: Set Text
 keywords = S.fromList $ directives <> map prettyText allModes
@@ -131,6 +132,7 @@ pTestBlock = do
       TestBlock (T.strip $ T.unlines description)
         <$> toPermutationWithDefault mempty pTags
         <*> toPermutationWithDefault allModes pModes
+        <*> toPermutationWithDefault Nothing (Just <$> pEntry)
   runs <- many pRun
   block (if null runs then [TestRun mempty Nothing] else runs)
     <$ noRepeatedDirective
@@ -146,11 +148,14 @@ pTestBlock = do
     lLine :: Parser Text
     lLine = restOfLine <* eol
 
+lName :: Parser Text
+lName = lexeme $ T.pack <$> some (satisfy $ \c -> isAlphaNum c || c `elem` ['-', '_'])
+
 pTags :: Parser [Text]
-pTags = lKeyword "tags" >> braces (many lTag)
-  where
-    lTag :: Parser Text
-    lTag = lexeme $ T.pack <$> some (satisfy $ \c -> isAlphaNum c || c `elem` ['-', '_'])
+pTags = lKeyword "tags" >> braces (many lName)
+
+pEntry :: Parser Text
+pEntry = lKeyword "entry" >> symbol ":" >> lName
 
 pModes :: Parser [Mode]
 pModes = lKeyword "modes" >> braces (some pMode)
@@ -172,7 +177,7 @@ pResult :: Parser Expected
 pResult =
   choice
     [ ExpectOutput <$> (lKeyword "output" >> braces pVal),
-      lKeyword "error" >> char ':' >> pRegex
+      lKeyword "error" >> symbol ":" >> pRegex
     ]
 
 pRegex :: Parser Expected

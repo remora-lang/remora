@@ -1,0 +1,27 @@
+;; ==
+;; input { 2 3 }
+;; output { 5 }
+
+;; ==
+;; entry: add
+;; input { 2 3 }
+;; output { 5 }
+;; input { 10 20 }
+;; output { 30 }
+
+;; ==
+;; entry: sub
+;; input { 2 3 }
+;; output { -1 }
+
+(entry (main (x Int) (y Int))
+  (+ x y)
+)
+
+(entry (add (x Int) (y Int))
+  (+ x y)
+)
+
+(entry (sub (x Int) (y Int))
+  (- x y)
+)

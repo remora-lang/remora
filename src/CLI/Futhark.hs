@@ -37,9 +37,10 @@ compileAndRun ::
   FutharkBackend ->
   String ->
   Text ->
+  Text ->
   [Interpreter.Val] ->
   IO (Either Error Interpreter.Val)
-compileAndRun backend name ir input =
+compileAndRun backend name ir entry input =
   withSystemTempDirectory "remora" $ \dir -> do
     let source = dir </> name <.> "fut_soacs"
     T.writeFile source ir
@@ -49,7 +50,9 @@ compileAndRun backend name ir input =
       Right _ ->
         case futharkInput input of
           Left err -> pure $ Left err
-          Right stdin -> (futharkOutput =<<) <$> run (dir </> name) [] stdin
+          Right stdin ->
+            (futharkOutput =<<)
+              <$> run (dir </> name) ["-e", T.unpack entry] stdin
   where
     run program arguments stdin = do
       result <- try $ readProcessWithExitCode program arguments $ T.unpack stdin
@@ -82,7 +85,7 @@ futharkOutput out =
     Just [value] -> futharkValue value
     Just values ->
       Left $ "expected one result value, but got " <> prettyText (length values)
-    Nothing -> Left $ "cannot read program output:\n" <> out
+    Nothing -> Left $ T.unlines ["cannot read program output:", out]
 
 futharkValue :: F.Value -> Either Error Interpreter.Val
 futharkValue (F.I64Value shape vec) =

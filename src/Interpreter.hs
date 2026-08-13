@@ -40,22 +40,22 @@ type TypeExp = Syntax.TypeExp VName
 
 type ArrayType = Syntax.ArrayType VName
 
-interpret :: [Val] -> Prog -> PassM Val
-interpret args (Prog decls) =
+interpret :: T.Text -> [Val] -> Prog -> PassM Val
+interpret entry args (Prog decls) =
   liftEither $
-    runReader (runExceptT $ runInterpM $ intProg args decls) initEnv
+    runReader (runExceptT $ runInterpM $ intProg entry args decls) initEnv
 
 interpretExp :: Exp -> PassM Val
 interpretExp e =
   liftEither $
     runReader (runExceptT $ runInterpM $ intExp e) initEnv
 
-intProg :: [Val] -> [Decl] -> InterpM Val
-intProg args decls = foldr intDecl runMain decls
+intProg :: T.Text -> [Val] -> [Decl] -> InterpM Val
+intProg entry args decls = foldr intDecl runEntry decls
   where
-    runMain =
-      case [(params, body) | Entry v params _ body _ _ <- decls, varName v == "main"] of
-        [] -> throwError "interpret: program has no main entry"
+    runEntry =
+      case [(params, body) | Entry v params _ body _ _ <- decls, varName v == entry] of
+        [] -> throwError $ "interpret: program has no " <> entry <> " entry"
         [(params, body)]
           | length params == length args -> do
               env <- ask
@@ -64,14 +64,14 @@ intProg args decls = foldr intDecl runMain decls
           | otherwise ->
               throwError $
                 T.unlines
-                  [ "interpret: main expects ",
+                  [ "interpret: " <> entry <> " expects",
                     T.show $ length params,
                     "arguments but got",
                     T.show $ length args
                   ]
-        _ -> throwError "interpret: multiple main entries"
+        _ -> throwError $ "interpret: multiple " <> entry <> " entries"
     apply (ValFun g) arg = g arg
-    apply _ _ = throwError "interpret: main over-applied"
+    apply _ _ = throwError $ "interpret: " <> entry <> " over-applied"
 
 intDecl :: Decl -> InterpM a -> InterpM a
 intDecl (Def b) m = intBind b m

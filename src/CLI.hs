@@ -36,6 +36,7 @@ data RemoraMode
   | Interpret
       { file :: Maybe FilePath,
         expr :: Maybe String,
+        entry :: Maybe String,
         args :: [String]
       }
   | Futhark
@@ -51,6 +52,7 @@ data RemoraMode
       { paths :: [FilePath],
         backend :: Maybe FutharkBackend,
         modes :: [String],
+        entries :: [String],
         tags :: [String],
         excludeTags :: [String],
         interpretExcludeTags :: [String],
@@ -88,6 +90,12 @@ interpret =
   Interpret
     { file = Nothing &= help "Interpret the passed file.",
       expr = Nothing &= help "Interpret an expression passed as an argument.",
+      entry =
+        Nothing
+          &= explicit
+          &= name "entry"
+          &= help "Entry point to run. Defaults to main."
+          &= typ "NAME",
       args = [] &= CmdArgs.args
     }
     &= details
@@ -128,6 +136,12 @@ test =
           &= name "modes"
           &= help "Run tests in these modes, ignoring their modes directive."
           &= typ "interpret|compile",
+      entries =
+        []
+          &= explicit
+          &= name "entry"
+          &= help "Only run blocks for these entry points."
+          &= typ "NAMES",
       tags =
         []
           &= explicit
@@ -162,12 +176,14 @@ test =
         "> ;; input { 2 3 }",
         "> ;; output { 5 }",
         "",
-        "Every input is passed to main and checked against the output after it.",
-        "A block with no input runs it with no arguments. Values may span lines.",
+        "Every input is checked against the output after it, and values may span",
+        "lines. A block tests main unless an entry directive names another:",
+        "> ;; entry: dot",
         "",
         "Blocks run in both modes unless their modes directive says otherwise.",
         "These flags narrow what runs, and each takes several values:",
         "> remora test --modes interpret tests/",
+        "> remora test --entry dot tests/",
         "> remora test --exclude-tags reify tests/",
         "> remora test --compile-exclude-tags higher-order tests/"
       ]
@@ -216,22 +232,26 @@ main = do
 
     run :: RemoraMode -> ExceptT Error IO ()
     run REPL = liftIO CLI.REPL.repl
-    run (Interpret mfile mexpr margs) = do
+    run (Interpret mfile mexpr mentry margs) = do
       input <- parseInput mfile mexpr
+      let entry_point = maybe CLI.Test.defaultEntry T.pack mentry
       v <-
         except $
           either
             Pipeline.interpretExp
-            (\prog -> flip Pipeline.interpret prog =<< mapM evalArg margs)
+            ( \prog ->
+                flip (Pipeline.interpret entry_point) prog =<< mapM evalArg margs
+            )
             input
       liftIO $ T.putStrLn $ prettyText v
-    run (Test test_paths mbackend mmodes mtags mexclude minterpret mcompile) = do
+    run (Test test_paths mbackend mmodes mentries mtags mexclude minterpret mcompile) = do
       test_modes <- except $ traverse CLI.Test.readMode $ concatMap words mmodes
       let tagList = map T.pack . concatMap words
           options =
             CLI.Test.Options
               { CLI.Test.optionsBackend = fromMaybe C mbackend,
                 CLI.Test.optionsModes = if null test_modes then Nothing else Just test_modes,
+                CLI.Test.optionsEntries = tagList mentries,
                 CLI.Test.optionsTags = tagList mtags,
                 CLI.Test.optionsExcludeTags = tagList mexclude,
                 CLI.Test.optionsInterpretExcludeTags = tagList minterpret,

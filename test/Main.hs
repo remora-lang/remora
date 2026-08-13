@@ -16,6 +16,7 @@ options =
   Options
     { optionsBackend = C,
       optionsModes = Nothing,
+      optionsEntries = mempty,
       optionsTags = mempty,
       optionsExcludeTags = mempty,
       optionsInterpretExcludeTags = mempty,
@@ -33,8 +34,8 @@ mkCase path = do
   pure $ case testBlocks path source of
     Left err -> [testCase (takeFileName path) $ assertFailure $ T.unpack err]
     Right blocks ->
-      [ testCase (T.unpack $ testLabel (takeFileName path) i mode) $ do
-          outcome <- runTest options path source run mode
+      [ testCase (T.unpack $ testLabel (takeFileName path) entry i mode) $ do
+          outcome <- runTest options path source entry run mode
           case (xfail, outcome) of
             (False, Passed) -> pure ()
             (False, Failed message) -> assertFailure $ T.unpack message
@@ -42,6 +43,7 @@ mkCase path = do
             (True, Passed) ->
               assertFailure "unexpectedly passed; drop the tag exempting it"
       | block <- filter (selected options) blocks,
+        let entry = entryFor block,
         (i, run) <- numberedRuns block,
         mode <- testModesFor options block,
         let xfail =
