@@ -1,4 +1,5 @@
 ;; ==
+;; tags { reify existential }
 ;; output { [1 2 3] }
 (entry (main)
   (unbox ($r x (@reify-shape _ ([1 2 3]))) x)

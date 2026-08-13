@@ -1,8 +1,10 @@
 module CLI.Test.Parser
   ( TestBlock (..),
+    TestRun (..),
     Expected (..),
     Mode (..),
-    testBlock,
+    allModes,
+    testBlocks,
     readMode,
   )
 where
@@ -10,6 +12,7 @@ where
 import Control.Monad (unless, void)
 import Control.Monad.Permutations
 import Data.Char (isAlphaNum)
+import Data.List (groupBy)
 import Data.Set (Set)
 import Data.Set qualified as S
 import Data.Text (Text)
@@ -34,7 +37,12 @@ data TestBlock = TestBlock
   { testDescription :: Text,
     testTags :: [Text],
     testModes :: [Mode],
-    testExpected :: Maybe Expected
+    testRuns :: [TestRun]
+  }
+
+data TestRun = TestRun
+  { runInput :: [Interpreter.Val],
+    runExpected :: Maybe Expected
   }
 
 data Expected
@@ -44,7 +52,10 @@ data Expected
 data Mode
   = Interpret
   | Compile
-  deriving (Eq, Show)
+  deriving (Eq, Show, Enum, Bounded)
+
+allModes :: [Mode]
+allModes = [minBound .. maxBound]
 
 instance Pretty Mode where
   pretty Interpret = "interpret"
@@ -52,11 +63,28 @@ instance Pretty Mode where
 
 type Parser = Parsec Void Text
 
-testBlock :: FilePath -> Text -> Either Error (Maybe TestBlock)
-testBlock = parseWith $ optional pTestBlock
+testBlocks :: FilePath -> Text -> Either Error [TestBlock]
+testBlocks fname source =
+  mapM (parseWith pTestBlock fname . blanked) $
+    filter (any (isDivider . snd)) commentGroups
+  where
+    numbered = zip [0 :: Int ..] $ T.lines source
+
+    commentGroups =
+      filter (all (isComment . snd)) $
+        groupBy (\x y -> isComment (snd x) == isComment (snd y)) numbered
+
+    isComment = T.isPrefixOf ";" . T.stripStart
+    isDivider = (== divider) . T.strip . uncomment
+    uncomment = T.map $ \c -> if c == ';' then ' ' else c
+
+    blanked group =
+      T.unlines [if i `S.member` block then uncomment l else "" | (i, l) <- numbered]
+      where
+        block = S.fromList $ map fst group
 
 readMode :: String -> Either Error Mode
-readMode = parseWith (spaceConsumer *> pMode <* eof) "<mode>" . T.pack
+readMode = parseWith (space *> pMode <* eof) "<mode>" . T.pack
 
 parseWith :: Parser a -> FilePath -> Text -> Either Error a
 parseWith p fname s =
@@ -64,32 +92,29 @@ parseWith p fname s =
     Left err -> Left $ T.pack $ errorBundlePretty err
     Right x -> Right x
 
-spaceConsumer :: Parser ()
-spaceConsumer = L.space space1 lCommentStart empty
-
 lexeme :: Parser a -> Parser a
-lexeme = L.lexeme spaceConsumer
+lexeme = L.lexeme space
 
 symbol :: Text -> Parser Text
-symbol = L.symbol spaceConsumer
+symbol = L.symbol space
 
 braces :: Parser a -> Parser a
 braces = between (symbol "{") (symbol "}")
 
+divider :: Text
+divider = "=="
+
 directives :: [Text]
-directives = ["tags", "modes", "output", "error"]
+directives = ["tags", "modes", "input", "output", "error"]
 
 keywords :: Set Text
-keywords = S.fromList $ directives <> ["interpret", "compile"]
+keywords = S.fromList $ directives <> map prettyText allModes
 
 lKeyword :: Text -> Parser ()
 lKeyword s
   | s `S.member` keywords =
       lexeme $ try $ void $ string s <* notFollowedBy (satisfy isAlphaNum)
   | otherwise = fail $ "not a keyword: " <> T.unpack s
-
-lCommentStart :: Parser ()
-lCommentStart = skipSome $ char ';'
 
 lRestOfLine :: Parser Text
 lRestOfLine = lexeme restOfLine
@@ -99,26 +124,27 @@ restOfLine = T.strip . T.pack <$> many (satisfy (/= '\n'))
 
 pTestBlock :: Parser TestBlock
 pTestBlock = do
-  description <- try $ space *> manyTill lCommentLine pDivider
-  spaceConsumer
+  description <- space *> manyTill lLine pDivider
+  space
   block <-
     runPermutation $
       TestBlock (T.strip $ T.unlines description)
         <$> toPermutationWithDefault mempty pTags
-        <*> toPermutationWithDefault [Interpret, Compile] pModes
-        <*> toPermutationWithDefault Nothing (Just <$> pResult)
-  block <$ noRepeatedDirective
+        <*> toPermutationWithDefault allModes pModes
+  runs <- many pRun
+  block (if null runs then [TestRun mempty Nothing] else runs)
+    <$ noRepeatedDirective
   where
     noRepeatedDirective :: Parser ()
     noRepeatedDirective = notFollowedBy $ choice $ map lKeyword directives
 
     pDivider :: Parser ()
     pDivider = try $ do
-      line <- lCommentLine
-      unless (line == "==") $ fail $ "not a divider: " <> T.unpack line
+      line <- lLine
+      unless (line == divider) $ fail $ "not a divider: " <> T.unpack line
 
-    lCommentLine :: Parser Text
-    lCommentLine = hspace *> lCommentStart *> restOfLine <* (void eol <|> eof)
+    lLine :: Parser Text
+    lLine = restOfLine <* eol
 
 pTags :: Parser [Text]
 pTags = lKeyword "tags" >> braces (many lTag)
@@ -130,11 +156,17 @@ pModes :: Parser [Mode]
 pModes = lKeyword "modes" >> braces (some pMode)
 
 pMode :: Parser Mode
-pMode =
+pMode = choice [mode <$ lKeyword (prettyText mode) | mode <- allModes]
+
+pRun :: Parser TestRun
+pRun =
   choice
-    [ Interpret <$ lKeyword "interpret",
-      Compile <$ lKeyword "compile"
+    [ TestRun <$> pInput <*> optional pResult,
+      TestRun mempty . Just <$> pResult
     ]
+
+pInput :: Parser [Interpreter.Val]
+pInput = lKeyword "input" >> braces (many pVal)
 
 pResult :: Parser Expected
 pResult =

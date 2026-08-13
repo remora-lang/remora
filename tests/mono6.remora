@@ -1,4 +1,6 @@
+;; An array of functions.
 ;; ==
+;; tags { higher-order }
 ;; output { [5 5] }
 (entry (main)
 (let (

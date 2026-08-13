@@ -37,23 +37,44 @@ compileAndRun ::
   FutharkBackend ->
   String ->
   Text ->
+  [Interpreter.Val] ->
   IO (Either Error Interpreter.Val)
-compileAndRun backend name ir =
+compileAndRun backend name ir input =
   withSystemTempDirectory "remora" $ \dir -> do
     let source = dir </> name <.> "fut_soacs"
     T.writeFile source ir
-    compiled <- run "futhark" $ ["dev"] <> backendOptions backend <> [source]
+    compiled <- run "futhark" (["dev"] <> backendOptions backend <> [source]) mempty
     case compiled of
       Left err -> pure $ Left err
-      Right _ -> (futharkOutput =<<) <$> run (dir </> name) []
+      Right _ ->
+        case futharkInput input of
+          Left err -> pure $ Left err
+          Right stdin -> (futharkOutput =<<) <$> run (dir </> name) [] stdin
   where
-    run program arguments = do
-      result <- try $ readProcessWithExitCode program arguments ""
+    run program arguments stdin = do
+      result <- try $ readProcessWithExitCode program arguments $ T.unpack stdin
       pure $ case result of
         Left err -> Left $ T.pack $ show (err :: IOException)
         Right (ExitSuccess, out, _) -> Right $ T.pack out
         Right (ExitFailure _, out, err) ->
           Left $ T.pack $ if null err then out else err
+
+futharkInput :: [Interpreter.Val] -> Either Error Text
+futharkInput = fmap T.unlines . mapM value
+  where
+    value (ValBase b) = base b
+    value (ValArray [] [v]) = value v
+    value (ValArray [_] vs) = list <$> mapM value vs
+    value (ValArray (_ : ds) vs) =
+      list <$> mapM (value . ValArray ds) (chunksOf (product ds) vs)
+    value v = Left $ "cannot pass as input: " <> prettyText v
+
+    list vs = "[" <> T.intercalate ", " vs <> "]"
+
+    base (IntVal x) = Right $ prettyText x <> "i64"
+    base (FloatVal x) = Right $ T.pack (show x) <> "f32"
+    base (BoolVal True) = Right "true"
+    base (BoolVal False) = Right "false"
 
 futharkOutput :: Text -> Either Error Interpreter.Val
 futharkOutput out =

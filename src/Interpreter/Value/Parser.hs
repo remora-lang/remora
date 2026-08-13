@@ -59,8 +59,8 @@ lBase =
   choice
     [ BoolVal True <$ symbol "#t",
       BoolVal False <$ symbol "#f",
-      try $ FloatVal <$> lexeme (L.signed empty L.float),
-      IntVal <$> lexeme (L.signed empty L.decimal)
+      try $ FloatVal <$> lexeme (L.signed (pure ()) L.float),
+      IntVal <$> lexeme (L.signed (pure ()) L.decimal)
     ]
 
 lIndex :: Parser (Either Int [Int])

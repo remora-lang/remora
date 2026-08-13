@@ -52,7 +52,9 @@ data RemoraMode
         backend :: Maybe FutharkBackend,
         modes :: [String],
         tags :: [String],
-        excludeTags :: [String]
+        excludeTags :: [String],
+        interpretExcludeTags :: [String],
+        compileExcludeTags :: [String]
       }
   | Dev
       { file :: Maybe FilePath,
@@ -137,18 +139,37 @@ test =
           &= explicit
           &= name "exclude-tags"
           &= help "Skip tests carrying any of these tags."
+          &= typ "TAGS",
+      interpretExcludeTags =
+        []
+          &= explicit
+          &= name "interpret-exclude-tags"
+          &= help "Do not interpret tests carrying any of these tags."
+          &= typ "TAGS",
+      compileExcludeTags =
+        []
+          &= explicit
+          &= name "compile-exclude-tags"
+          &= help "Do not compile tests carrying any of these tags."
           &= typ "TAGS"
     }
     &= details
       [ "Run the test blocks of the passed Remora files.",
         "",
-        "Tests are interpreted and compiled unless their modes directive says",
-        "otherwise. Passing --modes overrides every test, e.g. to interpret all",
-        "of them:",
-        "> remora test --modes interpret tests/",
+        "A test block is a comment line that is just ==, followed by directives.",
+        "Each comment run holds one block, so a file may hold several:",
+        "> ;; ==",
+        "> ;; input { 2 3 }",
+        "> ;; output { 5 }",
         "",
-        "The --modes, --tags and --exclude-tags flags each accept several values",
-        "separated by spaces, and may be passed more than once."
+        "Every input is passed to main and checked against the output after it.",
+        "A block with no input runs it with no arguments. Values may span lines.",
+        "",
+        "Blocks run in both modes unless their modes directive says otherwise.",
+        "These flags narrow what runs, and each takes several values:",
+        "> remora test --modes interpret tests/",
+        "> remora test --exclude-tags reify tests/",
+        "> remora test --compile-exclude-tags higher-order tests/"
       ]
 
 dev :: RemoraMode
@@ -204,14 +225,17 @@ main = do
             (\prog -> flip Pipeline.interpret prog =<< mapM evalArg margs)
             input
       liftIO $ T.putStrLn $ prettyText v
-    run (Test test_paths mbackend mmodes mtags mexclude) = do
+    run (Test test_paths mbackend mmodes mtags mexclude minterpret mcompile) = do
       test_modes <- except $ traverse CLI.Test.readMode $ concatMap words mmodes
-      let options =
+      let tagList = map T.pack . concatMap words
+          options =
             CLI.Test.Options
               { CLI.Test.optionsBackend = fromMaybe C mbackend,
-                CLI.Test.optionsModes = test_modes,
-                CLI.Test.optionsTags = map T.pack $ concatMap words mtags,
-                CLI.Test.optionsExcludeTags = map T.pack $ concatMap words mexclude
+                CLI.Test.optionsModes = if null test_modes then Nothing else Just test_modes,
+                CLI.Test.optionsTags = tagList mtags,
+                CLI.Test.optionsExcludeTags = tagList mexclude,
+                CLI.Test.optionsInterpretExcludeTags = tagList minterpret,
+                CLI.Test.optionsCompileExcludeTags = tagList mcompile
               }
       failed <- liftIO $ CLI.Test.runTests options test_paths
       when (failed > 0) $ liftIO exitFailure
@@ -248,7 +272,6 @@ main = do
         putResult
           | json = B.putStr . (<> "\n") . encodePretty
           | otherwise = T.putStrLn . prettyText
-
     run (Futhark mfile mexpr mbackend) = do
       input <- parseInput mfile mexpr
       ir <- except $ either Pipeline.compileExp Pipeline.compile input

@@ -1,0 +1,8 @@
+;; ==
+;; input { 2 3 }
+;; output { 5 }
+;; input { 10 20 }
+;; output { 30 }
+(entry (main (x Int) (y Int))
+  (+ x y)
+)

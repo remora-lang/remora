@@ -1,4 +1,6 @@
+;; `dot` takes its operators as parameters.
 ;; ==
+;; tags { higher-order }
 ;; output { 32.0 }
 (import "dotlib.remora")
 

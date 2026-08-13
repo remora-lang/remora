@@ -2,9 +2,14 @@ module CLI.Test
   ( TestBlock (..),
     Expected (..),
     Mode (..),
+    allModes,
     Options (..),
     Outcome (..),
-    testBlock,
+    testBlocks,
+    testModesFor,
+    numberedRuns,
+    testLabel,
+    selected,
     readMode,
     testFiles,
     runTest,
@@ -15,9 +20,10 @@ where
 import CLI.Futhark (FutharkBackend, compileAndRun)
 import CLI.Test.Parser
 import Control.Exception (ErrorCall (..), evaluate, try)
+import Control.Monad (forM, when)
 import Data.Foldable (for_)
 import Data.List (isPrefixOf, sort)
-import Data.Maybe (catMaybes)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
@@ -32,47 +38,69 @@ import Util
 
 data Options = Options
   { optionsBackend :: FutharkBackend,
-    optionsModes :: [Mode],
+    optionsModes :: Maybe [Mode],
     optionsTags :: [Text],
-    optionsExcludeTags :: [Text]
+    optionsExcludeTags :: [Text],
+    optionsInterpretExcludeTags :: [Text],
+    optionsCompileExcludeTags :: [Text]
   }
+
+modeExcludeTags :: Options -> Mode -> [Text]
+modeExcludeTags options Interpret = optionsInterpretExcludeTags options
+modeExcludeTags options Compile = optionsCompileExcludeTags options
 
 data Outcome
   = Passed
   | Failed Text
 
-runTest :: Options -> FilePath -> Text -> TestBlock -> IO Outcome
-runTest options path source block = do
-  prog <- runPassIO $ Imports.resolveImports path source
-  combine <$> mapM (checkMode prog) modes
+testModesFor :: Options -> TestBlock -> [Mode]
+testModesFor options block = filter (not . excluded) requested
   where
-    modes
-      | null $ optionsModes options = testModes block
-      | otherwise = optionsModes options
+    requested = fromMaybe (testModes block) $ optionsModes options
 
-    checkMode prog mode = do
-      outcome <- try $ evaluate . inMode mode . check =<< runMode prog mode
-      pure $ case outcome of
-        Left (ErrorCall message) -> inMode mode $ Failed $ T.pack message
-        Right result -> result
+    excluded mode =
+      any (`elem` modeExcludeTags options mode) $ testTags block
 
-    runMode prog Interpret = pure $ prog >>= Pipeline.interpret mempty
+numberedRuns :: TestBlock -> [(Maybe Int, TestRun)]
+numberedRuns block =
+  case testRuns block of
+    [run] -> [(Nothing, run)]
+    runs -> zip (Just <$> [1 ..]) runs
+
+testLabel :: FilePath -> Maybe Int -> Mode -> Text
+testLabel path run mode =
+  T.pack path
+    <> maybe mempty (\i -> " (run " <> prettyText i <> ")") run
+    <> " ["
+    <> prettyText mode
+    <> "]"
+
+runTest :: Options -> FilePath -> Text -> TestRun -> Mode -> IO Outcome
+runTest options path source run mode = do
+  prog <- runPassIO $ Imports.resolveImports path source
+  outcome <- try $ evaluate . forced . check =<< runMode prog mode
+  pure $ case outcome of
+    Left (ErrorCall message) -> Failed $ T.pack message
+    Right result -> result
+  where
+    forced Passed = Passed
+    forced outcome@(Failed message) = message `seq` outcome
+
+    runMode prog Interpret = pure $ prog >>= Pipeline.interpret (runInput run)
     runMode prog Compile =
       case prog >>= Pipeline.compile of
         Left err -> pure $ Left err
-        Right ir -> compileAndRun (optionsBackend options) (takeBaseName path) ir
-
-    inMode _ Passed = Passed
-    inMode mode (Failed message) = Failed $ prettyText mode <> ": " <> message
+        Right ir ->
+          compileAndRun (optionsBackend options) (takeBaseName path) ir $ runInput run
 
     check =
-      case testExpected block of
+      case runExpected run of
         Nothing -> checkSuccess
         Just (ExpectError pattern regex) -> checkError pattern regex
         Just (ExpectOutput expected) -> checkOutput expected
 
     checkSuccess (Left err) = failed "success" err
-    checkSuccess (Right _) = Passed
+    checkSuccess (Right value) = prettyText value `seq` Passed
 
     checkError pattern regex (Left err)
       | match regex $ T.unpack err = Passed
@@ -88,23 +116,36 @@ runTest options path source block = do
     failed expected actual =
       Failed $ "expected " <> expected <> ", but got:\n" <> actual
 
-combine :: [Outcome] -> Outcome
-combine outcomes =
-  case [message | Failed message <- outcomes] of
-    [] -> Passed
-    messages -> Failed $ T.intercalate "\n" messages
+data Result
+  = FileFailed FilePath Text
+  | ModeResult FilePath (Maybe Int) Mode Outcome
 
 runTests :: Options -> [FilePath] -> IO Int
 runTests options paths = do
   files <- concat <$> mapM testFiles paths
-  outcomes <- catMaybes <$> mapM (runFile options) files
-  let failures = [(path, message) | (path, Failed message) <- outcomes]
-      failed = length failures
-  for_ failures $ \(path, message) ->
-    T.putStrLn $ T.pack path <> ":\n" <> message <> "\n"
-  T.putStrLn $
-    prettyText (length outcomes - failed) <> " passed, " <> prettyText failed <> " failed"
-  pure failed
+  results <- concat <$> mapM (runFile options) files
+  for_ results report
+  for_ allModes $ \mode ->
+    case [outcome | ModeResult _ _ mode' outcome <- results, mode' == mode] of
+      [] -> pure ()
+      outcomes -> T.putStrLn $ prettyText mode <> ": " <> tally outcomes
+  let unloadable = length [() | FileFailed {} <- results]
+  when (unloadable > 0) $
+    T.putStrLn $
+      prettyText unloadable <> " file(s) could not be loaded"
+  pure $ unloadable + length [() | ModeResult _ _ _ (Failed _) <- results]
+  where
+    report (FileFailed path message) =
+      T.putStrLn $ T.pack path <> ":\n" <> message <> "\n"
+    report (ModeResult path run mode (Failed message)) =
+      T.putStrLn $ testLabel path run mode <> ":\n" <> message <> "\n"
+    report ModeResult {} = pure ()
+
+    tally outcomes =
+      prettyText (length [() | Passed <- outcomes])
+        <> " passed, "
+        <> prettyText (length [() | Failed _ <- outcomes])
+        <> " failed"
 
 testFiles :: FilePath -> IO [FilePath]
 testFiles path = do
@@ -121,22 +162,24 @@ testFiles path = do
         then testFiles entry
         else pure []
 
-runFile :: Options -> FilePath -> IO (Maybe (FilePath, Outcome))
+runFile :: Options -> FilePath -> IO [Result]
 runFile options path = do
   source <- try $ T.readFile path
   either unreadable runSource source
   where
     unreadable err =
-      pure $ Just (path, Failed $ T.pack $ show err {ioe_filename = Nothing})
+      pure [FileFailed path $ T.pack $ show (err {ioe_filename = Nothing})]
 
     runSource source =
-      case testBlock path source of
-        Left err -> pure $ Just (path, Failed err)
-        Right Nothing -> pure Nothing
-        Right (Just block)
-          | selected block -> Just . (,) path <$> runTest options path source block
-          | otherwise -> pure Nothing
+      case testBlocks path source of
+        Left err -> pure [FileFailed path err]
+        Right blocks ->
+          fmap concat $ forM (filter (selected options) blocks) $ \block ->
+            fmap concat $ forM (numberedRuns block) $ \(i, run) ->
+              forM (testModesFor options block) $ \mode ->
+                ModeResult path i mode <$> runTest options path source run mode
 
-    selected block =
-      (null (optionsTags options) || any (`elem` optionsTags options) (testTags block))
-        && not (any (`elem` optionsExcludeTags options) (testTags block))
+selected :: Options -> TestBlock -> Bool
+selected options block =
+  (null (optionsTags options) || any (`elem` optionsTags options) (testTags block))
+    && not (any (`elem` optionsExcludeTags options) (testTags block))

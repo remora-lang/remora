@@ -1,0 +1,6 @@
+;; ==
+;; input { -1.5 }
+;; output { -1.5 }
+(entry (main (x Float))
+  x
+)

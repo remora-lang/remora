@@ -15,9 +15,11 @@ options :: Options
 options =
   Options
     { optionsBackend = C,
-      optionsModes = [Interpret], -- TODO: fix once we fix the backend
+      optionsModes = Nothing,
       optionsTags = mempty,
-      optionsExcludeTags = mempty
+      optionsExcludeTags = mempty,
+      optionsInterpretExcludeTags = mempty,
+      optionsCompileExcludeTags = mempty
     }
 
 main :: IO ()
@@ -28,13 +30,23 @@ main = do
 mkCase :: FilePath -> IO [TestTree]
 mkCase path = do
   source <- T.readFile path
-  pure $ case testBlock path source of
+  pure $ case testBlocks path source of
     Left err -> [testCase (takeFileName path) $ assertFailure $ T.unpack err]
-    Right Nothing -> []
-    Right (Just block) ->
-      [ testCase (takeFileName path) $ do
-          outcome <- runTest options path source block
-          case outcome of
-            Passed -> pure ()
-            Failed message -> assertFailure $ T.unpack message
+    Right blocks ->
+      [ testCase (T.unpack $ testLabel (takeFileName path) i mode) $ do
+          outcome <- runTest options path source run mode
+          case (xfail, outcome) of
+            (False, Passed) -> pure ()
+            (False, Failed message) -> assertFailure $ T.unpack message
+            (True, Failed _) -> pure ()
+            (True, Passed) ->
+              assertFailure "unexpectedly passed; drop the tag exempting it"
+      | block <- filter (selected options) blocks,
+        (i, run) <- numberedRuns block,
+        mode <- testModesFor options block,
+        let xfail =
+              mode == Compile
+                && any
+                  (`elem` ["higher-order", "existential", "reify"])
+                  (testTags block)
       ]

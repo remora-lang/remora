@@ -1,0 +1,6 @@
+;; ==
+;; input { 1.5 #t }
+;; output { 1.5 }
+(entry (main (x Float) (b Bool))
+  x
+)

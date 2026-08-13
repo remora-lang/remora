@@ -1,4 +1,6 @@
+;; A polymorphic function instantiated at a function type.
 ;; ==
+;; tags { higher-order }
 ;; output { 1 }
 (entry (main)
 (let (

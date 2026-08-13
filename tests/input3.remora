@@ -1,0 +1,6 @@
+;; ==
+;; input { -7 3 }
+;; output { -4 }
+(entry (main (x Int) (y Int))
+  (+ x y)
+)
