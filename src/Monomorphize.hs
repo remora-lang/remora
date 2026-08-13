@@ -157,7 +157,12 @@ monoPolyApp e = do
         -- This should always be an intrinsic
         Var v _ pos
           | isIntrinsic v ->
-              pure $ Var v (Info $ arrayTypeOf e) pos
+              -- we special case `reify-dim` here
+              -- only works in the static case (and ultimately this should be removed and we should
+              -- handle existentials properly)
+              if varName v == "reify-dim"
+                then pure $ reifyDim args pos
+                else pure $ Var v (Info $ arrayTypeOf e) pos
         _ ->
           throwError $
             "monoPolyApp: unresolved polymorphic value applied to "
@@ -169,6 +174,14 @@ monoPolyApp e = do
       case f of
         Var v _ _ -> lookupMono v args
         _ -> pure Nothing
+
+    reifyDim :: [Arg] -> SourcePos -> Exp
+    reifyDim [ArgISpace (Dim d)] pos =
+      case dimToInt (const Nothing) d of
+        Just n -> scalarize $ Base (IntVal n) (Info Int) pos
+        Nothing ->
+          error $ "reifyDim: dimension not statically known: " <> prettyString d
+    reifyDim _ _ = error "reifyDim: should never happen"
 
 specialize :: Poly -> [Arg] -> MonoM Poly
 specialize poly [] = pure poly
