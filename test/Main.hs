@@ -49,6 +49,6 @@ mkCase path = do
         let xfail =
               mode == Compile
                 && any
-                  (`elem` ["higher-order", "existential", "reify"])
+                  (`elem` ["higher-order", "existential"])
                   (testTags block)
       ]
