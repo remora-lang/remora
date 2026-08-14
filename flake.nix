@@ -83,20 +83,25 @@
         let
           pkgs = pkgsFor system;
           hpkgs = haskellPackagesFor system pkgs;
+          devInputs = [
+            hpkgs.cabal-install
+            hpkgs.haskell-language-server
+            pkgs.pkg-config
+            pkgs.zlib
+            pkgs.z3
+            pkgs.nixfmt
+            pkgs.futhark
+          ];
         in
         {
           default = hpkgs.shellFor {
             packages = p: [ p.remora ];
-            nativeBuildInputs = [
-              hpkgs.cabal-install
-              hpkgs.haskell-language-server
-              pkgs.pkg-config
-              pkgs.zlib
-              pkgs.z3
-              pkgs.nixfmt
-              pkgs.cudatoolkit
-              pkgs.futhark
-            ];
+            nativeBuildInputs = devInputs;
+          };
+
+          cuda = hpkgs.shellFor {
+            packages = p: [ p.remora ];
+            nativeBuildInputs = devInputs ++ [ pkgs.cudatoolkit ];
             shellHook = ''
               export CUDA_PATH="${pkgs.cudaPackages.cudatoolkit}''${CUDA_PATH:+:}$CUDA_PATH"
               export LD_LIBRARY_PATH="/run/opengl-driver/lib''${LD_LIBRARY_PATH:+:}$LD_LIBRARY_PATH"
