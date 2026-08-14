@@ -112,6 +112,7 @@
               pkgs.pkg-config
               pkgs.zlib
               pkgs.z3
+              pkgs.futhark
             ];
           };
         }
