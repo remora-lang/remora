@@ -29,13 +29,15 @@
 
       haskellPackagesFor =
         system: pkgs:
-        pkgs.haskellPackages.override {
-          overrides = hself: hsuper: {
-            futhark = futhark.packages.${system}.futhark-lib;
-            sbv = pkgs.haskell.lib.dontCheck hsuper.sbv_14_0;
-            remora = pkgs.haskell.lib.dontCheck (hself.callCabal2nix "remora" ./. { });
-          };
-        };
+        (pkgs.extend futhark.overlays.default).haskellPackages.override (old: {
+          overrides = pkgs.lib.composeExtensions (old.overrides or (_: _: { })) (
+            hself: hsuper: {
+              futhark = hself.futhark-lib;
+              sbv = pkgs.haskell.lib.dontCheck hsuper.sbv_14_0;
+              remora = pkgs.haskell.lib.dontCheck (hself.callCabal2nix "remora" ./. { });
+            }
+          );
+        });
     in
     {
       packages = forAllSystems (
@@ -85,7 +87,7 @@
           hpkgs = haskellPackagesFor system pkgs;
           devInputs = [
             hpkgs.cabal-install
-            hpkgs.haskell-language-server
+            pkgs.haskellPackages.haskell-language-server
             pkgs.pkg-config
             pkgs.zlib
             pkgs.z3
