@@ -1,3 +1,7 @@
+;; ==
+;; modes { compile }
+;; input @ data/yolov4.in
+
 ;; ----------------- UTILITIES -------------------------
 
 (def (fun (@replicate (&t) (@f @s) (in [&t @s]) : [&t @f @s])
@@ -239,43 +243,34 @@
 ;; stride 2 over N+2 padded columns leaves remainder $r = 1.
 
 ;; ----------------- WEIGHT LOADING -------------------------
-;; Paths are Int arrays of bytes. Only the six shared fragments below are
-;; encoded literally; the per-layer index is derived arithmetically, so the
-;; 110 layer names cost nothing. Paths are relative to the working directory,
-;; so run this from the repository root. Produced by
-;; examples/darknet/tools/split_weights.py.
+;; The whole checkpoint arrives as one flat array, laid out exactly as
+;; darknet's yolov4.weights: per batch-normed layer bias, scale, mean,
+;; variance, then the kernel; the head convs drop the four batch-norm
+;; arrays. Each layer is cut out at the offset passed by its call site.
 
-(def (val wdir [101 120 97 109 112 108 101 115 47 100 97 114 107 110 101 116 47 119 101 105 103 104 116 115 47 99 111 110 118 95]))          ;; "examples/darknet/weights/conv_"
-(def (val f-bias [47 98 105 97 115 46 98 105 110]))        ;; "/bias.bin"
-(def (val f-scale [47 115 99 97 108 101 46 98 105 110]))       ;; "/scale.bin"
-(def (val f-mean [47 109 101 97 110 46 98 105 110]))        ;; "/mean.bin"
-(def (val f-var [47 118 97 114 105 97 110 99 101 46 98 105 110]))         ;; "/variance.bin"
-(def (val f-w [47 119 101 105 103 104 116 115 46 98 105 110]))           ;; "/weights.bin"
 (def (val tmsg "finish"))    ;; shared progress marker for @trace
-(def (val f-image [101 120 97 109 112 108 101 115 47 100 97 114 107 110 101 116 47 100 111 103 95 54 48 56 46 98 105 110]))  ;; "examples/darknet/dog_608.bin", produced by tools/prepare_image.py
 
-;; a 3-digit zero-padded index as ASCII bytes, e.g. 137 -> "137"
-(def (fun (@idx3 _ () (i [Int]) : [Int 3])
-    [(+ 48 (/ i 100)) (+ 48 (mod (/ i 10) 10)) (+ 48 (mod i 10))]))
+(def (fun (@slice-at _ ($len) (weights [Float 64429405]) (off [Int]) : [Float $len])
+    (@subarray/1 (Float) ((- 64429405 $len) $len) weights off)))
 
-;; wdir ++ idx3(i) ++ suffix
-(def (fun (@path _ ($sfx) (i [Int]) (suffix [Int $sfx]) : [Int (+ 33 $sfx)])
-    (@append (Int) (33 $sfx [])
-       (@append (Int) (30 3 []) wdir (@idx3 _ () i))
-       suffix)))
+(def (fun (@params-at _ ($o $i $k) (weights [Float 64429405]) (off [Int])
+                : {(w [Float $o $i $k $k]) (mean [Float $o]) (variance [Float $o]) (scale [Float $o]) (bias [Float $o])})
+    (let ((val c (@reify-dim _ ($o))))
+      {(w [$o $i $k $k]
+          (@reshape (Float) ([(* $o $i $k $k)] [$o $i $k $k])
+             (@slice-at _ ((* $o $i $k $k)) weights (+ off (* 4 c)))))
+       (mean [$o] (@slice-at _ ($o) weights (+ off (* 2 c))))
+       (variance [$o] (@slice-at _ ($o) weights (+ off (* 3 c))))
+       (scale [$o] (@slice-at _ ($o) weights (+ off c)))
+       (bias [$o] (@slice-at _ ($o) weights off))})))
 
-(def (fun (@load-params _ ($o $i $k) (n [Int]) : {(w [Float $o $i $k $k]) (mean [Float $o]) (variance [Float $o]) (scale [Float $o]) (bias [Float $o])})
-    {(w [$o $i $k $k] (@read-file-f32bin _ (45 [$o $i $k $k]) (@path _ (12) n f-w)))
-     (mean [$o] (@read-file-f32bin _ (42 [$o]) (@path _ (9) n f-mean)))
-     (variance [$o] (@read-file-f32bin _ (46 [$o]) (@path _ (13) n f-var)))
-     (scale [$o] (@read-file-f32bin _ (43 [$o]) (@path _ (10) n f-scale)))
-     (bias [$o] (@read-file-f32bin _ (42 [$o]) (@path _ (9) n f-bias)))}))
-
-;; the three head convs have no batch-norm: only weights and bias on disk
-(def (fun (@load-bias-params _ ($o $i $k) (n [Int])
+;; the three head convs have no batch-norm: only weights and bias
+(def (fun (@bias-params-at _ ($o $i $k) (weights [Float 64429405]) (off [Int])
                 : {(w [Float $o $i $k $k]) (bias [Float $o])})
-    {(w [$o $i $k $k] (@read-file-f32bin _ (45 [$o $i $k $k]) (@path _ (12) n f-w)))
-     (bias [$o] (@read-file-f32bin _ (42 [$o]) (@path _ (9) n f-bias)))}))
+    {(w [$o $i $k $k]
+        (@reshape (Float) ([(* $o $i $k $k)] [$o $i $k $k])
+           (@slice-at _ ((* $o $i $k $k)) weights (+ off (@reify-dim _ ($o))))))
+     (bias [$o] (@slice-at _ ($o) weights off))}))
 
 ;; Stage 1 only. yolov4.cfg special-cases it (layers 1-10): the split does
 ;; not compress, so both branches stay at $out-c, the residual block is the
@@ -558,7 +553,15 @@
       (@flatten (&det) (3 (* $s $s) [])
          (@flatten (&det) ($s $s []) dets)))))
 
-(entry (main)
+;; one detection as a flat row, so the result leaves the entry as plain floats
+(def (fun (@det-row _ ($classes)
+                (d {(x [Float]) (y [Float]) (w [Float]) (h [Float]) (obj [Float]) (classes [Float $classes])})
+                : [Float (+ 5 $classes)])
+    (@append (Float) (5 $classes [])
+       [(field d x) (field d y) (field d w) (field d h) (field d obj)]
+       (field d classes))))
+
+(entry (main (image [Float 3 608 608]) (weights [Float 64429405]))
   (let (
         (type &det {(x [Float]) (y [Float]) (w [Float]) (h [Float]) (obj [Float]) (classes [Float 80])})
         (type *f128x76 [Float 128 76 76])
@@ -567,210 +570,207 @@
         (type *f512x38 [Float 512 38 38])
         (type *f512x19 [Float 512 19 19])
         (type *f1024x19 [Float 1024 19 19])
-        (val (image : [Float 3 608 608])
-             (@trace (Int Float) ([6] [3 608 608]) tmsg (@read-file-f32bin _ (28 [3 608 608]) f-image)))
-
         ;; --- stem: 3x3 conv at full 608x608, 3 -> 32 channels ---
-        (val stem-p (@trace (Int {(w [Float 32 3 3 3]) (mean [Float 32]) (variance [Float 32]) (scale [Float 32]) (bias [Float 32])}) ([6] []) tmsg (@load-params _ (32 3 3) 0)))
+        (val stem-p (@params-at _ (32 3 3) weights 0))
         (val (stem : [Float 32 608 608]) (@trace (Int Float) ([6] [32 608 608]) tmsg (@conv-bn-mish _ (607 3 3 32 1 1 0) image stem-p)))
 
         ;; --- s1: CSP x1, 608 -> 304, 32 -> 64 channels (wide split, per cfg) ---
-        (val s1-down-p (@trace (Int {(w [Float 64 32 3 3]) (mean [Float 64]) (variance [Float 64]) (scale [Float 64]) (bias [Float 64])}) ([6] []) tmsg (@load-params _ (64 32 3) 1)))
-        (val s1-skip-p (@trace (Int {(w [Float 64 64 1 1]) (mean [Float 64]) (variance [Float 64]) (scale [Float 64]) (bias [Float 64])}) ([6] []) tmsg (@load-params _ (64 64 1) 2)))
-        (val s1-m0-p (@trace (Int {(w [Float 64 64 1 1]) (mean [Float 64]) (variance [Float 64]) (scale [Float 64]) (bias [Float 64])}) ([6] []) tmsg (@load-params _ (64 64 1) 4)))
-        (val s1-r1-rp (@trace (Int {(w [Float 32 64 1 1]) (mean [Float 32]) (variance [Float 32]) (scale [Float 32]) (bias [Float 32])}) ([6] []) tmsg (@load-params _ (32 64 1) 5)))
-        (val s1-r1-ep (@trace (Int {(w [Float 64 32 3 3]) (mean [Float 64]) (variance [Float 64]) (scale [Float 64]) (bias [Float 64])}) ([6] []) tmsg (@load-params _ (64 32 3) 6)))
-        (val s1-mf-p (@trace (Int {(w [Float 64 64 1 1]) (mean [Float 64]) (variance [Float 64]) (scale [Float 64]) (bias [Float 64])}) ([6] []) tmsg (@load-params _ (64 64 1) 8)))
-        (val s1-tr-p (@trace (Int {(w [Float 64 128 1 1]) (mean [Float 64]) (variance [Float 64]) (scale [Float 64]) (bias [Float 64])}) ([6] []) tmsg (@load-params _ (64 128 1) 10)))
+        (val s1-down-p (@params-at _ (64 32 3) weights 992))
+        (val s1-skip-p (@params-at _ (64 64 1) weights 19680))
+        (val s1-m0-p (@params-at _ (64 64 1) weights 24032))
+        (val s1-r1-rp (@params-at _ (32 64 1) weights 28384))
+        (val s1-r1-ep (@params-at _ (64 32 3) weights 30560))
+        (val s1-mf-p (@params-at _ (64 64 1) weights 49248))
+        (val s1-tr-p (@params-at _ (64 128 1) weights 53600))
         (val (s1 : [Float 64 304 304]) (@trace (Int Float) ([6] [64 304 304]) tmsg 
              (@csp-stage-1 _ (32 64 32 303) stem
                s1-down-p s1-skip-p s1-m0-p s1-r1-rp s1-r1-ep s1-mf-p s1-tr-p)))
 
         ;; --- s2: CSP x2, 304 -> 152, 64 -> 128 channels ---
-        (val s2-down-p (@trace (Int {(w [Float 128 64 3 3]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 64 3) 11)))
-        (val s2-skip-p (@trace (Int {(w [Float 64 128 1 1]) (mean [Float 64]) (variance [Float 64]) (scale [Float 64]) (bias [Float 64])}) ([6] []) tmsg (@load-params _ (64 128 1) 12)))
-        (val s2-m0-p (@trace (Int {(w [Float 64 128 1 1]) (mean [Float 64]) (variance [Float 64]) (scale [Float 64]) (bias [Float 64])}) ([6] []) tmsg (@load-params _ (64 128 1) 14)))
-        (val s2-r1-rp (@trace (Int {(w [Float 64 64 1 1]) (mean [Float 64]) (variance [Float 64]) (scale [Float 64]) (bias [Float 64])}) ([6] []) tmsg (@load-params _ (64 64 1) 15)))
-        (val s2-r1-ep (@trace (Int {(w [Float 64 64 3 3]) (mean [Float 64]) (variance [Float 64]) (scale [Float 64]) (bias [Float 64])}) ([6] []) tmsg (@load-params _ (64 64 3) 16)))
-        (val s2-r2-rp (@trace (Int {(w [Float 64 64 1 1]) (mean [Float 64]) (variance [Float 64]) (scale [Float 64]) (bias [Float 64])}) ([6] []) tmsg (@load-params _ (64 64 1) 18)))
-        (val s2-r2-ep (@trace (Int {(w [Float 64 64 3 3]) (mean [Float 64]) (variance [Float 64]) (scale [Float 64]) (bias [Float 64])}) ([6] []) tmsg (@load-params _ (64 64 3) 19)))
-        (val s2-mf-p (@trace (Int {(w [Float 64 64 1 1]) (mean [Float 64]) (variance [Float 64]) (scale [Float 64]) (bias [Float 64])}) ([6] []) tmsg (@load-params _ (64 64 1) 21)))
-        (val s2-tr-p (@trace (Int {(w [Float 128 128 1 1]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 128 1) 23)))
+        (val s2-down-p (@params-at _ (128 64 3) weights 62048))
+        (val s2-skip-p (@params-at _ (64 128 1) weights 136288))
+        (val s2-m0-p (@params-at _ (64 128 1) weights 144736))
+        (val s2-r1-rp (@params-at _ (64 64 1) weights 153184))
+        (val s2-r1-ep (@params-at _ (64 64 3) weights 157536))
+        (val s2-r2-rp (@params-at _ (64 64 1) weights 194656))
+        (val s2-r2-ep (@params-at _ (64 64 3) weights 199008))
+        (val s2-mf-p (@params-at _ (64 64 1) weights 236128))
+        (val s2-tr-p (@params-at _ (128 128 1) weights 240480))
         (val (s2 : [Float 128 152 152]) (@trace (Int Float) ([6] [128 152 152]) tmsg 
              (@csp-stage-x2 _ (64 64 151) s1
                s2-down-p s2-skip-p s2-m0-p s2-r1-rp s2-r1-ep s2-r2-rp s2-r2-ep s2-mf-p s2-tr-p)))
 
         ;; --- s3: CSP x8, 152 -> 76, 128 -> 256 channels (feeds P3) ---
-        (val s3-down-p (@trace (Int {(w [Float 256 128 3 3]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 128 3) 24)))
-        (val s3-skip-p (@trace (Int {(w [Float 128 256 1 1]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 256 1) 25)))
-        (val s3-m0-p (@trace (Int {(w [Float 128 256 1 1]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 256 1) 27)))
-        (val s3-r1-rp (@trace (Int {(w [Float 128 128 1 1]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 128 1) 28)))
-        (val s3-r1-ep (@trace (Int {(w [Float 128 128 3 3]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 128 3) 29)))
-        (val s3-r2-rp (@trace (Int {(w [Float 128 128 1 1]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 128 1) 31)))
-        (val s3-r2-ep (@trace (Int {(w [Float 128 128 3 3]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 128 3) 32)))
-        (val s3-r3-rp (@trace (Int {(w [Float 128 128 1 1]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 128 1) 34)))
-        (val s3-r3-ep (@trace (Int {(w [Float 128 128 3 3]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 128 3) 35)))
-        (val s3-r4-rp (@trace (Int {(w [Float 128 128 1 1]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 128 1) 37)))
-        (val s3-r4-ep (@trace (Int {(w [Float 128 128 3 3]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 128 3) 38)))
-        (val s3-r5-rp (@trace (Int {(w [Float 128 128 1 1]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 128 1) 40)))
-        (val s3-r5-ep (@trace (Int {(w [Float 128 128 3 3]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 128 3) 41)))
-        (val s3-r6-rp (@trace (Int {(w [Float 128 128 1 1]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 128 1) 43)))
-        (val s3-r6-ep (@trace (Int {(w [Float 128 128 3 3]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 128 3) 44)))
-        (val s3-r7-rp (@trace (Int {(w [Float 128 128 1 1]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 128 1) 46)))
-        (val s3-r7-ep (@trace (Int {(w [Float 128 128 3 3]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 128 3) 47)))
-        (val s3-r8-rp (@trace (Int {(w [Float 128 128 1 1]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 128 1) 49)))
-        (val s3-r8-ep (@trace (Int {(w [Float 128 128 3 3]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 128 3) 50)))
-        (val s3-mf-p (@trace (Int {(w [Float 128 128 1 1]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 128 1) 52)))
-        (val s3-tr-p (@trace (Int {(w [Float 256 256 1 1]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 256 1) 54)))
+        (val s3-down-p (@params-at _ (256 128 3) weights 257376))
+        (val s3-skip-p (@params-at _ (128 256 1) weights 553312))
+        (val s3-m0-p (@params-at _ (128 256 1) weights 586592))
+        (val s3-r1-rp (@params-at _ (128 128 1) weights 619872))
+        (val s3-r1-ep (@params-at _ (128 128 3) weights 636768))
+        (val s3-r2-rp (@params-at _ (128 128 1) weights 784736))
+        (val s3-r2-ep (@params-at _ (128 128 3) weights 801632))
+        (val s3-r3-rp (@params-at _ (128 128 1) weights 949600))
+        (val s3-r3-ep (@params-at _ (128 128 3) weights 966496))
+        (val s3-r4-rp (@params-at _ (128 128 1) weights 1114464))
+        (val s3-r4-ep (@params-at _ (128 128 3) weights 1131360))
+        (val s3-r5-rp (@params-at _ (128 128 1) weights 1279328))
+        (val s3-r5-ep (@params-at _ (128 128 3) weights 1296224))
+        (val s3-r6-rp (@params-at _ (128 128 1) weights 1444192))
+        (val s3-r6-ep (@params-at _ (128 128 3) weights 1461088))
+        (val s3-r7-rp (@params-at _ (128 128 1) weights 1609056))
+        (val s3-r7-ep (@params-at _ (128 128 3) weights 1625952))
+        (val s3-r8-rp (@params-at _ (128 128 1) weights 1773920))
+        (val s3-r8-ep (@params-at _ (128 128 3) weights 1790816))
+        (val s3-mf-p (@params-at _ (128 128 1) weights 1938784))
+        (val s3-tr-p (@params-at _ (256 256 1) weights 1955680))
         (val (s3 : *f256x76) (@trace (Int Float) ([6] [256 76 76]) tmsg 
              (@csp-stage-x8 _ (128 128 75) s2
                s3-down-p s3-skip-p s3-m0-p s3-r1-rp s3-r1-ep s3-r2-rp s3-r2-ep s3-r3-rp s3-r3-ep s3-r4-rp s3-r4-ep
                s3-r5-rp s3-r5-ep s3-r6-rp s3-r6-ep s3-r7-rp s3-r7-ep s3-r8-rp s3-r8-ep s3-mf-p s3-tr-p)))
 
         ;; --- s4: CSP x8, 76 -> 38, 256 -> 512 channels (feeds P4) ---
-        (val s4-down-p (@trace (Int {(w [Float 512 256 3 3]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 256 3) 55)))
-        (val s4-skip-p (@trace (Int {(w [Float 256 512 1 1]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 512 1) 56)))
-        (val s4-m0-p (@trace (Int {(w [Float 256 512 1 1]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 512 1) 58)))
-        (val s4-r1-rp (@trace (Int {(w [Float 256 256 1 1]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 256 1) 59)))
-        (val s4-r1-ep (@trace (Int {(w [Float 256 256 3 3]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 256 3) 60)))
-        (val s4-r2-rp (@trace (Int {(w [Float 256 256 1 1]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 256 1) 62)))
-        (val s4-r2-ep (@trace (Int {(w [Float 256 256 3 3]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 256 3) 63)))
-        (val s4-r3-rp (@trace (Int {(w [Float 256 256 1 1]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 256 1) 65)))
-        (val s4-r3-ep (@trace (Int {(w [Float 256 256 3 3]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 256 3) 66)))
-        (val s4-r4-rp (@trace (Int {(w [Float 256 256 1 1]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 256 1) 68)))
-        (val s4-r4-ep (@trace (Int {(w [Float 256 256 3 3]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 256 3) 69)))
-        (val s4-r5-rp (@trace (Int {(w [Float 256 256 1 1]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 256 1) 71)))
-        (val s4-r5-ep (@trace (Int {(w [Float 256 256 3 3]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 256 3) 72)))
-        (val s4-r6-rp (@trace (Int {(w [Float 256 256 1 1]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 256 1) 74)))
-        (val s4-r6-ep (@trace (Int {(w [Float 256 256 3 3]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 256 3) 75)))
-        (val s4-r7-rp (@trace (Int {(w [Float 256 256 1 1]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 256 1) 77)))
-        (val s4-r7-ep (@trace (Int {(w [Float 256 256 3 3]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 256 3) 78)))
-        (val s4-r8-rp (@trace (Int {(w [Float 256 256 1 1]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 256 1) 80)))
-        (val s4-r8-ep (@trace (Int {(w [Float 256 256 3 3]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 256 3) 81)))
-        (val s4-mf-p (@trace (Int {(w [Float 256 256 1 1]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 256 1) 83)))
-        (val s4-tr-p (@trace (Int {(w [Float 512 512 1 1]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 512 1) 85)))
+        (val s4-down-p (@params-at _ (512 256 3) weights 2022240))
+        (val s4-skip-p (@params-at _ (256 512 1) weights 3203936))
+        (val s4-m0-p (@params-at _ (256 512 1) weights 3336032))
+        (val s4-r1-rp (@params-at _ (256 256 1) weights 3468128))
+        (val s4-r1-ep (@params-at _ (256 256 3) weights 3534688))
+        (val s4-r2-rp (@params-at _ (256 256 1) weights 4125536))
+        (val s4-r2-ep (@params-at _ (256 256 3) weights 4192096))
+        (val s4-r3-rp (@params-at _ (256 256 1) weights 4782944))
+        (val s4-r3-ep (@params-at _ (256 256 3) weights 4849504))
+        (val s4-r4-rp (@params-at _ (256 256 1) weights 5440352))
+        (val s4-r4-ep (@params-at _ (256 256 3) weights 5506912))
+        (val s4-r5-rp (@params-at _ (256 256 1) weights 6097760))
+        (val s4-r5-ep (@params-at _ (256 256 3) weights 6164320))
+        (val s4-r6-rp (@params-at _ (256 256 1) weights 6755168))
+        (val s4-r6-ep (@params-at _ (256 256 3) weights 6821728))
+        (val s4-r7-rp (@params-at _ (256 256 1) weights 7412576))
+        (val s4-r7-ep (@params-at _ (256 256 3) weights 7479136))
+        (val s4-r8-rp (@params-at _ (256 256 1) weights 8069984))
+        (val s4-r8-ep (@params-at _ (256 256 3) weights 8136544))
+        (val s4-mf-p (@params-at _ (256 256 1) weights 8727392))
+        (val s4-tr-p (@params-at _ (512 512 1) weights 8793952))
         (val (s4 : *f512x38) (@trace (Int Float) ([6] [512 38 38]) tmsg 
              (@csp-stage-x8 _ (256 256 37) s3
                s4-down-p s4-skip-p s4-m0-p s4-r1-rp s4-r1-ep s4-r2-rp s4-r2-ep s4-r3-rp s4-r3-ep s4-r4-rp s4-r4-ep
                s4-r5-rp s4-r5-ep s4-r6-rp s4-r6-ep s4-r7-rp s4-r7-ep s4-r8-rp s4-r8-ep s4-mf-p s4-tr-p)))
 
         ;; --- s5: CSP x4, 38 -> 19, 512 -> 1024 channels ---
-        (val s5-down-p (@trace (Int {(w [Float 1024 512 3 3]) (mean [Float 1024]) (variance [Float 1024]) (scale [Float 1024]) (bias [Float 1024])}) ([6] []) tmsg (@load-params _ (1024 512 3) 86)))
-        (val s5-skip-p (@trace (Int {(w [Float 512 1024 1 1]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 1024 1) 87)))
-        (val s5-m0-p (@trace (Int {(w [Float 512 1024 1 1]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 1024 1) 89)))
-        (val s5-r1-rp (@trace (Int {(w [Float 512 512 1 1]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 512 1) 90)))
-        (val s5-r1-ep (@trace (Int {(w [Float 512 512 3 3]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 512 3) 91)))
-        (val s5-r2-rp (@trace (Int {(w [Float 512 512 1 1]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 512 1) 93)))
-        (val s5-r2-ep (@trace (Int {(w [Float 512 512 3 3]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 512 3) 94)))
-        (val s5-r3-rp (@trace (Int {(w [Float 512 512 1 1]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 512 1) 96)))
-        (val s5-r3-ep (@trace (Int {(w [Float 512 512 3 3]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 512 3) 97)))
-        (val s5-r4-rp (@trace (Int {(w [Float 512 512 1 1]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 512 1) 99)))
-        (val s5-r4-ep (@trace (Int {(w [Float 512 512 3 3]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 512 3) 100)))
-        (val s5-mf-p (@trace (Int {(w [Float 512 512 1 1]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 512 1) 102)))
-        (val s5-tr-p (@trace (Int {(w [Float 1024 1024 1 1]) (mean [Float 1024]) (variance [Float 1024]) (scale [Float 1024]) (bias [Float 1024])}) ([6] []) tmsg (@load-params _ (1024 1024 1) 104)))
+        (val s5-down-p (@params-at _ (1024 512 3) weights 9058144))
+        (val s5-skip-p (@params-at _ (512 1024 1) weights 13780832))
+        (val s5-m0-p (@params-at _ (512 1024 1) weights 14307168))
+        (val s5-r1-rp (@params-at _ (512 512 1) weights 14833504))
+        (val s5-r1-ep (@params-at _ (512 512 3) weights 15097696))
+        (val s5-r2-rp (@params-at _ (512 512 1) weights 17459040))
+        (val s5-r2-ep (@params-at _ (512 512 3) weights 17723232))
+        (val s5-r3-rp (@params-at _ (512 512 1) weights 20084576))
+        (val s5-r3-ep (@params-at _ (512 512 3) weights 20348768))
+        (val s5-r4-rp (@params-at _ (512 512 1) weights 22710112))
+        (val s5-r4-ep (@params-at _ (512 512 3) weights 22974304))
+        (val s5-mf-p (@params-at _ (512 512 1) weights 25335648))
+        (val s5-tr-p (@params-at _ (1024 1024 1) weights 25599840))
         (val (s5 : *f1024x19) (@trace (Int Float) ([6] [1024 19 19]) tmsg 
              (@csp-stage-x4 _ (512 512 18) s4
                s5-down-p s5-skip-p s5-m0-p s5-r1-rp s5-r1-ep s5-r2-rp s5-r2-ep s5-r3-rp s5-r3-ep s5-r4-rp s5-r4-ep
                s5-mf-p s5-tr-p)))
 
         ;; --- pre-SPP 3-conv block, then SPP (maxpool 5/9/13 + concat) ---
-        (val pspp-c1-p (@trace (Int {(w [Float 512 1024 1 1]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 1024 1) 105)))
-        (val pspp-c2-p (@trace (Int {(w [Float 1024 512 3 3]) (mean [Float 1024]) (variance [Float 1024]) (scale [Float 1024]) (bias [Float 1024])}) ([6] []) tmsg (@load-params _ (1024 512 3) 106)))
-        (val pspp-c3-p (@trace (Int {(w [Float 512 1024 1 1]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 1024 1) 107)))
+        (val pspp-c1-p (@params-at _ (512 1024 1) weights 26652512))
+        (val pspp-c2-p (@params-at _ (1024 512 3) weights 27178848))
+        (val pspp-c3-p (@params-at _ (512 1024 1) weights 31901536))
         (val (pre-spp : *f512x19) (@trace (Int Float) ([6] [512 19 19]) tmsg 
              (@panet-3conv _ (1024 1024 512 19) s5 pspp-c1-p pspp-c2-p pspp-c3-p)))
         (val (spp-out : [Float 2048 19 19]) (@trace (Int Float) ([6] [2048 19 19]) tmsg (@spp _ (19 512) pre-spp)))
 
         ;; --- post-SPP 3-conv block: 2048 -> 512 channels, becomes the P5 trunk ---
-        (val post-c1-p (@trace (Int {(w [Float 512 2048 1 1]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 2048 1) 114)))
-        (val post-c2-p (@trace (Int {(w [Float 1024 512 3 3]) (mean [Float 1024]) (variance [Float 1024]) (scale [Float 1024]) (bias [Float 1024])}) ([6] []) tmsg (@load-params _ (1024 512 3) 115)))
-        (val post-c3-p (@trace (Int {(w [Float 512 1024 1 1]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 1024 1) 116)))
+        (val post-c1-p (@params-at _ (512 2048 1) weights 32427872))
+        (val post-c2-p (@params-at _ (1024 512 3) weights 33478496))
+        (val post-c3-p (@params-at _ (512 1024 1) weights 38201184))
         (val (p5 : *f512x19) (@trace (Int Float) ([6] [512 19 19]) tmsg 
              (@panet-3conv _ (2048 1024 512 19) spp-out post-c1-p post-c2-p post-c3-p)))
 
         ;; --- PANet top-down 19 -> 38: reduce P5, upsample, lateral from s4, concat ---
-        (val p5r-p (@trace (Int {(w [Float 256 512 1 1]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 512 1) 117)))
-        (val s4l-p (@trace (Int {(w [Float 256 512 1 1]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 512 1) 120)))
+        (val p5r-p (@params-at _ (256 512 1) weights 38727520))
+        (val s4l-p (@params-at _ (256 512 1) weights 38859616))
         (val (p5-reduce : [Float 256 19 19]) (@trace (Int Float) ([6] [256 19 19]) tmsg (@conv-bn-leaky _ (18 1 512 256 0 1 0) p5 p5r-p)))
         (val (p5-up : *f256x38) (@trace (Int Float) ([6] [256 38 38]) tmsg (@upsample-nearest _ (19 256 2) p5-reduce)))
         (val (s4-lateral : *f256x38) (@trace (Int Float) ([6] [256 38 38]) tmsg (@conv-bn-leaky _ (37 1 512 256 0 1 0) s4 s4l-p)))
         (val (merge-38 : *f512x38) (@trace (Int Float) ([6] [512 38 38]) tmsg (@route2 _ (256 256 38 38) p5-up s4-lateral)))
 
         ;; --- PANet top-down 5-conv block at 38x38 ---
-        (val p4td-c1-p (@trace (Int {(w [Float 256 512 1 1]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 512 1) 122)))
-        (val p4td-c2-p (@trace (Int {(w [Float 512 256 3 3]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 256 3) 123)))
-        (val p4td-c3-p (@trace (Int {(w [Float 256 512 1 1]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 512 1) 124)))
-        (val p4td-c4-p (@trace (Int {(w [Float 512 256 3 3]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 256 3) 125)))
-        (val p4td-c5-p (@trace (Int {(w [Float 256 512 1 1]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 512 1) 126)))
+        (val p4td-c1-p (@params-at _ (256 512 1) weights 38991712))
+        (val p4td-c2-p (@params-at _ (512 256 3) weights 39123808))
+        (val p4td-c3-p (@params-at _ (256 512 1) weights 40305504))
+        (val p4td-c4-p (@params-at _ (512 256 3) weights 40437600))
+        (val p4td-c5-p (@params-at _ (256 512 1) weights 41619296))
         (val (p4td : *f256x38) (@trace (Int Float) ([6] [256 38 38]) tmsg 
              (@panet-5conv _ (512 256 38) merge-38
                p4td-c1-p p4td-c2-p p4td-c3-p p4td-c4-p p4td-c5-p)))
 
         ;; --- PANet top-down 38 -> 76: reduce, upsample, lateral from s3, concat ---
-        (val p4tdr-p (@trace (Int {(w [Float 128 256 1 1]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 256 1) 127)))
-        (val s3l-p (@trace (Int {(w [Float 128 256 1 1]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 256 1) 130)))
+        (val p4tdr-p (@params-at _ (128 256 1) weights 41751392))
+        (val s3l-p (@params-at _ (128 256 1) weights 41784672))
         (val (p4td-reduce : [Float 128 38 38]) (@trace (Int Float) ([6] [128 38 38]) tmsg (@conv-bn-leaky _ (37 1 256 128 0 1 0) p4td p4tdr-p)))
         (val (p4td-up : *f128x76) (@trace (Int Float) ([6] [128 76 76]) tmsg (@upsample-nearest _ (38 128 2) p4td-reduce)))
         (val (s3-lateral : *f128x76) (@trace (Int Float) ([6] [128 76 76]) tmsg (@conv-bn-leaky _ (75 1 256 128 0 1 0) s3 s3l-p)))
         (val (merge-76 : *f256x76) (@trace (Int Float) ([6] [256 76 76]) tmsg (@route2 _ (128 128 76 76) p4td-up s3-lateral)))
 
         ;; --- P3 output: 5-conv block at 76x76 -> 128 channels ---
-        (val p3o-c1-p (@trace (Int {(w [Float 128 256 1 1]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 256 1) 132)))
-        (val p3o-c2-p (@trace (Int {(w [Float 256 128 3 3]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 128 3) 133)))
-        (val p3o-c3-p (@trace (Int {(w [Float 128 256 1 1]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 256 1) 134)))
-        (val p3o-c4-p (@trace (Int {(w [Float 256 128 3 3]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 128 3) 135)))
-        (val p3o-c5-p (@trace (Int {(w [Float 128 256 1 1]) (mean [Float 128]) (variance [Float 128]) (scale [Float 128]) (bias [Float 128])}) ([6] []) tmsg (@load-params _ (128 256 1) 136)))
+        (val p3o-c1-p (@params-at _ (128 256 1) weights 41817952))
+        (val p3o-c2-p (@params-at _ (256 128 3) weights 41851232))
+        (val p3o-c3-p (@params-at _ (128 256 1) weights 42147168))
+        (val p3o-c4-p (@params-at _ (256 128 3) weights 42180448))
+        (val p3o-c5-p (@params-at _ (128 256 1) weights 42476384))
         (val (p3out : *f128x76) (@trace (Int Float) ([6] [128 76 76]) tmsg 
              (@panet-5conv _ (256 128 76) merge-76
                p3o-c1-p p3o-c2-p p3o-c3-p p3o-c4-p p3o-c5-p)))
 
         ;; --- P3 detection head: 76x76, anchors (12,16) (19,36) (40,28), scale_x_y 1.2 ---
-        (val p3-feed-p (@trace (Int {(w [Float 256 128 3 3]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 128 3) 137)))
-        (val p3-head-p (@trace (Int {(w [Float 255 256 1 1]) (bias [Float 255])}) ([6] []) tmsg (@load-bias-params _ (255 256 1) 138)))
+        (val p3-feed-p (@params-at _ (256 128 3) weights 42509664))
+        (val p3-head-p (@bias-params-at _ (255 256 1) weights 42805600))
         (val (p3-det : [&det 17328]) (@trace (Int &det) ([6] [17328]) tmsg 
              (@yolo-head _ (76 128 256 80) p3out
                p3-feed-p p3-head-p [12.0 19.0 40.0] [16.0 36.0 28.0] 1.2 608.0)))
 
         ;; --- PANet bottom-up 76 -> 38: downsample P3 (3x3/s2), concat with top-down P4 ---
-        (val p3d-p (@trace (Int {(w [Float 256 128 3 3]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 128 3) 141)))
+        (val p3d-p (@params-at _ (256 128 3) weights 42871135))
         (val (p3-down : *f256x38) (@trace (Int Float) ([6] [256 38 38]) tmsg (@conv-bn-leaky _ (37 3 128 256 1 2 1) p3out p3d-p)))
         (val (merge-38b : *f512x38) (@trace (Int Float) ([6] [512 38 38]) tmsg (@route2 _ (256 256 38 38) p3-down p4td)))
 
         ;; --- P4 output: 5-conv block at 38x38 -> 256 channels ---
-        (val p4o-c1-p (@trace (Int {(w [Float 256 512 1 1]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 512 1) 143)))
-        (val p4o-c2-p (@trace (Int {(w [Float 512 256 3 3]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 256 3) 144)))
-        (val p4o-c3-p (@trace (Int {(w [Float 256 512 1 1]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 512 1) 145)))
-        (val p4o-c4-p (@trace (Int {(w [Float 512 256 3 3]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 256 3) 146)))
-        (val p4o-c5-p (@trace (Int {(w [Float 256 512 1 1]) (mean [Float 256]) (variance [Float 256]) (scale [Float 256]) (bias [Float 256])}) ([6] []) tmsg (@load-params _ (256 512 1) 147)))
+        (val p4o-c1-p (@params-at _ (256 512 1) weights 43167071))
+        (val p4o-c2-p (@params-at _ (512 256 3) weights 43299167))
+        (val p4o-c3-p (@params-at _ (256 512 1) weights 44480863))
+        (val p4o-c4-p (@params-at _ (512 256 3) weights 44612959))
+        (val p4o-c5-p (@params-at _ (256 512 1) weights 45794655))
         (val (p4out : *f256x38) (@trace (Int Float) ([6] [256 38 38]) tmsg 
              (@panet-5conv _ (512 256 38) merge-38b
                p4o-c1-p p4o-c2-p p4o-c3-p p4o-c4-p p4o-c5-p)))
 
         ;; --- P4 detection head: 38x38, anchors (36,75) (76,55) (72,146), scale_x_y 1.1 ---
-        (val p4-feed-p (@trace (Int {(w [Float 512 256 3 3]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 256 3) 148)))
-        (val p4-head-p (@trace (Int {(w [Float 255 512 1 1]) (bias [Float 255])}) ([6] []) tmsg (@load-bias-params _ (255 512 1) 149)))
+        (val p4-feed-p (@params-at _ (512 256 3) weights 45926751))
+        (val p4-head-p (@bias-params-at _ (255 512 1) weights 47108447))
         (val (p4-det : [&det 4332]) (@trace (Int &det) ([6] [4332]) tmsg 
              (@yolo-head _ (38 256 512 80) p4out
                p4-feed-p p4-head-p [36.0 76.0 72.0] [75.0 55.0 146.0] 1.1 608.0)))
 
         ;; --- PANet bottom-up 38 -> 19: downsample P4 (3x3/s2), concat with P5 trunk ---
-        (val p4od-p (@trace (Int {(w [Float 512 256 3 3]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 256 3) 152)))
+        (val p4od-p (@params-at _ (512 256 3) weights 47239262))
         (val (p4out-down : *f512x19) (@trace (Int Float) ([6] [512 19 19]) tmsg (@conv-bn-leaky _ (18 3 256 512 1 2 1) p4out p4od-p)))
         (val (merge-19 : *f1024x19) (@trace (Int Float) ([6] [1024 19 19]) tmsg (@route2 _ (512 512 19 19) p4out-down p5)))
 
         ;; --- P5 output: 5-conv block at 19x19 -> 512 channels ---
-        (val p5o-c1-p (@trace (Int {(w [Float 512 1024 1 1]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 1024 1) 154)))
-        (val p5o-c2-p (@trace (Int {(w [Float 1024 512 3 3]) (mean [Float 1024]) (variance [Float 1024]) (scale [Float 1024]) (bias [Float 1024])}) ([6] []) tmsg (@load-params _ (1024 512 3) 155)))
-        (val p5o-c3-p (@trace (Int {(w [Float 512 1024 1 1]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 1024 1) 156)))
-        (val p5o-c4-p (@trace (Int {(w [Float 1024 512 3 3]) (mean [Float 1024]) (variance [Float 1024]) (scale [Float 1024]) (bias [Float 1024])}) ([6] []) tmsg (@load-params _ (1024 512 3) 157)))
-        (val p5o-c5-p (@trace (Int {(w [Float 512 1024 1 1]) (mean [Float 512]) (variance [Float 512]) (scale [Float 512]) (bias [Float 512])}) ([6] []) tmsg (@load-params _ (512 1024 1) 158)))
+        (val p5o-c1-p (@params-at _ (512 1024 1) weights 48420958))
+        (val p5o-c2-p (@params-at _ (1024 512 3) weights 48947294))
+        (val p5o-c3-p (@params-at _ (512 1024 1) weights 53669982))
+        (val p5o-c4-p (@params-at _ (1024 512 3) weights 54196318))
+        (val p5o-c5-p (@params-at _ (512 1024 1) weights 58919006))
         (val (p5out : *f512x19) (@trace (Int Float) ([6] [512 19 19]) tmsg 
              (@panet-5conv _ (1024 512 19) merge-19
                p5o-c1-p p5o-c2-p p5o-c3-p p5o-c4-p p5o-c5-p)))
 
         ;; --- P5 detection head: 19x19, anchors (142,110) (192,243) (459,401), scale_x_y 1.05 ---
-        (val p5-feed-p (@trace (Int {(w [Float 1024 512 3 3]) (mean [Float 1024]) (variance [Float 1024]) (scale [Float 1024]) (bias [Float 1024])}) ([6] []) tmsg (@load-params _ (1024 512 3) 159)))
-        (val p5-head-p (@trace (Int {(w [Float 255 1024 1 1]) (bias [Float 255])}) ([6] []) tmsg (@load-bias-params _ (255 1024 1) 160)))
+        (val p5-feed-p (@params-at _ (1024 512 3) weights 59445342))
+        (val p5-head-p (@bias-params-at _ (255 1024 1) weights 64168030))
         (val (p5-det : [&det 1083]) (@trace (Int &det) ([6] [1083]) tmsg 
              (@yolo-head _ (19 512 1024 80) p5out
                p5-feed-p p5-head-p [142.0 192.0 459.0] [110.0 243.0 401.0] 1.05 608.0)))
@@ -780,4 +780,4 @@
              (@append (&det) (17328 5415 []) p3-det
                 (@append (&det) (4332 1083 []) p4-det p5-det))))
        )
-    dets))
+    (@det-row _ (80) dets)))
