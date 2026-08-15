@@ -8,7 +8,6 @@
       },
       "locked": {
         "lastModified": 1786616073,
-        "narHash": "sha256-Iw7l7I5sDixhndXdVSdwNH2hbHkqt1S5LiNQXAsOr/g=",
         "owner": "diku-dk",
         "repo": "futhark",
         "rev": "e357c801f16d6201231bfa1ddcb97aa0719471f9",
@@ -23,7 +22,6 @@
     "nixpkgs": {
       "locked": {
         "lastModified": 1786534138,
-        "narHash": "sha256-fBJMdnKUTUDtfi/BYLr71HLaC9dG382arxLF2Egg2uo=",
         "owner": "nixos",
         "repo": "nixpkgs",
         "rev": "044bfe75bfe4c7bbe043dc17b5e42ea823b84a09",
