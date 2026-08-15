@@ -28,3 +28,6 @@ result
 examples/darknet/*.weights
 examples/darknet/weights/
 examples/darknet/*_608.bin
+
+*.actual
+*.expected

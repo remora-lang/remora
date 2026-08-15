@@ -35,7 +35,7 @@ mkCase path = do
     Left err -> [testCase (takeFileName path) $ assertFailure $ T.unpack err]
     Right blocks ->
       [ testCase (T.unpack $ testLabel (takeFileName path) entry i mode) $ do
-          outcome <- runTest options path source entry run mode
+          outcome <- runTest options path source entry i run mode
           case (xfail, outcome) of
             (False, Passed) -> pure ()
             (False, Failed message) -> assertFailure $ T.unpack message

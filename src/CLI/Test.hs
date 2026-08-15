@@ -19,22 +19,25 @@ module CLI.Test
   )
 where
 
-import CLI.Futhark (FutharkBackend, compileAndRun)
+import CLI.Futhark (FutharkBackend, Input (..), compileAndRun, futharkInput, futharkValue)
 import CLI.Test.Parser
 import Control.Exception (ErrorCall (..), evaluate, try)
 import Control.Monad (forM, when)
+import Data.ByteString.Lazy qualified as LBS
 import Data.Foldable (for_)
 import Data.List (isPrefixOf, sort)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
+import Futhark.Data.Reader qualified as F
 import GHC.IO.Exception (IOException (..))
 import Imports qualified
+import Interpreter qualified
 import Pass (runPassIO)
 import Pipeline qualified
 import System.Directory (doesDirectoryExist, listDirectory)
-import System.FilePath (takeBaseName, takeExtension, (</>))
+import System.FilePath (takeBaseName, takeDirectory, takeExtension, (<.>), (</>))
 import Text.Regex.TDFA (match)
 import Util
 
@@ -86,48 +89,106 @@ testLabel path entry run mode =
     <> prettyText mode
     <> "]"
 
-runTest :: Options -> FilePath -> Text -> Text -> TestRun -> Mode -> IO Outcome
-runTest options path source entry run mode = do
-  prog <- runPassIO $ Imports.resolveImports path source
-  outcome <- try $ evaluate . forced . check =<< runMode prog mode
-  pure $ case outcome of
-    Left (ErrorCall message) -> Failed $ T.pack message
-    Right result -> result
-  where
-    forced Passed = Passed
-    forced outcome@(Failed message) = message `seq` outcome
+data Checked
+  = CheckPassed
+  | CheckFailed Text Text
+  | CheckDumped Text Text
 
-    runMode prog Interpret =
-      pure $ prog >>= Pipeline.interpret entry (runInput run)
-    runMode prog Compile =
+maxInlineLength :: Int
+maxInlineLength = 1000
+
+runTest :: Options -> FilePath -> Text -> Text -> Maybe Int -> TestRun -> Mode -> IO Outcome
+runTest options path source entry index run mode = do
+  resolved <- case (mode, runInput run) of
+    (Compile, InFile file) -> pure $ Right $ InputFile $ dir </> file
+    (_, values) -> fmap InputValues <$> resolveValues dir values
+  expected <- traverse (resolveExpected dir) $ runExpected run
+  case (,) <$> resolved <*> sequence expected of
+    Left err -> pure $ Failed err
+    Right (input, wanted) -> do
+      prog <- runPassIO $ Imports.resolveImports path source
+      checked <- try $ evaluate . forced . check wanted =<< runMode prog input
+      case checked of
+        Left (ErrorCall message) -> pure $ Failed $ T.pack message
+        Right result -> report result
+  where
+    dir = takeDirectory path
+
+    forced CheckPassed = CheckPassed
+    forced outcome@(CheckFailed expected actual) = expected `seq` actual `seq` outcome
+    forced outcome@(CheckDumped expected actual) = expected `seq` actual `seq` outcome
+
+    runMode prog (InputValues values)
+      | mode == Interpret = pure $ Pipeline.interpret entry values =<< prog
+    runMode prog input =
       case prog >>= Pipeline.compile of
         Left err -> pure $ Left err
         Right ir ->
-          compileAndRun (optionsBackend options) (takeBaseName path) ir entry $
-            runInput run
+          compileAndRun (optionsBackend options) (takeBaseName path) ir entry input
 
-    check =
-      case runExpected run of
-        Nothing -> checkSuccess
-        Just (ExpectError pattern regex) -> checkError pattern regex
-        Just (ExpectOutput expected) -> checkOutput expected
+    check Nothing = checkSuccess
+    check (Just (ExpectError pattern regex)) = checkError pattern regex
+    check (Just (ExpectOutput expected)) = checkOutput expected
 
-    checkSuccess (Left err) = failed "success" err
-    checkSuccess (Right value) = prettyText value `seq` Passed
+    checkSuccess (Left err) = CheckFailed "success" err
+    checkSuccess (Right value) = prettyText value `seq` CheckPassed
 
     checkError pattern regex (Left err)
-      | match regex $ T.unpack err = Passed
-      | otherwise = failed ("error matching " <> pattern) err
+      | match regex $ T.unpack err = CheckPassed
+      | otherwise = CheckFailed ("error matching " <> pattern) err
     checkError pattern _ (Right value) =
-      failed ("error matching " <> pattern) $ prettyText value
+      CheckFailed ("error matching " <> pattern) $ prettyText value
 
-    checkOutput expected (Left err) = failed (prettyText expected) err
+    checkOutput expected (Left err) = CheckFailed (prettyText expected) err
     checkOutput expected (Right value)
-      | expected == value = Passed
-      | otherwise = failed (prettyText expected) $ prettyText value
+      | expected == value = CheckPassed
+      | otherwise =
+          case (futharkInput [expected], futharkInput [value]) of
+            (Right wanted, Right got)
+              | T.length wanted + T.length got > maxInlineLength ->
+                  CheckDumped wanted got
+            _ -> CheckFailed (prettyText expected) (prettyText value)
 
-    failed expected actual =
-      Failed $ T.unlines ["expected " <> expected <> ", but got:", actual]
+    report CheckPassed = pure Passed
+    report (CheckFailed expected actual) =
+      pure $ Failed $ T.unlines ["expected " <> expected <> ", but got:", actual]
+    report (CheckDumped expected actual) = do
+      written <- try $ T.writeFile expected_path expected >> T.writeFile actual_path actual
+      pure $ Failed $ case written of
+        Left err -> T.pack $ show (err :: IOException)
+        Right () ->
+          T.pack actual_path <> " and " <> T.pack expected_path <> " do not match"
+      where
+        expected_path = dumpPath "expected"
+        actual_path = dumpPath "actual"
+        dumpPath extension =
+          path <.> T.unpack entry <.> maybe extension (\i -> show i <.> extension) index
+
+resolveExpected ::
+  FilePath ->
+  Expected Values ->
+  IO (Either Error (Expected Interpreter.Val))
+resolveExpected _ (ExpectError pattern regex) = pure $ Right $ ExpectError pattern regex
+resolveExpected dir (ExpectOutput values) = do
+  resolved <- resolveValues dir values
+  pure $ ExpectOutput <$> (onlyValue =<< resolved)
+  where
+    onlyValue [value] = Right value
+    onlyValue vs =
+      Left $ "expected a single output value, but got " <> prettyText (length vs)
+
+resolveValues :: FilePath -> Values -> IO (Either Error [Interpreter.Val])
+resolveValues _ (Inline values) = pure $ Right values
+resolveValues dir (InFile file) = do
+  contents <- try $ LBS.readFile path
+  pure $ case contents of
+    Left err -> Left $ T.pack $ show (err :: IOException)
+    Right bytes ->
+      case F.readValues bytes of
+        Nothing -> Left $ "cannot read values from " <> T.pack path
+        Just values -> traverse futharkValue values
+  where
+    path = dir </> file
 
 data Result
   = FileFailed FilePath Text
@@ -192,7 +253,7 @@ runFile options path = do
             fmap concat $ forM (numberedRuns block) $ \(i, run) ->
               forM (testModesFor options block) $ \mode ->
                 ModeResult path entry i mode
-                  <$> runTest options path source entry run mode
+                  <$> runTest options path source entry i run mode
 
 selected :: Options -> TestBlock -> Bool
 selected options block =

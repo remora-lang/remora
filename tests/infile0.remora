@@ -1,0 +1,6 @@
+;; ==
+;; input @ data/add.in
+;; output @ data/add.out
+(entry (main (x Int) (y Int))
+  (+ x y)
+)

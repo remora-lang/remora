@@ -1,0 +1,10 @@
+;; ==
+;; input @ data/dot.in
+;; output { 32.0 }
+
+;; ==
+;; input @ data/dot-binary.in
+;; output { 32.0 }
+(entry (main (x [Float 3]) (y [Float 3]))
+  (@reduce (Float) (2 []) f.+ (f.* x y))
+)

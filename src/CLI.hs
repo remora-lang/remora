@@ -2,7 +2,7 @@
 
 module CLI (main) where
 
-import CLI.Futhark (FutharkBackend (..), compileAndRun, compileBackend)
+import CLI.Futhark (FutharkBackend (..), Input (..), compileAndRun, compileBackend)
 import CLI.REPL qualified
 import CLI.Test qualified
 import Control.Monad (unless, when)
@@ -202,6 +202,11 @@ test =
         "lines. A block tests main unless an entry directive names another:",
         "> ;; entry: dot",
         "",
+        "An input or output may name a file of values in the Futhark data format,",
+        "textual or binary, relative to the tested file:",
+        "> ;; input @ data/dot.in",
+        "> ;; output @ data/dot.out",
+        "",
         "Blocks run in both modes unless their modes directive says otherwise.",
         "These flags narrow what runs, and each takes several values:",
         "> remora test --modes interpret tests/",
@@ -348,7 +353,7 @@ main = do
                 base_name
                 ir
                 (entryPoint mentry)
-                input_args
+                (InputValues input_args)
           liftIO $ T.putStrLn $ prettyText v
       where
         base_name = takeFileName $ dropExtension $ sourceName mfile

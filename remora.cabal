@@ -66,6 +66,7 @@ library
     -- other-extensions:
     build-depends:
       base >=4.19.2.0,
+      async,
       megaparsec,
       parser-combinators,
       regex-tdfa,

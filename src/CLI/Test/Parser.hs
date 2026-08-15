@@ -1,6 +1,7 @@
 module CLI.Test.Parser
   ( TestBlock (..),
     TestRun (..),
+    Values (..),
     Expected (..),
     Mode (..),
     allModes,
@@ -11,7 +12,7 @@ where
 
 import Control.Monad (unless, void)
 import Control.Monad.Permutations
-import Data.Char (isAlphaNum)
+import Data.Char (isAlphaNum, isSpace)
 import Data.List (groupBy)
 import Data.Set (Set)
 import Data.Set qualified as S
@@ -42,12 +43,16 @@ data TestBlock = TestBlock
   }
 
 data TestRun = TestRun
-  { runInput :: [Interpreter.Val],
-    runExpected :: Maybe Expected
+  { runInput :: Values,
+    runExpected :: Maybe (Expected Values)
   }
 
-data Expected
-  = ExpectOutput Interpreter.Val
+data Values
+  = Inline [Interpreter.Val]
+  | InFile FilePath
+
+data Expected v
+  = ExpectOutput v
   | ExpectError Text Regex
 
 data Mode
@@ -134,7 +139,7 @@ pTestBlock = do
         <*> toPermutationWithDefault allModes pModes
         <*> toPermutationWithDefault Nothing (Just <$> pEntry)
   runs <- many pRun
-  block (if null runs then [TestRun mempty Nothing] else runs)
+  block (if null runs then [TestRun (Inline mempty) Nothing] else runs)
     <$ noRepeatedDirective
   where
     noRepeatedDirective :: Parser ()
@@ -167,20 +172,26 @@ pRun :: Parser TestRun
 pRun =
   choice
     [ TestRun <$> pInput <*> optional pResult,
-      TestRun mempty . Just <$> pResult
+      TestRun (Inline mempty) . Just <$> pResult
     ]
 
-pInput :: Parser [Interpreter.Val]
-pInput = lKeyword "input" >> braces (many pVal)
+pInput :: Parser Values
+pInput = lKeyword "input" >> choice [Inline <$> braces (many pVal), pInFile]
 
-pResult :: Parser Expected
+pOutput :: Parser Values
+pOutput = lKeyword "output" >> choice [Inline . pure <$> braces pVal, pInFile]
+
+pInFile :: Parser Values
+pInFile = symbol "@" >> InFile <$> lexeme (some $ satisfy $ not . isSpace)
+
+pResult :: Parser (Expected Values)
 pResult =
   choice
-    [ ExpectOutput <$> (lKeyword "output" >> braces pVal),
+    [ ExpectOutput <$> pOutput,
       lKeyword "error" >> symbol ":" >> pRegex
     ]
 
-pRegex :: Parser Expected
+pRegex :: Parser (Expected v)
 pRegex = do
   written <- lRestOfLine
   let pattern = if T.null written then ".*" else written
