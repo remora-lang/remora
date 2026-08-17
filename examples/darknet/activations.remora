@@ -7,7 +7,7 @@
 (def (val e 2.718281828459045))
 
 (def (fun (@softplus _ () (x [Float]) : [Float])
-     (f.ln (f.+ 1.0 (f.^ e x)))))
+     (f.ln (f.+ 1.0 (f.exp x)))))
 
 (def (fun (@mish _ () (x [Float]) : [Float])
      (f.* x (f.tanh (@softplus _ () x)))))

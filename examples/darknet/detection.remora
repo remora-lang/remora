@@ -51,15 +51,20 @@
 
 ;; ----------------- YOLO DECODE -------------------------
 
-;; One anchor's block of (5 + $classes) planes -> an SxS grid of detections.
-;; Lifting does the anchors: applying this to [Float 3 (5+classes) S S] with
-;; aw/ah/sxy as [Float 3] yields [det 3 S S].
+;; One anchor's block of (5 + $classes) planes -> the same (5 + $classes) planes
+;; decoded. Lifting does the anchors: applying this to [Float 3 (5+classes) S S]
+;; with aw/ah/sxy as [Float 3] yields [Float 3 (5+classes) S S].
+;;
+;; The decoded quantities stay as planes and are stacked on the leading axis, so
+;; the attribute order is darknet's own: x, y, w, h, obj, then the classes. That
+;; matches both entry_index's channel layout and the `detection` struct, so the
+;; result needs no unpacking to compare -- and unlike a record it can go straight
+;; out through @write-file-f32bin.
 (def (fun (@yolo-anchor _ ($s $classes)
                 (block [Float (+ 5 $classes) $s $s])
                 (aw [Float]) (ah [Float])
                 (sxy [Float]) (net [Float])
-                : [{(x [Float]) (y [Float]) (w [Float]) (h [Float])
-                    (obj [Float]) (classes [Float $classes])} $s $s])
+                : [Float (+ 5 $classes) $s $s])
     (let ((type *plane [Float $s $s])
           (val (grid : [Int $s $s 2]) (i-app idxs-of/2 $s $s))
           (val (row : *plane) (i->f (@index (Int) (2) grid 0)))
@@ -72,19 +77,14 @@
           (val (th : *plane) (@plane _ ((+ 5 $classes) $s) block 3))
           (val (tobj : *plane) (@plane _ ((+ 5 $classes) $s) block 4))
           (val (tcls : [Float $classes $s $s])
-               (@planes _ ((+ 5 $classes) $classes $s) block 5))
-          ;; classes must be the trailing axis so the record field's cell
-          ;; shape is [$classes] and the frame comes out as [$s $s]
-          (val (cls : [Float $s $s $classes])
-               (@reshape (Float) ([(* $s $s) $classes] [$s $s $classes])
-                  (@transpose2d (Float) ($classes (* $s $s))
-                     (@flatten (Float) ($s $s []) tcls)))))
-      {(x [] (f./ (f.+ col (f.+ (f.* (@sigmoid _ () tx) sxy) shift)) sf))
-       (y [] (f./ (f.+ row (f.+ (f.* (@sigmoid _ () ty) sxy) shift)) sf))
-       (w [] (f./ (f.* (f.^ e tw) aw) net))
-       (h [] (f./ (f.* (f.^ e th) ah) net))
-       (obj [] (@sigmoid _ () tobj))
-       (classes [$classes] (@sigmoid _ () cls))})))
+               (@planes _ ((+ 5 $classes) $classes $s) block 5)))
+      (@append (Float) (5 $classes [$s $s])
+        [(f./ (f.+ col (f.+ (f.* (@sigmoid _ () tx) sxy) shift)) sf)
+         (f./ (f.+ row (f.+ (f.* (@sigmoid _ () ty) sxy) shift)) sf)
+         (f./ (f.* (f.^ e tw) aw) net)
+         (f./ (f.* (f.^ e th) ah) net)
+         (@sigmoid _ () tobj)]
+        (@sigmoid _ () tcls)))))
 
 ;; 2x2 grid, 1 class, 3 anchors, every logit = 2.0, anchors 304/608/1216 and
 ;; the real per-scale scale_x_y 1.2/1.1/1.05. Exercises grid row/col, anchor
@@ -102,8 +102,16 @@
 ;;
 ;; NOTE: all-zero logits cannot test scale_x_y -- sigmoid(0)*s - 0.5*(s-1) is
 ;; 0.5 for every s -- which is why the logits here are 2.0.
+;; Attributes are planes now, so pull them with @plane instead of (field d ...).
+;; Lifting over the 3 anchors means @plane sees a [Float 6 2 2] cell and returns
+;; [Float 2 2], giving [Float 3 2 2] per attribute -- the same shape the record
+;; version printed.
 (entry (main)
   (let ((val (blocks : [Float 3 6 2 2]) (@replicate (Float) ([3 6 2 2] []) 2.0))
-        (val d (@yolo-anchor _ (2 1) blocks
+        (val (d : [Float 3 6 2 2])
+             (@yolo-anchor _ (2 1) blocks
                   [304.0 608.0 1216.0] [304.0 608.0 1216.0] [1.2 1.1 1.05] 608.0)))
-    [(field d x) (field d y) (field d w) (field d obj)]))
+    [(@plane _ (6 2) d 0)
+     (@plane _ (6 2) d 1)
+     (@plane _ (6 2) d 2)
+     (@plane _ (6 2) d 4)]))
