@@ -10,10 +10,16 @@ def main() -> int:
         prog='gen_conv_instances',
         usage="%(prog)s inputFilePath",
         description='generates to stdout remora code that contains concrete calls to polymorphic conv2d')
-    parser.add_argument('inFilePath', help="path to input file",
+    parser.add_argument('inFilePath', help="path to input file describing layers",
                         action='store', nargs='?',
                         default='yolov4_layers.txt')
     args = parser.parse_args()
+
+    # copy polymorphic conv2d to stdout
+    with open("../darknet_conv.remora", 'r') as f:
+        for line in f:
+            print(line, end='')
+        print(";; end of darknet_conv.remora")
 
     with open(args.inFilePath, 'r') as f:
         _ignore = f.readline() # ignore 1st line
@@ -46,11 +52,11 @@ def main() -> int:
             #     : [Float {output_depth} {output_combined}]
             #   (@conv2d (Float) ({n_minus_k} {win_dim} {input_depth} {output_depth} 1) in w)))
             # '''
-            defn_str = f'''(def (fun conv2d-rem/layer_{layer}
+            defn_str = f'''(entry (conv2d-rem/layer_{layer}
                 (in [Float {input_depth} {input_dim} {input_dim}])
                 (w [Float {filters} {win_dim} {win_dim}])
-                : [Float {output_depth} {output_combined}]
-              (@conv2d/rem _ ({q} {win_dim} {input_depth} {output_depth} {pad} {stride} {r}) in w)))
+                : [Float {output_depth} {output_combined}])
+              (@conv2d/rem _ ({q} {win_dim} {input_depth} {output_depth} {pad} {stride} {r}) in w))
             '''
             print(defn_str)
     return 0
