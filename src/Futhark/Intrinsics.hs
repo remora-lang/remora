@@ -95,6 +95,7 @@ compileUnOp Sqrt x = callBuiltin "sqrt32" (F.FloatType F.Float32) [x]
 compileUnOp FSqrt x = callBuiltin "sqrt32" (F.FloatType F.Float32) [x]
 compileUnOp FLn x = callBuiltin "log32" (F.FloatType F.Float32) [x]
 compileUnOp FTanh x = callBuiltin "tanh32" (F.FloatType F.Float32) [x]
+compileUnOp FExp x = callBuiltin "exp32" (F.FloatType F.Float32) [x]
 compileUnOp BitNot x = unOp (F.Complement F.Int64) x
 compileUnOp Popc x =
   convOp (F.SExt F.Int32 F.Int64) =<< callBuiltin "popc64" (F.IntType F.Int32) [x]
