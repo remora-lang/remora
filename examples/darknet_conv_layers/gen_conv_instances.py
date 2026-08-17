@@ -55,7 +55,7 @@ def main() -> int:
             # '''
             defn_str = f'''(entry (conv-2d-rem/layer_{layer}
                 (in [Float {input_depth} {input_dim} {input_dim}])
-                (w [Float {filters} {win_dim} {win_dim}])
+                (w [Float {output_depth} {input_depth} {win_dim} {win_dim}])
                 : [Float {output_depth} {output_combined}])
               (@conv-2d/rem _ ({q} {win_dim} {input_depth} {output_depth} {pad} {stride} {r}) in w))
             '''
