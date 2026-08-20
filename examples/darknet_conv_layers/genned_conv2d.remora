@@ -103,6 +103,12 @@
                 : [Float 32 369664])
               (@conv-2d/rem _ (607 3 3 32 1 1 0) in w))
             
+(entry (conv-2d-rem/layer_1
+                (in [Float 32 608 608])
+                (w [Float 64 32 3 3])
+                : [Float 64 92416])
+              (@conv-2d/rem _ (303 3 32 64 1 2 1) in w))
+            
 (entry (conv-2d-rem/layer_2
                 (in [Float 64 304 304])
                 (w [Float 64 64 1 1])
@@ -138,6 +144,12 @@
                 (w [Float 64 128 1 1])
                 : [Float 64 92416])
               (@conv-2d/rem _ (303 1 128 64 0 1 0) in w))
+            
+(entry (conv-2d-rem/layer_11
+                (in [Float 64 304 304])
+                (w [Float 128 64 3 3])
+                : [Float 128 23104])
+              (@conv-2d/rem _ (151 3 64 128 1 2 1) in w))
             
 (entry (conv-2d-rem/layer_12
                 (in [Float 128 152 152])
@@ -186,6 +198,12 @@
                 (w [Float 128 128 1 1])
                 : [Float 128 23104])
               (@conv-2d/rem _ (151 1 128 128 0 1 0) in w))
+            
+(entry (conv-2d-rem/layer_24
+                (in [Float 128 152 152])
+                (w [Float 256 128 3 3])
+                : [Float 256 5776])
+              (@conv-2d/rem _ (75 3 128 256 1 2 1) in w))
             
 (entry (conv-2d-rem/layer_25
                 (in [Float 256 76 76])
@@ -307,6 +325,12 @@
                 : [Float 256 5776])
               (@conv-2d/rem _ (75 1 256 256 0 1 0) in w))
             
+(entry (conv-2d-rem/layer_55
+                (in [Float 256 76 76])
+                (w [Float 512 256 3 3])
+                : [Float 512 1444])
+              (@conv-2d/rem _ (37 3 256 512 1 2 1) in w))
+            
 (entry (conv-2d-rem/layer_56
                 (in [Float 512 38 38])
                 (w [Float 256 512 1 1])
@@ -426,6 +450,12 @@
                 (w [Float 512 512 1 1])
                 : [Float 512 1444])
               (@conv-2d/rem _ (37 1 512 512 0 1 0) in w))
+            
+(entry (conv-2d-rem/layer_86
+                (in [Float 512 38 38])
+                (w [Float 1024 512 3 3])
+                : [Float 1024 361])
+              (@conv-2d/rem _ (18 3 512 1024 1 2 1) in w))
             
 (entry (conv-2d-rem/layer_87
                 (in [Float 1024 19 19])
@@ -631,6 +661,12 @@
                 : [Float 255 5776])
               (@conv-2d/rem _ (75 1 256 255 0 1 0) in w))
             
+(entry (conv-2d-rem/layer_141
+                (in [Float 128 76 76])
+                (w [Float 256 128 3 3])
+                : [Float 256 1444])
+              (@conv-2d/rem _ (37 3 128 256 1 2 1) in w))
+            
 (entry (conv-2d-rem/layer_143
                 (in [Float 512 38 38])
                 (w [Float 256 512 1 1])
@@ -672,6 +708,12 @@
                 (w [Float 255 512 1 1])
                 : [Float 255 1444])
               (@conv-2d/rem _ (37 1 512 255 0 1 0) in w))
+            
+(entry (conv-2d-rem/layer_152
+                (in [Float 256 38 38])
+                (w [Float 512 256 3 3])
+                : [Float 512 361])
+              (@conv-2d/rem _ (18 3 256 512 1 2 1) in w))
             
 (entry (conv-2d-rem/layer_154
                 (in [Float 1024 19 19])
