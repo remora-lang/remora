@@ -24,8 +24,9 @@ import Serializer ()
 import Syntax
 import System.Console.CmdArgs hiding (args, modes)
 import System.Console.CmdArgs qualified as CmdArgs
+import System.Directory (createDirectoryIfMissing)
 import System.Exit (exitFailure)
-import System.FilePath (dropExtension, takeFileName)
+import System.FilePath (dropExtension, takeFileName, (<.>), (</>))
 import System.IO
 import Util
 import Prelude hiding (exp)
@@ -44,6 +45,8 @@ data RemoraMode
         backend :: Maybe FutharkBackend,
         run_ :: Bool,
         entry :: Maybe String,
+        asts :: Bool,
+        asts_dir :: Maybe FilePath,
         args :: [String]
       }
   | Parse
@@ -128,6 +131,17 @@ futhark =
           &= name "entry"
           &= help "Entry point to run. Defaults to main."
           &= typ "NAME",
+      asts =
+        False
+          &= explicit
+          &= name "asts"
+          &= help "Write the AST after each compiler pass to a JSON file.",
+      asts_dir =
+        Nothing
+          &= explicit
+          &= name "asts-dir"
+          &= help "Directory for --asts output. Defaults to the current directory."
+          &= typDir,
       args = [] &= CmdArgs.args
     }
     &= details
@@ -140,7 +154,12 @@ futhark =
         "> remora futhark --run -f prog.remora 2 3",
         "> remora futhark --run --entry dot -f prog.remora \"[1.0 2.0]\" \"[3.0 4.0]\"",
         "",
-        "Without --run, --backend writes the generated code beside the source."
+        "Without --run, --backend writes the generated code beside the source.",
+        "",
+        "With --asts the AST produced by each pass is written to files:",
+        "parse.json, uniquify.json, typecheck.json, etc. With -f the names",
+        "are prefixed with the source basename: prog-parse.json, etc. Files",
+        "are created in the current directory unless --asts-dir says otherwise."
       ]
 
 test :: RemoraMode
@@ -329,7 +348,7 @@ main = do
         putResult
           | json = B.putStr . (<> "\n") . encodePretty
           | otherwise = T.putStrLn . prettyText
-    run (Futhark mfile mexpr mbackend do_run mentry margs) = do
+    run (Futhark mfile mexpr mbackend do_run mentry masts masts_dir margs) = do
       input <- parseInput mfile mexpr
       unless do_run $ do
         unless (null margs) $
@@ -338,7 +357,19 @@ main = do
               <> T.unwords (map T.pack margs)
         when (isJust mentry) $
           throwE "remora futhark: --entry requires --run."
-      ir <- except $ either Pipeline.compileExp Pipeline.compile input
+      unless masts $
+        when (isJust masts_dir) $
+          throwE "remora futhark: --asts-dir requires --asts."
+      ir <-
+        if masts
+          then do
+            liftIO $ createDirectoryIfMissing True asts_dir
+            (pass_asts, ir) <-
+              except $
+                either Pipeline.compileWithASTsExp Pipeline.compileWithASTs input
+            liftIO $ mapM_ writePassAST pass_asts
+            pure ir
+          else except $ either Pipeline.compileExp Pipeline.compile input
       case (do_run, mbackend) of
         (False, Nothing) -> liftIO $ T.putStrLn $ prettyText ir
         (False, Just backend) -> do
@@ -357,6 +388,18 @@ main = do
           liftIO $ T.putStrLn $ prettyText v
       where
         base_name = takeFileName $ dropExtension $ sourceName mfile
+
+        asts_dir = fromMaybe "." masts_dir
+
+        file_prefix
+          | isJust mfile = base_name <> "-"
+          | otherwise = ""
+
+        astFile pass = asts_dir </> (file_prefix <> pass) <.> "json"
+
+        writePassAST p =
+          B.writeFile (astFile $ Pipeline.passName p) $
+            encodePretty (Pipeline.passJSON p) <> "\n"
     run (Parse mfile mexpr) = do
       input <- parseInput mfile mexpr
       liftIO $ either (problem . prettyText) (T.putStrLn . prettyText) input
