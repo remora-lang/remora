@@ -12,7 +12,7 @@ def main() -> int:
         description='generates to stdout remora code that contains concrete calls to polymorphic conv2d')
     parser.add_argument('inFilePath', help="path to input file describing layers",
                         action='store', nargs='?',
-                        default='yolov4_layers.txt')
+                        default='yolov4_layers_full.txt')
     args = parser.parse_args()
 
     # copy polymorphic conv2d to stdout
