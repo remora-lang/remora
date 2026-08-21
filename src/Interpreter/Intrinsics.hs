@@ -142,6 +142,7 @@ intrinsics =
     unOpVal Floor = conv $ IntVal . floor . asFloat
     unOpVal FLn = floatUn log
     unOpVal FTanh = floatUn tanh
+    unOpVal FExp = floatUn exp
 
     scalarOps :: Map Text (Val m)
     scalarOps =
