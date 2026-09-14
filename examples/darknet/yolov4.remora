@@ -85,7 +85,7 @@
                    (i-app idxs-of/2 $k $k))))))))
 
 (def (fun (@dot _ ($n-1) (v [Float (+ 1 $n-1)]) (w [Float (+ 1 $n-1)]) : [Float])
-    (@reduce (Float) ($n-1 []) f.+ (f.* v w))))
+    (@reduce/zero (Float) ((+ 1 $n-1) []) f.+ 0.0 (f.* v w))))
 
 (def (fun (@lifted_dot _ ($m-1 $o) (v [Float (+ 1 $m-1)]) (M [Float (+ 1 $m-1) $o]) : [Float $o])
     (@dot _ ($m-1) v (@transpose2d (Float) ((+ 1 $m-1) $o) M))))
@@ -111,14 +111,20 @@
 (def (fun (@max-pool-2d _ ($n-k $k $in-c $p $s)
                 (in [Float $in-c (+ (* $n-k $s) $k) (+ (* $n-k $s) $k)])
                 : [Float $in-c (+ $n-k $p $p 1) (+ $n-k $p $p 1)])
-    (@reduce (Float) ((- $k 1) [(+ $n-k $p $p 1) (+ $n-k $p $p 1)])
-             (@f-max2d _ ([(+ $n-k $p $p 1) (+ $n-k $p $p 1)]))
-      (@reduce (Float) ((- $k 1) [$k (+ $n-k $p $p 1) (+ $n-k $p $p 1)])
-               (@f-max2d _ ([$k (+ $n-k $p $p 1) (+ $n-k $p $p 1)]))
-        (@lifted-subarray/2 (Float) ([$k $k] (- $k 1) (+ $n-k $p $p) $s)
-          (@pad/2 (Float) ((+ (* $n-k $s) $k) (* $p $s)) in -1.0e30)
-            (@replicate (Int) ([$in-c] [$k $k 2])
-              (i-app idxs-of/2 $k $k)))))))
+    (let ((val (neg-inf-2d : [Float (+ $n-k $p $p 1) (+ $n-k $p $p 1)])
+               (@replicate (Float) ([(+ $n-k $p $p 1) (+ $n-k $p $p 1)] []) -1.0e30))
+          (val (neg-inf-3d : [Float $k (+ $n-k $p $p 1) (+ $n-k $p $p 1)])
+               (@replicate (Float) ([$k] [(+ $n-k $p $p 1) (+ $n-k $p $p 1)]) neg-inf-2d)))
+      (@reduce/zero (Float) ($k [(+ $n-k $p $p 1) (+ $n-k $p $p 1)])
+                    (@f-max2d _ ([(+ $n-k $p $p 1) (+ $n-k $p $p 1)]))
+                    neg-inf-2d
+        (@reduce/zero (Float) ($k [$k (+ $n-k $p $p 1) (+ $n-k $p $p 1)])
+                      (@f-max2d _ ([$k (+ $n-k $p $p 1) (+ $n-k $p $p 1)]))
+                      neg-inf-3d
+          (@lifted-subarray/2 (Float) ([$k $k] (- $k 1) (+ $n-k $p $p) $s)
+            (@pad/2 (Float) ((+ (* $n-k $s) $k) (* $p $s)) in -1.0e30)
+              (@replicate (Int) ([$in-c] [$k $k 2])
+                (i-app idxs-of/2 $k $k))))))))
 
 ;; ----------------- BATCH NORMALIZATION -------------------------
 
