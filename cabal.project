@@ -6,6 +6,6 @@ allow-newer: base
 source-repository-package
     type: git
     location: https://github.com/diku-dk/futhark.git
-    tag: 4cf56e8c96c4e0c23feada8487790a593c47505b
+    tag: c3b8e3b9e109fc11e22dcf31c26a0eb3a2257931
 
 jobs: $ncpus

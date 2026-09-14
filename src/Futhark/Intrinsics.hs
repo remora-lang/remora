@@ -182,7 +182,7 @@ compileFold :: F.Name -> F.Lambda F.SOACS -> F.VName -> F.VName -> FutharkM F.Su
 compileFold name op acc xs = do
   n <- F.arraySize 0 <$> F.lookupType xs
   i <- F.newVName "i"
-  accParam <- F.newParam "acc" . (`F.toDecl` F.Nonunique) =<< F.lookupType acc
+  accParam <- F.newParam "acc" . (`F.toDecl` F.Consume) =<< F.lookupType acc
   let form = F.ForLoop i F.Int64 n
   body <-
     F.localScope (F.scopeOfLoopForm form <> F.scopeOfFParams [accParam]) $

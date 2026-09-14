@@ -159,7 +159,7 @@ compileApp f args t = do
       ( F.Apply
           f
           (map (,F.Observe) ses)
-          [ (F.staticShapes1 $ F.toDecl t' F.Nonunique, retAls (length ses) (length ts))
+          [ (F.staticShapes1 $ F.fromDecl t', retAls (length ses) (length ts))
           | t' <- ts
           ]
           F.Safe
@@ -227,12 +227,12 @@ compileBind (BindFun f params _ body (Info ret) _) = do
         F.funDefAttrs = mempty,
         F.funDefName = compileFunName f,
         F.funDefRetType =
-          [ ( F.toDecl (F.staticShapes1 ret') F.Nonunique,
+          [ ( F.staticShapes1 ret',
               retAls (length params') (length rets)
             )
           | ret' <- rets
           ],
-        F.funDefParams = map (fmap (`F.toDecl` F.Nonunique)) params',
+        F.funDefParams = map (fmap (`F.toDecl` F.Observe)) params',
         F.funDefBody = body'
       }
 compileBind (BindVal v _ e _) = do
@@ -280,24 +280,24 @@ addEntry name params body = do
     assertNoStms $
       (,)
         <$> compileArrayTypes (arrayTypeOf body)
-        <*> (F.EntryResult F.Nonunique <$> entryPointType (arrayTypeOf body))
+        <*> (F.EntryResult F.Observe <$> entryPointType (arrayTypeOf body))
   addFunction
     F.FunDef
       { F.funDefEntryPoint = Just (name, entryParams, entryResult, Nothing),
         F.funDefAttrs = mempty,
         F.funDefName = "entry_" <> name,
         F.funDefRetType =
-          [ ( F.toDecl (F.staticShapes1 ret) F.Nonunique,
+          [ ( F.staticShapes1 ret,
               retAls (length params') (length rets)
             )
           | ret <- rets
           ],
-        F.funDefParams = map (fmap (`F.toDecl` F.Nonunique)) params',
+        F.funDefParams = map (fmap (`F.toDecl` F.Observe)) params',
         F.funDefBody = F.Body () stms $ map (F.SubExpRes mempty) res
       }
   where
     entryParam p =
-      F.EntryParam (F.nameFromText $ escIfReserved $ varName $ patVar p) F.Nonunique
+      F.EntryParam (F.nameFromText $ escIfReserved $ varName $ patVar p) F.Observe
         <$> entryPointType (arrayTypeOf p)
 
 compileDecl :: Decl -> FutharkM ()
