@@ -8,7 +8,6 @@
       },
       "locked": {
         "lastModified": 1789229500,
-        "narHash": "sha256-h9Kd/sB5iUNyI2qAO6bFDg3CzqFAtrQYqldrwKXa7jg=",
         "owner": "diku-dk",
         "repo": "futhark",
         "rev": "c3b8e3b9e109fc11e22dcf31c26a0eb3a2257931",
