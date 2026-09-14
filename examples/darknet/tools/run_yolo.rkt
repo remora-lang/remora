@@ -29,6 +29,7 @@
   (define filename (make-parameter "../yolov4.remora"))
   (define weights-file (make-parameter "../yolov4.weights"))
   (define exec-file (make-parameter "../../../yolov4"))
+  (define cache-file (make-parameter "yolov4.cache"))
   (define input (make-parameter "../input.bin"))
   (define output (make-parameter "yolo_out_fut.bin"))
   (define file (file->list (filename)))
@@ -53,8 +54,9 @@
    [("-e" "--exec") e "Path to yolov4 executable" (exec-file e)]
    [("-i" "--input") i "Path to the input image" (input i)]
    [("-o" "--output") o "Path to the output" (output o)]
+   [("-c" "--cache") c "Path to the cache file" (cache-file c)]
    )
-  (define exec (format "~a -b > ~a" (exec-file) (output)))
+  (define exec (format "~a -b --cache ~a > ~a" (exec-file) (cache-file) (output)))
 
   (define weights-bin (subbytes (file->bytes (weights-file)) 20))
   (println "read weights")
