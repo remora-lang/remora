@@ -76,6 +76,10 @@
         {
           inherit (hpkgs) remora;
           inherit remora-wrapped remora-docs;
+          # Exposed so that downstream flakes can use the very same Futhark that
+          # the remora wrapper puts on its PATH, rather than pulling in a second
+          # copy of their own.
+          inherit (pkgs) futhark;
           default = remora-wrapped;
         }
       );
