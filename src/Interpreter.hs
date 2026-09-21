@@ -313,7 +313,7 @@ intExp expr@(Unbox ep x_e box e _ _) = do
   box' <- intExp box
   let (ns, boxes) = asArray box'
   elems <- mapM unbox boxes
-  pure $ collapse $ ValArray (valShapeOf box' <> ns) elems
+  pure $ collapse $ ValArray ns elems
   where
     unbox (ValBox [ispace] v) =
       ibind (unISpaceParam ep) ispace $
