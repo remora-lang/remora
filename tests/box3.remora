@@ -1,0 +1,7 @@
+;; ==
+;; tags { existential }
+;; output { [3 7] }
+(entry (main)
+  (unbox ($d xs [(box (2) [1 2] (Sigma ($n) [Int $n]))
+                 (box (2) [3 4] (Sigma ($n) [Int $n]))])
+    (@sum () ($d) xs)))
