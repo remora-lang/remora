@@ -1,0 +1,2914 @@
+[
+  {
+    "type": "applicationexp",
+    "named": true,
+    "fields": {
+      "fnexp": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "applicationexp",
+            "named": true
+          },
+          {
+            "type": "arrayexpatom",
+            "named": true
+          },
+          {
+            "type": "arrayexptype",
+            "named": true
+          },
+          {
+            "type": "atappexp",
+            "named": true
+          },
+          {
+            "type": "atomexp",
+            "named": true
+          },
+          {
+            "type": "bracketsexp",
+            "named": true
+          },
+          {
+            "type": "frameexpexp",
+            "named": true
+          },
+          {
+            "type": "frameexptype",
+            "named": true
+          },
+          {
+            "type": "iappexp",
+            "named": true
+          },
+          {
+            "type": "idexp",
+            "named": true
+          },
+          {
+            "type": "letexp",
+            "named": true
+          },
+          {
+            "type": "stringexp",
+            "named": true
+          },
+          {
+            "type": "tappexp",
+            "named": true
+          },
+          {
+            "type": "unboxexp",
+            "named": true
+          }
+        ]
+      },
+      "param": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "applicationexp",
+            "named": true
+          },
+          {
+            "type": "arrayexpatom",
+            "named": true
+          },
+          {
+            "type": "arrayexptype",
+            "named": true
+          },
+          {
+            "type": "atappexp",
+            "named": true
+          },
+          {
+            "type": "atomexp",
+            "named": true
+          },
+          {
+            "type": "bracketsexp",
+            "named": true
+          },
+          {
+            "type": "frameexpexp",
+            "named": true
+          },
+          {
+            "type": "frameexptype",
+            "named": true
+          },
+          {
+            "type": "iappexp",
+            "named": true
+          },
+          {
+            "type": "idexp",
+            "named": true
+          },
+          {
+            "type": "letexp",
+            "named": true
+          },
+          {
+            "type": "stringexp",
+            "named": true
+          },
+          {
+            "type": "tappexp",
+            "named": true
+          },
+          {
+            "type": "unboxexp",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "args",
+    "named": true,
+    "fields": {
+      "arg": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      },
+      "type": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "arraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "functiontype",
+            "named": true
+          },
+          {
+            "type": "id",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "arrayexpatom",
+    "named": true,
+    "fields": {
+      "atom": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "atom",
+            "named": false
+          }
+        ]
+      },
+      "shape": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "shape_lit",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "arrayexptype",
+    "named": true,
+    "fields": {
+      "shape": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "shape_lit",
+            "named": true
+          }
+        ]
+      },
+      "type": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "arraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "functiontype",
+            "named": true
+          },
+          {
+            "type": "id",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "arraytype",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "arraytype",
+          "named": true
+        },
+        {
+          "type": "atshape",
+          "named": true
+        },
+        {
+          "type": "dimsshape",
+          "named": true
+        },
+        {
+          "type": "dollardim",
+          "named": true
+        },
+        {
+          "type": "foralltype",
+          "named": true
+        },
+        {
+          "type": "functiontype",
+          "named": true
+        },
+        {
+          "type": "id",
+          "named": true
+        },
+        {
+          "type": "immedtype",
+          "named": true
+        },
+        {
+          "type": "ispaceshape",
+          "named": true
+        },
+        {
+          "type": "minusdim",
+          "named": true
+        },
+        {
+          "type": "natdim",
+          "named": true
+        },
+        {
+          "type": "pitype",
+          "named": true
+        },
+        {
+          "type": "plusdim",
+          "named": true
+        },
+        {
+          "type": "plusplusshape",
+          "named": true
+        },
+        {
+          "type": "sigmatype",
+          "named": true
+        },
+        {
+          "type": "timesdim",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "atappexp",
+    "named": true,
+    "fields": {
+      "fnexp": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "applicationexp",
+            "named": true
+          },
+          {
+            "type": "arrayexpatom",
+            "named": true
+          },
+          {
+            "type": "arrayexptype",
+            "named": true
+          },
+          {
+            "type": "atappexp",
+            "named": true
+          },
+          {
+            "type": "atomexp",
+            "named": true
+          },
+          {
+            "type": "bracketsexp",
+            "named": true
+          },
+          {
+            "type": "frameexpexp",
+            "named": true
+          },
+          {
+            "type": "frameexptype",
+            "named": true
+          },
+          {
+            "type": "iappexp",
+            "named": true
+          },
+          {
+            "type": "idexp",
+            "named": true
+          },
+          {
+            "type": "letexp",
+            "named": true
+          },
+          {
+            "type": "stringexp",
+            "named": true
+          },
+          {
+            "type": "tappexp",
+            "named": true
+          },
+          {
+            "type": "unboxexp",
+            "named": true
+          }
+        ]
+      },
+      "ispace": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "atshape",
+            "named": true
+          },
+          {
+            "type": "dimsshape",
+            "named": true
+          },
+          {
+            "type": "dollardim",
+            "named": true
+          },
+          {
+            "type": "ispaceshape",
+            "named": true
+          },
+          {
+            "type": "minusdim",
+            "named": true
+          },
+          {
+            "type": "natdim",
+            "named": true
+          },
+          {
+            "type": "plusdim",
+            "named": true
+          },
+          {
+            "type": "plusplusshape",
+            "named": true
+          },
+          {
+            "type": "timesdim",
+            "named": true
+          }
+        ]
+      },
+      "param": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "applicationexp",
+            "named": true
+          },
+          {
+            "type": "arrayexpatom",
+            "named": true
+          },
+          {
+            "type": "arrayexptype",
+            "named": true
+          },
+          {
+            "type": "atappexp",
+            "named": true
+          },
+          {
+            "type": "atomexp",
+            "named": true
+          },
+          {
+            "type": "bracketsexp",
+            "named": true
+          },
+          {
+            "type": "frameexpexp",
+            "named": true
+          },
+          {
+            "type": "frameexptype",
+            "named": true
+          },
+          {
+            "type": "iappexp",
+            "named": true
+          },
+          {
+            "type": "idexp",
+            "named": true
+          },
+          {
+            "type": "letexp",
+            "named": true
+          },
+          {
+            "type": "stringexp",
+            "named": true
+          },
+          {
+            "type": "tappexp",
+            "named": true
+          },
+          {
+            "type": "unboxexp",
+            "named": true
+          }
+        ]
+      },
+      "type": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "arraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "functiontype",
+            "named": true
+          },
+          {
+            "type": "id",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "atomexp",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "atshape",
+    "named": true,
+    "fields": {
+      "id": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "bracketsexp",
+    "named": true,
+    "fields": {
+      "exp": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "applicationexp",
+            "named": true
+          },
+          {
+            "type": "arrayexpatom",
+            "named": true
+          },
+          {
+            "type": "arrayexptype",
+            "named": true
+          },
+          {
+            "type": "atappexp",
+            "named": true
+          },
+          {
+            "type": "atomexp",
+            "named": true
+          },
+          {
+            "type": "bracketsexp",
+            "named": true
+          },
+          {
+            "type": "frameexpexp",
+            "named": true
+          },
+          {
+            "type": "frameexptype",
+            "named": true
+          },
+          {
+            "type": "iappexp",
+            "named": true
+          },
+          {
+            "type": "idexp",
+            "named": true
+          },
+          {
+            "type": "letexp",
+            "named": true
+          },
+          {
+            "type": "stringexp",
+            "named": true
+          },
+          {
+            "type": "tappexp",
+            "named": true
+          },
+          {
+            "type": "unboxexp",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "dimsshape",
+    "named": true,
+    "fields": {
+      "dim": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "dollardim",
+            "named": true
+          },
+          {
+            "type": "minusdim",
+            "named": true
+          },
+          {
+            "type": "natdim",
+            "named": true
+          },
+          {
+            "type": "plusdim",
+            "named": true
+          },
+          {
+            "type": "timesdim",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "dollardim",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "id",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "entry",
+    "named": true,
+    "fields": {
+      "args": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "args",
+            "named": true
+          }
+        ]
+      },
+      "body": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "applicationexp",
+            "named": true
+          },
+          {
+            "type": "arrayexpatom",
+            "named": true
+          },
+          {
+            "type": "arrayexptype",
+            "named": true
+          },
+          {
+            "type": "atappexp",
+            "named": true
+          },
+          {
+            "type": "atomexp",
+            "named": true
+          },
+          {
+            "type": "bracketsexp",
+            "named": true
+          },
+          {
+            "type": "frameexpexp",
+            "named": true
+          },
+          {
+            "type": "frameexptype",
+            "named": true
+          },
+          {
+            "type": "iappexp",
+            "named": true
+          },
+          {
+            "type": "idexp",
+            "named": true
+          },
+          {
+            "type": "letexp",
+            "named": true
+          },
+          {
+            "type": "stringexp",
+            "named": true
+          },
+          {
+            "type": "tappexp",
+            "named": true
+          },
+          {
+            "type": "unboxexp",
+            "named": true
+          }
+        ]
+      },
+      "entry_id": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      },
+      "return_type": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "arraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "functiontype",
+            "named": true
+          },
+          {
+            "type": "id",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "foralltype",
+    "named": true,
+    "fields": {
+      "returntype": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "arraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "functiontype",
+            "named": true
+          },
+          {
+            "type": "id",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          }
+        ]
+      },
+      "tvars": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "frameexpexp",
+    "named": true,
+    "fields": {
+      "exp": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "applicationexp",
+            "named": true
+          },
+          {
+            "type": "arrayexpatom",
+            "named": true
+          },
+          {
+            "type": "arrayexptype",
+            "named": true
+          },
+          {
+            "type": "atappexp",
+            "named": true
+          },
+          {
+            "type": "atomexp",
+            "named": true
+          },
+          {
+            "type": "bracketsexp",
+            "named": true
+          },
+          {
+            "type": "frameexpexp",
+            "named": true
+          },
+          {
+            "type": "frameexptype",
+            "named": true
+          },
+          {
+            "type": "iappexp",
+            "named": true
+          },
+          {
+            "type": "idexp",
+            "named": true
+          },
+          {
+            "type": "letexp",
+            "named": true
+          },
+          {
+            "type": "stringexp",
+            "named": true
+          },
+          {
+            "type": "tappexp",
+            "named": true
+          },
+          {
+            "type": "unboxexp",
+            "named": true
+          }
+        ]
+      },
+      "shape": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "shape_lit",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "frameexptype",
+    "named": true,
+    "fields": {
+      "shape": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "shape_lit",
+            "named": true
+          }
+        ]
+      },
+      "type": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "arraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "functiontype",
+            "named": true
+          },
+          {
+            "type": "id",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "funbind",
+    "named": true,
+    "fields": {
+      "body": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "applicationexp",
+            "named": true
+          },
+          {
+            "type": "arrayexpatom",
+            "named": true
+          },
+          {
+            "type": "arrayexptype",
+            "named": true
+          },
+          {
+            "type": "atappexp",
+            "named": true
+          },
+          {
+            "type": "atomexp",
+            "named": true
+          },
+          {
+            "type": "bracketsexp",
+            "named": true
+          },
+          {
+            "type": "frameexpexp",
+            "named": true
+          },
+          {
+            "type": "frameexptype",
+            "named": true
+          },
+          {
+            "type": "iappexp",
+            "named": true
+          },
+          {
+            "type": "idexp",
+            "named": true
+          },
+          {
+            "type": "letexp",
+            "named": true
+          },
+          {
+            "type": "stringexp",
+            "named": true
+          },
+          {
+            "type": "tappexp",
+            "named": true
+          },
+          {
+            "type": "unboxexp",
+            "named": true
+          }
+        ]
+      },
+      "fun_id": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      },
+      "ivars": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "$",
+            "named": false
+          },
+          {
+            "type": "@",
+            "named": false
+          },
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      },
+      "ret_type": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "arraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "functiontype",
+            "named": true
+          },
+          {
+            "type": "id",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          }
+        ]
+      },
+      "tvars": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "args",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "functiontype",
+    "named": true,
+    "fields": {
+      "argtype": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "arraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "functiontype",
+            "named": true
+          },
+          {
+            "type": "id",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          }
+        ]
+      },
+      "returntype": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "arraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "functiontype",
+            "named": true
+          },
+          {
+            "type": "id",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "iappexp",
+    "named": true,
+    "fields": {
+      "exp": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "applicationexp",
+            "named": true
+          },
+          {
+            "type": "arrayexpatom",
+            "named": true
+          },
+          {
+            "type": "arrayexptype",
+            "named": true
+          },
+          {
+            "type": "atappexp",
+            "named": true
+          },
+          {
+            "type": "atomexp",
+            "named": true
+          },
+          {
+            "type": "bracketsexp",
+            "named": true
+          },
+          {
+            "type": "frameexpexp",
+            "named": true
+          },
+          {
+            "type": "frameexptype",
+            "named": true
+          },
+          {
+            "type": "iappexp",
+            "named": true
+          },
+          {
+            "type": "idexp",
+            "named": true
+          },
+          {
+            "type": "letexp",
+            "named": true
+          },
+          {
+            "type": "stringexp",
+            "named": true
+          },
+          {
+            "type": "tappexp",
+            "named": true
+          },
+          {
+            "type": "unboxexp",
+            "named": true
+          }
+        ]
+      },
+      "ispace": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "atshape",
+            "named": true
+          },
+          {
+            "type": "dimsshape",
+            "named": true
+          },
+          {
+            "type": "dollardim",
+            "named": true
+          },
+          {
+            "type": "ispaceshape",
+            "named": true
+          },
+          {
+            "type": "minusdim",
+            "named": true
+          },
+          {
+            "type": "natdim",
+            "named": true
+          },
+          {
+            "type": "plusdim",
+            "named": true
+          },
+          {
+            "type": "plusplusshape",
+            "named": true
+          },
+          {
+            "type": "timesdim",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "idexp",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "id",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "ifunbind",
+    "named": true,
+    "fields": {
+      "body": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "applicationexp",
+            "named": true
+          },
+          {
+            "type": "arrayexpatom",
+            "named": true
+          },
+          {
+            "type": "arrayexptype",
+            "named": true
+          },
+          {
+            "type": "atappexp",
+            "named": true
+          },
+          {
+            "type": "atomexp",
+            "named": true
+          },
+          {
+            "type": "bracketsexp",
+            "named": true
+          },
+          {
+            "type": "frameexpexp",
+            "named": true
+          },
+          {
+            "type": "frameexptype",
+            "named": true
+          },
+          {
+            "type": "iappexp",
+            "named": true
+          },
+          {
+            "type": "idexp",
+            "named": true
+          },
+          {
+            "type": "letexp",
+            "named": true
+          },
+          {
+            "type": "stringexp",
+            "named": true
+          },
+          {
+            "type": "tappexp",
+            "named": true
+          },
+          {
+            "type": "unboxexp",
+            "named": true
+          }
+        ]
+      },
+      "fun_id": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      },
+      "ivars": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "$",
+            "named": false
+          },
+          {
+            "type": "@",
+            "named": false
+          },
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      },
+      "ret_type": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "arraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "functiontype",
+            "named": true
+          },
+          {
+            "type": "id",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "immedtype",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "import",
+    "named": true,
+    "fields": {
+      "filename": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "filename",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "ispacebind",
+    "named": true,
+    "fields": {
+      "ispace": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "atshape",
+            "named": true
+          },
+          {
+            "type": "dimsshape",
+            "named": true
+          },
+          {
+            "type": "dollardim",
+            "named": true
+          },
+          {
+            "type": "ispaceshape",
+            "named": true
+          },
+          {
+            "type": "minusdim",
+            "named": true
+          },
+          {
+            "type": "natdim",
+            "named": true
+          },
+          {
+            "type": "plusdim",
+            "named": true
+          },
+          {
+            "type": "plusplusshape",
+            "named": true
+          },
+          {
+            "type": "timesdim",
+            "named": true
+          }
+        ]
+      },
+      "ispacevar": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "$",
+            "named": false
+          },
+          {
+            "type": "@",
+            "named": false
+          },
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "ispaceshape",
+    "named": true,
+    "fields": {
+      "ispace": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "atshape",
+            "named": true
+          },
+          {
+            "type": "dimsshape",
+            "named": true
+          },
+          {
+            "type": "dollardim",
+            "named": true
+          },
+          {
+            "type": "ispaceshape",
+            "named": true
+          },
+          {
+            "type": "minusdim",
+            "named": true
+          },
+          {
+            "type": "natdim",
+            "named": true
+          },
+          {
+            "type": "plusdim",
+            "named": true
+          },
+          {
+            "type": "plusplusshape",
+            "named": true
+          },
+          {
+            "type": "timesdim",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "letexp",
+    "named": true,
+    "fields": {
+      "bind": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "funbind",
+            "named": true
+          },
+          {
+            "type": "ifunbind",
+            "named": true
+          },
+          {
+            "type": "ispacebind",
+            "named": true
+          },
+          {
+            "type": "tfunbind",
+            "named": true
+          },
+          {
+            "type": "typebind",
+            "named": true
+          },
+          {
+            "type": "valbind",
+            "named": true
+          }
+        ]
+      },
+      "exp": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "applicationexp",
+            "named": true
+          },
+          {
+            "type": "arrayexpatom",
+            "named": true
+          },
+          {
+            "type": "arrayexptype",
+            "named": true
+          },
+          {
+            "type": "atappexp",
+            "named": true
+          },
+          {
+            "type": "atomexp",
+            "named": true
+          },
+          {
+            "type": "bracketsexp",
+            "named": true
+          },
+          {
+            "type": "frameexpexp",
+            "named": true
+          },
+          {
+            "type": "frameexptype",
+            "named": true
+          },
+          {
+            "type": "iappexp",
+            "named": true
+          },
+          {
+            "type": "idexp",
+            "named": true
+          },
+          {
+            "type": "letexp",
+            "named": true
+          },
+          {
+            "type": "stringexp",
+            "named": true
+          },
+          {
+            "type": "tappexp",
+            "named": true
+          },
+          {
+            "type": "unboxexp",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "minusdim",
+    "named": true,
+    "fields": {
+      "dim": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "dollardim",
+            "named": true
+          },
+          {
+            "type": "minusdim",
+            "named": true
+          },
+          {
+            "type": "natdim",
+            "named": true
+          },
+          {
+            "type": "plusdim",
+            "named": true
+          },
+          {
+            "type": "timesdim",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "natdim",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "nat",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "pitype",
+    "named": true,
+    "fields": {
+      "returntype": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "arraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "functiontype",
+            "named": true
+          },
+          {
+            "type": "id",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          }
+        ]
+      },
+      "tvars": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "$",
+            "named": false
+          },
+          {
+            "type": "@",
+            "named": false
+          },
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "plusdim",
+    "named": true,
+    "fields": {
+      "dim": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "dollardim",
+            "named": true
+          },
+          {
+            "type": "minusdim",
+            "named": true
+          },
+          {
+            "type": "natdim",
+            "named": true
+          },
+          {
+            "type": "plusdim",
+            "named": true
+          },
+          {
+            "type": "timesdim",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "plusplusshape",
+    "named": true,
+    "fields": {
+      "shape": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "atshape",
+            "named": true
+          },
+          {
+            "type": "dimsshape",
+            "named": true
+          },
+          {
+            "type": "ispaceshape",
+            "named": true
+          },
+          {
+            "type": "plusplusshape",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "program",
+    "named": true,
+    "root": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "entry",
+          "named": true
+        },
+        {
+          "type": "funbind",
+          "named": true
+        },
+        {
+          "type": "ifunbind",
+          "named": true
+        },
+        {
+          "type": "import",
+          "named": true
+        },
+        {
+          "type": "ispacebind",
+          "named": true
+        },
+        {
+          "type": "tfunbind",
+          "named": true
+        },
+        {
+          "type": "typebind",
+          "named": true
+        },
+        {
+          "type": "valbind",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "shape_lit",
+    "named": true,
+    "fields": {
+      "num": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "nat",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "sigmatype",
+    "named": true,
+    "fields": {
+      "returntype": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "arraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "functiontype",
+            "named": true
+          },
+          {
+            "type": "id",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          }
+        ]
+      },
+      "tvars": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "$",
+            "named": false
+          },
+          {
+            "type": "@",
+            "named": false
+          },
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "stringexp",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "string",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "tappexp",
+    "named": true,
+    "fields": {
+      "exp": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "applicationexp",
+            "named": true
+          },
+          {
+            "type": "arrayexpatom",
+            "named": true
+          },
+          {
+            "type": "arrayexptype",
+            "named": true
+          },
+          {
+            "type": "atappexp",
+            "named": true
+          },
+          {
+            "type": "atomexp",
+            "named": true
+          },
+          {
+            "type": "bracketsexp",
+            "named": true
+          },
+          {
+            "type": "frameexpexp",
+            "named": true
+          },
+          {
+            "type": "frameexptype",
+            "named": true
+          },
+          {
+            "type": "iappexp",
+            "named": true
+          },
+          {
+            "type": "idexp",
+            "named": true
+          },
+          {
+            "type": "letexp",
+            "named": true
+          },
+          {
+            "type": "stringexp",
+            "named": true
+          },
+          {
+            "type": "tappexp",
+            "named": true
+          },
+          {
+            "type": "unboxexp",
+            "named": true
+          }
+        ]
+      },
+      "type": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "arraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "functiontype",
+            "named": true
+          },
+          {
+            "type": "id",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "tfunbind",
+    "named": true,
+    "fields": {
+      "body": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "applicationexp",
+            "named": true
+          },
+          {
+            "type": "arrayexpatom",
+            "named": true
+          },
+          {
+            "type": "arrayexptype",
+            "named": true
+          },
+          {
+            "type": "atappexp",
+            "named": true
+          },
+          {
+            "type": "atomexp",
+            "named": true
+          },
+          {
+            "type": "bracketsexp",
+            "named": true
+          },
+          {
+            "type": "frameexpexp",
+            "named": true
+          },
+          {
+            "type": "frameexptype",
+            "named": true
+          },
+          {
+            "type": "iappexp",
+            "named": true
+          },
+          {
+            "type": "idexp",
+            "named": true
+          },
+          {
+            "type": "letexp",
+            "named": true
+          },
+          {
+            "type": "stringexp",
+            "named": true
+          },
+          {
+            "type": "tappexp",
+            "named": true
+          },
+          {
+            "type": "unboxexp",
+            "named": true
+          }
+        ]
+      },
+      "fun_id": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      },
+      "ret_type": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "arraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "functiontype",
+            "named": true
+          },
+          {
+            "type": "id",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          }
+        ]
+      },
+      "tvars": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "timesdim",
+    "named": true,
+    "fields": {
+      "dim": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "dollardim",
+            "named": true
+          },
+          {
+            "type": "minusdim",
+            "named": true
+          },
+          {
+            "type": "natdim",
+            "named": true
+          },
+          {
+            "type": "plusdim",
+            "named": true
+          },
+          {
+            "type": "timesdim",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "typebind",
+    "named": true,
+    "fields": {
+      "type": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "arraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "functiontype",
+            "named": true
+          },
+          {
+            "type": "id",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          }
+        ]
+      },
+      "type_id": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "unboxexp",
+    "named": true,
+    "fields": {
+      "exp1": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "applicationexp",
+            "named": true
+          },
+          {
+            "type": "arrayexpatom",
+            "named": true
+          },
+          {
+            "type": "arrayexptype",
+            "named": true
+          },
+          {
+            "type": "atappexp",
+            "named": true
+          },
+          {
+            "type": "atomexp",
+            "named": true
+          },
+          {
+            "type": "bracketsexp",
+            "named": true
+          },
+          {
+            "type": "frameexpexp",
+            "named": true
+          },
+          {
+            "type": "frameexptype",
+            "named": true
+          },
+          {
+            "type": "iappexp",
+            "named": true
+          },
+          {
+            "type": "idexp",
+            "named": true
+          },
+          {
+            "type": "letexp",
+            "named": true
+          },
+          {
+            "type": "stringexp",
+            "named": true
+          },
+          {
+            "type": "tappexp",
+            "named": true
+          },
+          {
+            "type": "unboxexp",
+            "named": true
+          }
+        ]
+      },
+      "exp2": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "applicationexp",
+            "named": true
+          },
+          {
+            "type": "arrayexpatom",
+            "named": true
+          },
+          {
+            "type": "arrayexptype",
+            "named": true
+          },
+          {
+            "type": "atappexp",
+            "named": true
+          },
+          {
+            "type": "atomexp",
+            "named": true
+          },
+          {
+            "type": "bracketsexp",
+            "named": true
+          },
+          {
+            "type": "frameexpexp",
+            "named": true
+          },
+          {
+            "type": "frameexptype",
+            "named": true
+          },
+          {
+            "type": "iappexp",
+            "named": true
+          },
+          {
+            "type": "idexp",
+            "named": true
+          },
+          {
+            "type": "letexp",
+            "named": true
+          },
+          {
+            "type": "stringexp",
+            "named": true
+          },
+          {
+            "type": "tappexp",
+            "named": true
+          },
+          {
+            "type": "unboxexp",
+            "named": true
+          }
+        ]
+      },
+      "id": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      },
+      "ispace_var": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "$",
+            "named": false
+          },
+          {
+            "type": "@",
+            "named": false
+          },
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "valbind",
+    "named": true,
+    "fields": {
+      "val_exp": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "applicationexp",
+            "named": true
+          },
+          {
+            "type": "arrayexpatom",
+            "named": true
+          },
+          {
+            "type": "arrayexptype",
+            "named": true
+          },
+          {
+            "type": "atappexp",
+            "named": true
+          },
+          {
+            "type": "atomexp",
+            "named": true
+          },
+          {
+            "type": "bracketsexp",
+            "named": true
+          },
+          {
+            "type": "frameexpexp",
+            "named": true
+          },
+          {
+            "type": "frameexptype",
+            "named": true
+          },
+          {
+            "type": "iappexp",
+            "named": true
+          },
+          {
+            "type": "idexp",
+            "named": true
+          },
+          {
+            "type": "letexp",
+            "named": true
+          },
+          {
+            "type": "stringexp",
+            "named": true
+          },
+          {
+            "type": "tappexp",
+            "named": true
+          },
+          {
+            "type": "unboxexp",
+            "named": true
+          }
+        ]
+      },
+      "val_id": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      },
+      "val_type": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "arraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "functiontype",
+            "named": true
+          },
+          {
+            "type": "id",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "\"",
+    "named": false
+  },
+  {
+    "type": "$",
+    "named": false
+  },
+  {
+    "type": "&",
+    "named": false
+  },
+  {
+    "type": "(",
+    "named": false
+  },
+  {
+    "type": ")",
+    "named": false
+  },
+  {
+    "type": "*",
+    "named": false
+  },
+  {
+    "type": "+",
+    "named": false
+  },
+  {
+    "type": "++",
+    "named": false
+  },
+  {
+    "type": "-",
+    "named": false
+  },
+  {
+    "type": "->",
+    "named": false
+  },
+  {
+    "type": ":",
+    "named": false
+  },
+  {
+    "type": "@",
+    "named": false
+  },
+  {
+    "type": "A",
+    "named": false
+  },
+  {
+    "type": "Bool",
+    "named": false
+  },
+  {
+    "type": "Float",
+    "named": false
+  },
+  {
+    "type": "Forall",
+    "named": false
+  },
+  {
+    "type": "Int",
+    "named": false
+  },
+  {
+    "type": "Pi",
+    "named": false
+  },
+  {
+    "type": "Sigma",
+    "named": false
+  },
+  {
+    "type": "[",
+    "named": false
+  },
+  {
+    "type": "]",
+    "named": false
+  },
+  {
+    "type": "_",
+    "named": false
+  },
+  {
+    "type": "array",
+    "named": false
+  },
+  {
+    "type": "atom",
+    "named": false
+  },
+  {
+    "type": "comment",
+    "named": true,
+    "extra": true
+  },
+  {
+    "type": "def",
+    "named": false
+  },
+  {
+    "type": "dims",
+    "named": false
+  },
+  {
+    "type": "entry",
+    "named": false
+  },
+  {
+    "type": "filename",
+    "named": true
+  },
+  {
+    "type": "frame",
+    "named": false
+  },
+  {
+    "type": "fun",
+    "named": false
+  },
+  {
+    "type": "i-app",
+    "named": false
+  },
+  {
+    "type": "i-fun",
+    "named": false
+  },
+  {
+    "type": "id",
+    "named": true
+  },
+  {
+    "type": "import",
+    "named": false
+  },
+  {
+    "type": "ispace",
+    "named": false
+  },
+  {
+    "type": "let",
+    "named": false
+  },
+  {
+    "type": "nat",
+    "named": true
+  },
+  {
+    "type": "string",
+    "named": true
+  },
+  {
+    "type": "t-app",
+    "named": false
+  },
+  {
+    "type": "t-fun",
+    "named": false
+  },
+  {
+    "type": "type",
+    "named": false
+  },
+  {
+    "type": "unbox",
+    "named": false
+  },
+  {
+    "type": "val",
+    "named": false
+  },
+  {
+    "type": "Π",
+    "named": false
+  },
+  {
+    "type": "Σ",
+    "named": false
+  },
+  {
+    "type": "→",
+    "named": false
+  },
+  {
+    "type": "∀",
+    "named": false
+  }
+]

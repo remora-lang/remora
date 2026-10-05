@@ -1,0 +1,158 @@
+================
+Types immediate
+================
+
+(entry (foo (arg1 Int) (arg2 Bool) (arg3 Float)) #t)
+
+---
+
+(program
+  (entry
+    entry_id: (id)
+    args: (args
+      arg: (id)
+      type: (immedtype)
+      arg: (id)
+      type: (immedtype)
+      arg: (id)
+      type: (immedtype))
+    body: (exp)))
+
+================
+Types amp or star id
+================
+
+(entry (foo (arg1 &typeid1) (arg2 *typeid2)) #t)
+
+---
+
+(program
+  (entry
+    entry_id: (id)
+    args: (args
+      arg: (id)
+      type: (id)
+      arg: (id)
+      type: (id))
+    body: (exp)))
+
+================
+Types array
+================
+
+(entry (foo (arg1 [Int @id1]) (arg2 (A Int @id1))) #t)
+
+---
+
+(program
+  (entry
+    entry_id: (id)
+    args: (args
+      arg: (id)
+      type: (arraytype
+             (immedtype)
+             (atshape
+              id: (id)))
+      arg: (id)
+      type: (arraytype
+             (immedtype)
+             (atshape
+              id: (id))))
+    body: (exp)))
+
+================
+Types functions
+================
+
+(entry (foo (arg1 (-> (Int) Bool)) (arg2 (→ (Int) Bool)) (arg3 (-> Int Bool))) #t)
+
+---
+
+(program
+  (entry
+    entry_id: (id)
+    args: (args
+      arg: (id)
+      type: (functiontype
+        argtype: (immedtype)
+        returntype: (immedtype))
+      arg: (id)
+      type: (functiontype
+        argtype: (immedtype)
+        returntype: (immedtype))
+      arg: (id)
+      type: (functiontype
+        argtype: (immedtype)
+        returntype: (immedtype)))
+    body: (exp)))
+
+================
+Types forall
+================
+
+(entry (foo (arg1 (Forall (&id1) Int)) (arg2 (∀ (*id2 &id3) Int))) #t)
+
+---
+
+(program
+  (entry
+    entry_id: (id)
+    args: (args
+      arg: (id)
+      type: (foralltype
+        tvars: (id)
+        returntype: (immedtype))
+      arg: (id)
+      type: (foralltype
+        tvars: (id)
+	tvars: (id)
+        returntype: (immedtype)))
+    body: (exp)))
+
+
+================
+Types pitype
+================
+
+(entry (foo (arg1 (Pi ($id1 @id2) Int)) (arg2 (Π ($id3) Bool))) #t)
+
+---
+
+(program
+  (entry
+    entry_id: (id)
+    args: (args
+      arg: (id)
+      type: (pitype
+        tvars: (id)
+	tvars: (id)
+        returntype: (immedtype))
+      arg: (id)
+      type: (pitype
+        tvars: (id)
+        returntype: (immedtype)))
+    body: (exp)))
+
+
+================
+Types sigmatype
+================
+
+(entry (foo (arg1 (Sigma ($id1 @id2) Int)) (arg2 (Σ ($id3) Bool))) #t)
+
+---
+
+(program
+  (entry
+    entry_id: (id)
+    args: (args
+      arg: (id)
+      type: (sigmatype
+        tvars: (id)
+	tvars: (id)
+        returntype: (immedtype))
+      arg: (id)
+      type: (sigmatype
+        tvars: (id)
+        returntype: (immedtype)))
+    body: (exp)))

@@ -1,0 +1,66 @@
+================
+Entry Declarations basic
+================
+
+(entry (foo (arg1 Int))  #t)
+
+---
+
+(program
+  (entry
+    entry_id: (id)
+    args: (args
+      arg: (id)
+      type: (immedtype))
+    body: (exp)))
+
+================
+Entry Declarations multiple args
+================
+
+(entry (foo (arg1 Int) (arg2 Int))  #t)
+
+---
+
+(program
+  (entry
+    entry_id: (id)
+    args: (args
+      arg: (id)
+      type: (immedtype)
+      arg: (id)
+      type: (immedtype))
+    body: (exp)))
+
+================
+Entry Declarations return type
+================
+
+(entry (foo (arg1 Int) (arg2 Int) : Int) #t)
+
+---
+
+(program
+  (entry
+    entry_id: (id)
+    args: (args
+      arg: (id)
+      type: (immedtype)
+      arg: (id)
+      type: (immedtype))
+    return_type: (immedtype)
+    body: (exp)))
+
+================
+Entry Declarations no args
+================
+
+(entry (foo ())  #t)
+
+---
+
+(program
+  (entry
+    entry_id: (id)
+    args: (args)
+    body: (exp)))

@@ -1,0 +1,59 @@
+================
+Shape at
+================
+
+(def (ispace $ivar @id1))
+
+---
+
+(program
+ (ispacebind
+  ispacevar: (id)
+  ispace: (atshape
+	   id: (id))))
+
+================
+Shape dims
+================
+
+(def (ispace $ivar (dims $dimid 42)))
+
+---
+
+(program
+ (ispacebind
+  ispacevar: (id)
+  ispace: (dimsshape
+	   dim: (dollardim (id))
+	   dim: (natdim (nat)))))
+
+================
+Shape plusplus
+================
+
+(def (ispace $ivar (++ @shapeid)))
+
+---
+
+(program
+ (ispacebind
+  ispacevar: (id)
+  ispace: (plusplusshape
+	   shape: (atshape
+		   id: (id)))))
+
+================
+Shape array
+================
+
+(def (ispace $ivar [$dimid @shapeid]))
+
+---
+
+(program
+ (ispacebind
+  ispacevar: (id)
+  ispace: (ispaceshape
+	   ispace: (dollardim (id))
+	   ispace: (atshape
+		    id: (id)))))

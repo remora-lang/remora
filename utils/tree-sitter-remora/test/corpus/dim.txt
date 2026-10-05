@@ -1,0 +1,70 @@
+================
+Dim dollar
+================
+
+(def (ispace $ivar $dimid))
+
+---
+
+(program
+ (ispacebind
+  ispacevar: (id)
+  ispace: (dollardim (id))))
+
+================
+Dim nat
+================
+
+(def (ispace $ivar 4))
+
+---
+
+(program
+ (ispacebind
+  ispacevar: (id)
+  ispace: (natdim (nat))))
+
+================
+Dim plusdim
+================
+
+(def (ispace $ivar (+ $dimid1)))
+
+---
+
+(program
+ (ispacebind
+  ispacevar: (id)
+  ispace: (plusdim
+	   dim: (dollardim (id)))))
+
+
+================
+Dim timesdim
+================
+
+(def (ispace $ivar (* 42)))
+
+---
+
+(program
+ (ispacebind
+  ispacevar: (id)
+  ispace: (timesdim
+	   dim: (natdim (nat)))))
+
+================
+Dim minusdim
+================
+
+(def (ispace $ivar (- (+ $id1 42))))
+
+---
+
+(program
+ (ispacebind
+  ispacevar: (id)
+  ispace: (minusdim
+	   dim: (plusdim
+		 dim: (dollardim (id))
+		 dim: (natdim (nat))))))

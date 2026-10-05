@@ -1,0 +1,171 @@
+================
+Bind val 1
+================
+
+(def (val id1 #t))
+
+---
+
+(program
+ (valbind
+  val_id: (id)
+  val_exp: (exp)))
+
+================
+Bind val 2
+================
+
+(def (val (id1 : Int) #t))
+
+---
+
+(program
+ (valbind
+  val_id: (id)
+  val_type: (immedtype)
+  val_exp: (exp)))
+
+================
+Bind fun 1
+================
+
+(def (fun (f1 (x1 Int) : Int) #t))
+
+---
+
+(program
+ (funbind
+  fun_id: (id)
+  (args
+   arg: (id)
+   type: (immedtype))
+  ret_type: (immedtype)
+  body: (exp)))
+
+================
+Bind fun 2
+================
+
+(def (fun (@f1 (&id1) ($id2) (x1 Int) : Int) #t))
+
+---
+
+(program
+ (funbind
+  fun_id: (id)
+  tvars: (id)
+  ivars: (id)
+  (args
+   arg: (id)
+   type: (immedtype))
+  ret_type: (immedtype)
+  body: (exp)))
+
+================
+Bind fun 3
+================
+
+(def (fun (@f1 _ ($id1 $id2) (x1 Int) : Int) #t))
+
+---
+
+(program
+ (funbind
+  fun_id: (id)
+  ivars: (id)
+  ivars: (id)
+  (args
+   arg: (id)
+   type: (immedtype))
+  ret_type: (immedtype)
+  body: (exp)))
+
+================
+Bind t-fun 1
+================
+
+(def (t-fun (tf1 (&tvarid) : Int) #t))
+
+---
+
+(program
+ (tfunbind
+  fun_id: (id)
+  tvars: (id)
+  ret_type: (immedtype)
+  body: (exp)))
+
+================
+Bind t-fun 2
+================
+
+(def (t-fun (tf1 (*tvar1 &tvar2)) #t))
+
+---
+
+(program
+ (tfunbind
+  fun_id: (id)
+  tvars: (id)
+  tvars: (id)
+  body: (exp)))
+
+
+================
+Bind i-fun 
+================
+
+(def (i-fun (if1 ($ivar1 @ivar2) : Int) #t))
+
+---
+
+(program
+ (ifunbind
+  fun_id: (id)
+  ivars: (id)
+  ivars: (id)
+  ret_type: (immedtype)
+  body: (exp)))
+
+================
+Bind type 1
+================
+
+(def (type &tid1 Int))
+
+---
+
+(program
+ (typebind
+  type_id: (id)
+  type: (immedtype)))
+
+
+================
+Bind type 2
+================
+
+(def (type *tid1 (-> (Int Bool) Int)))
+
+---
+
+(program
+ (typebind
+  type_id: (id)
+  type: (functiontype
+	 argtype: (immedtype)
+	 argtype: (immedtype)
+	 returntype: (immedtype))))
+
+================
+Bind ispace 
+================
+
+(def (ispace $ivar $dimid))
+
+---
+
+(program
+ (ispacebind
+  ispacevar: (id)
+  ispace: (dollardim (id))))

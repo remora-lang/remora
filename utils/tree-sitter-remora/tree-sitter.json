@@ -1,0 +1,42 @@
+{
+  "$schema": "https://tree-sitter.github.io/tree-sitter/assets/schemas/config.schema.json",
+  "grammars": [
+    {
+      "name": "remora",
+      "camelcase": "Remora",
+      "title": "Remora",
+      "scope": "source.remora",
+      "file-types": [
+        "remora"
+      ],
+      "injection-regex": "^remora$",
+      "class-name": "TreeSitterRemora"
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "Tree-sitter grammar for Remora programming language",
+    "authors": [
+      {
+        "name": "Greg Sullivan",
+        "email": "gsullivan@draper.com",
+        "url": ""
+      }
+    ],
+    "links": {
+      "repository": "https://github.com/remora-lang/remora/tree/main/utils/tree-sitter-remora",
+      "funding": ""
+    }
+  },
+  "bindings": {
+    "c": true,
+    "go": true,
+    "java": false,
+    "node": true,
+    "python": true,
+    "rust": true,
+    "swift": true,
+    "zig": false
+  }
+}
