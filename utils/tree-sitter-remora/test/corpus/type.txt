@@ -8,7 +8,7 @@ Types immediate
 
 (program
   (entry
-    entry_id: (id)
+    id: (id)
     args: (args
       arg: (id)
       type: (immedtype)
@@ -16,7 +16,7 @@ Types immediate
       type: (immedtype)
       arg: (id)
       type: (immedtype))
-    body: (exp)))
+    body: (atomexp (litatom lit: (boollit)))))
 
 ================
 Types amp or star id
@@ -28,13 +28,13 @@ Types amp or star id
 
 (program
   (entry
-    entry_id: (id)
+    id: (id)
     args: (args
       arg: (id)
       type: (id)
       arg: (id)
       type: (id))
-    body: (exp)))
+    body: (atomexp (litatom lit: (boollit)))))
 
 ================
 Types array
@@ -46,7 +46,7 @@ Types array
 
 (program
   (entry
-    entry_id: (id)
+    id: (id)
     args: (args
       arg: (id)
       type: (arraytype
@@ -58,7 +58,7 @@ Types array
              (immedtype)
              (atshape
               id: (id))))
-    body: (exp)))
+    body: (atomexp (litatom lit: (boollit)))))
 
 ================
 Types functions
@@ -70,7 +70,7 @@ Types functions
 
 (program
   (entry
-    entry_id: (id)
+    id: (id)
     args: (args
       arg: (id)
       type: (functiontype
@@ -84,7 +84,7 @@ Types functions
       type: (functiontype
         argtype: (immedtype)
         returntype: (immedtype)))
-    body: (exp)))
+    body: (atomexp (litatom lit: (boollit)))))
 
 ================
 Types forall
@@ -96,7 +96,7 @@ Types forall
 
 (program
   (entry
-    entry_id: (id)
+    id: (id)
     args: (args
       arg: (id)
       type: (foralltype
@@ -107,8 +107,7 @@ Types forall
         tvars: (id)
 	tvars: (id)
         returntype: (immedtype)))
-    body: (exp)))
-
+    body: (atomexp (litatom lit: (boollit)))))
 
 ================
 Types pitype
@@ -120,7 +119,7 @@ Types pitype
 
 (program
   (entry
-    entry_id: (id)
+    id: (id)
     args: (args
       arg: (id)
       type: (pitype
@@ -131,8 +130,7 @@ Types pitype
       type: (pitype
         tvars: (id)
         returntype: (immedtype)))
-    body: (exp)))
-
+    body: (atomexp (litatom lit: (boollit)))))
 
 ================
 Types sigmatype
@@ -144,7 +142,7 @@ Types sigmatype
 
 (program
   (entry
-    entry_id: (id)
+    id: (id)
     args: (args
       arg: (id)
       type: (sigmatype
@@ -155,4 +153,4 @@ Types sigmatype
       type: (sigmatype
         tvars: (id)
         returntype: (immedtype)))
-    body: (exp)))
+    body: (atomexp (litatom lit: (boollit)))))

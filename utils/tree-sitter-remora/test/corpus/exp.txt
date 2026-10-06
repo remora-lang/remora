@@ -1,0 +1,233 @@
+================
+Exp atom
+================
+
+(def (val x #t))
+
+---
+
+(program
+ (valbind
+  id: (id)
+  exp: (atomexp (litatom lit: (boollit)))))
+
+================
+Exp brackets
+================
+
+(def (val x [#t #f]))
+
+---
+
+(program
+ (valbind
+  id: (id)
+  exp: (bracketsexp
+	exp: (atomexp (litatom lit: (boollit)))
+	exp: (atomexp (litatom lit: (boollit))))))
+
+
+================
+Exp id
+================
+
+(def (val x y))
+
+---
+
+(program
+ (valbind
+  id: (id)
+  exp: (idexp
+	id: (id))))
+
+================
+Exp string
+================
+
+(def (val x "a string"))
+
+---
+
+(program
+ (valbind
+  id: (id)
+  exp: (stringexp
+	string: (string))))
+
+================
+Exp array atom
+================
+
+(def (val x (array [2 3] #t)))
+
+---
+
+(program
+ (valbind
+  id: (id)
+  exp: (arrayexpatom
+	shape: (shape_lit
+		num: (nat)
+		num: (nat))
+	atom: (litatom
+	       lit: (boollit)))))
+
+
+================
+Exp array type
+================
+
+(def (val x (array [2 3] Int)))
+
+---
+
+(program
+ (valbind
+  id: (id)
+  exp: (arrayexptype
+	shape: (shape_lit
+		num: (nat)
+		num: (nat))
+	type: (immedtype))))
+
+
+================
+Exp frame exp
+================
+
+(def (val x (frame [2 3] #t)))
+
+---
+
+(program
+ (valbind
+  id: (id)
+  exp: (frameexpexp
+	shape: (shape_lit
+		num: (nat)
+		num: (nat))
+	exp: (atomexp (litatom lit: (boollit))))))
+
+================
+Exp frame type
+================
+
+(def (val x (frame [2 3] Int)))
+
+---
+
+(program
+ (valbind
+  id: (id)
+  exp: (frameexptype
+	shape: (shape_lit
+		num: (nat)
+		num: (nat))
+	type: (immedtype))))
+
+================
+Exp application
+================
+
+(def (val x (f x1)))
+
+---
+
+(program
+ (valbind
+  id: (id)
+  exp: (applicationexp
+	fnexp: (idexp id: (id))
+	param: (idexp id: (id)))))
+
+================
+Exp t-app
+================
+
+(def (val x (t-app f Int Bool)))
+
+---
+
+(program
+ (valbind
+  id: (id)
+  exp: (tappexp
+	fnexp: (idexp id: (id))
+	type: (immedtype)
+	type: (immedtype))))
+
+================
+Exp i-app
+================
+
+(def (val x (i-app f 2 3)))
+
+---
+
+(program
+ (valbind
+  id: (id)
+  exp: (iappexp
+	fnexp: (idexp id: (id))
+	ispace: (natdim (nat))
+	ispace: (natdim (nat)))))
+
+
+================
+Exp at application
+================
+
+(def (val x (@ f (Int Bool) (2 3) #t)))
+
+---
+
+(program
+ (valbind
+  id: (id)
+  exp: (atappexp
+	fnexp: (idexp id: (id))
+	type: (immedtype)
+	type: (immedtype)
+	ispace: (natdim (nat))
+	ispace: (natdim (nat))
+	param: (atomexp (litatom lit: (boollit))))))
+
+================
+Exp unbox
+================
+
+(def (val x (unbox ($id1 @id2 x (f y)) #t)))
+
+---
+
+(program
+ (valbind
+  id: (id)
+  exp: (unboxexp
+	ispace_var: (id)
+	ispace_var: (id)
+	id: (id)
+	exp1: (applicationexp
+	       fnexp: (idexp id: (id))
+	       param: (idexp id: (id)))
+	exp2: (atomexp (litatom lit: (boollit))))))
+
+================
+Exp let
+================
+
+(def (val x (let ((val x (f y))) #t)))
+
+---
+
+(program
+ (valbind
+  id: (id)
+  exp: (letexp
+	bind: (valbind
+	       id: (id)
+	       exp: (applicationexp
+		     fnexp: (idexp id: (id))
+		     param: (idexp id: (id))))
+	exp: (atomexp (litatom lit: (boollit))))))

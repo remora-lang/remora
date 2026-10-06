@@ -8,8 +8,8 @@ Bind val 1
 
 (program
  (valbind
-  val_id: (id)
-  val_exp: (exp)))
+  id: (id)
+  exp: (atomexp (litatom lit: (boollit)))))
 
 ================
 Bind val 2
@@ -21,9 +21,9 @@ Bind val 2
 
 (program
  (valbind
-  val_id: (id)
-  val_type: (immedtype)
-  val_exp: (exp)))
+  id: (id)
+  type: (immedtype)
+  exp: (atomexp (litatom lit: (boollit)))))
 
 ================
 Bind fun 1
@@ -35,12 +35,12 @@ Bind fun 1
 
 (program
  (funbind
-  fun_id: (id)
+  id: (id)
   (args
    arg: (id)
    type: (immedtype))
   ret_type: (immedtype)
-  body: (exp)))
+  body: (atomexp (litatom lit: (boollit)))))
 
 ================
 Bind fun 2
@@ -52,14 +52,14 @@ Bind fun 2
 
 (program
  (funbind
-  fun_id: (id)
+  id: (id)
   tvars: (id)
   ivars: (id)
   (args
    arg: (id)
    type: (immedtype))
   ret_type: (immedtype)
-  body: (exp)))
+  body: (atomexp (litatom lit: (boollit)))))
 
 ================
 Bind fun 3
@@ -71,14 +71,14 @@ Bind fun 3
 
 (program
  (funbind
-  fun_id: (id)
+  id: (id)
   ivars: (id)
   ivars: (id)
   (args
    arg: (id)
    type: (immedtype))
   ret_type: (immedtype)
-  body: (exp)))
+  body: (atomexp (litatom lit: (boollit)))))
 
 ================
 Bind t-fun 1
@@ -90,10 +90,10 @@ Bind t-fun 1
 
 (program
  (tfunbind
-  fun_id: (id)
+  id: (id)
   tvars: (id)
   ret_type: (immedtype)
-  body: (exp)))
+  body: (atomexp (litatom lit: (boollit)))))
 
 ================
 Bind t-fun 2
@@ -105,11 +105,10 @@ Bind t-fun 2
 
 (program
  (tfunbind
-  fun_id: (id)
+  id: (id)
   tvars: (id)
   tvars: (id)
-  body: (exp)))
-
+  body: (atomexp (litatom lit: (boollit)))))
 
 ================
 Bind i-fun 
@@ -121,11 +120,11 @@ Bind i-fun
 
 (program
  (ifunbind
-  fun_id: (id)
+  id: (id)
   ivars: (id)
   ivars: (id)
   ret_type: (immedtype)
-  body: (exp)))
+  body: (atomexp (litatom lit: (boollit)))))
 
 ================
 Bind type 1
@@ -137,9 +136,8 @@ Bind type 1
 
 (program
  (typebind
-  type_id: (id)
+  id: (id)
   type: (immedtype)))
-
 
 ================
 Bind type 2
@@ -151,7 +149,7 @@ Bind type 2
 
 (program
  (typebind
-  type_id: (id)
+  id: (id)
   type: (functiontype
 	 argtype: (immedtype)
 	 argtype: (immedtype)

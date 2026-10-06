@@ -1,0 +1,104 @@
+================
+Atom literal
+================
+
+(def (val x #t))
+
+---
+
+(program
+ (valbind
+  id: (id)
+  exp: (atomexp (litatom lit: (boollit)))))
+
+================
+Atom type
+================
+
+(def (val x int))
+
+---
+
+(program
+ (valbind
+  id: (id)
+  exp: (atomexp (typeatom type: (typelit)))))
+
+================
+Atom type
+================
+
+(def (val x int))
+
+---
+
+(program
+ (valbind
+  id: (id)
+  exp: (atomexp (typeatom type: (typelit)))))
+
+================
+Atom fn
+================
+
+(def (val x (fn ((x Int)) #t)))
+
+---
+
+(program
+ (valbind
+  id: (id)
+  exp: (atomexp (fnatom
+       		 arg: (id)
+		 type: (immedtype)
+		 body: (atomexp (litatom lit: (boollit)))))))
+
+================
+Atom t-fn
+================
+
+(def (val x (t-fn (*x &y) #t)))
+
+---
+
+(program
+ (valbind
+  id: (id)
+  exp: (atomexp (tfnatom
+       		 tvar: (id)
+		 tvar: (id)
+		 body: (atomexp (litatom lit: (boollit)))))))
+
+================
+Atom i-fn
+================
+
+(def (val x (i-fn ($x @y) #t)))
+
+---
+
+(program
+ (valbind
+  id: (id)
+  exp: (atomexp (ifnatom
+       		 ivar: (id)
+		 ivar: (id)
+		 body: (atomexp (litatom lit: (boollit)))))))
+
+
+================
+Atom box
+================
+
+(def (val x (box ($id1 @id2) #t Bool)))
+
+---
+
+(program
+ (valbind
+  id: (id)
+  exp: (atomexp (boxatom
+		 ispace: (dollardim (id))
+		 ispace: (atshape id: (id))
+		 exp: (atomexp (litatom lit: (boollit)))
+		 type: (immedtype)))))

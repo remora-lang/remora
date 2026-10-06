@@ -17,6 +17,9 @@ export default grammar({
     ],
 
     word: $ => $.id,
+    reserved: {
+	global: $ => ['fn', 't-fn', 'tλ', 'i-fn', 'iλ', 'box'],
+    },
 
     supertypes: ($) => [
 	// $.decl,
@@ -54,7 +57,7 @@ export default grammar({
 	entry: $ => seq(
 	    '(',
 	    'entry',
-	    '(', field('entry_id', $.id),
+	    '(', field('id', $.id),
 	    field('args', $.args),
 	    optional(
 		seq(
@@ -96,15 +99,15 @@ export default grammar({
 	    $.letexp),
 	atomexp: $ => $._atom,
 	bracketsexp: $ => seq('[', repeat(field('exp', $._exp)), ']'),
-	idexp: $ => $.id,
-	stringexp: $ => seq('"', $.string, '"'),
+	idexp: $ => field('id', $.id),
+	stringexp: $ => seq('"', field('string', $.string), '"'),
 	arrayexpatom: $ => seq('(', 'array', field('shape', $.shape_lit), repeat1(field('atom', $._atom)), ')'),
 	arrayexptype: $ => seq('(', 'array', field('shape', $.shape_lit), field('type', $._type), ')'),
 	frameexpexp: $ =>  seq('(', 'frame', field('shape', $.shape_lit), repeat1(field('exp', $._exp)), ')'),
 	frameexptype: $ => seq('(', 'frame', field('shape', $.shape_lit), field('type', $._type), ')'),
 	applicationexp: $ => seq('(', field('fnexp', $._exp), repeat(field('param', $._exp)), ')'),
-	tappexp: $ => seq('(', 't-app', field('exp', $._exp), repeat(field('type', $._type)), ')'),
-	iappexp: $ => seq('(', 'i-app', field('exp', $._exp), repeat(field('ispace', $._ispace)), ')'),
+	tappexp: $ => seq('(', 't-app', field('fnexp', $._exp), repeat(field('type', $._type)), ')'),
+	iappexp: $ => seq('(', 'i-app', field('fnexp', $._exp), repeat(field('ispace', $._ispace)), ')'),
 	atappexp: $ => seq('(', '@', field('fnexp', $._exp),
 			   choice(seq('(', repeat1(field('type', $._type)), ')'),
 				  '_'),
@@ -117,7 +120,25 @@ export default grammar({
 			   field('exp2', $._exp), ')'),
 	letexp: $ => seq('(', 'let', '(', repeat1(field('bind', $._bind)), ')', field('exp', $._exp), ')'),
 
-	_atom: $ => 'atom',
+	_atom: $ => choice(
+	    $.litatom,
+	    $.typeatom,
+	    $.fnatom,
+	    $.tfnatom,
+	    $.ifnatom,
+	    $.boxatom,
+	),
+	litatom: $ => field('lit', $.boollit),
+	typeatom: $ => field('type', $.typelit),
+	fnatom: $ => seq('(', choice('fn', 'λ' ), '(',
+			 repeat(seq('(', field('arg', $.id), field('type', $._type), ')')), ')',
+			 field('body', $._exp), ')'),
+	tfnatom: $ => seq('(', choice('t-fn', 'tλ'), '(',
+			  repeat(field('tvar', $._tvar)), ')', field('body', $._exp), ')'),
+	ifnatom: $ => seq('(', choice('i-fn', 'iλ'), '(',
+			  repeat(field('ivar', $._ispace_var)), ')', field('body', $._exp), ')'),
+	boxatom: $ => seq('(', 'box', '(', repeat(field('ispace', $._ispace)), ')',
+			  field('exp', $._exp), field('type', $._type), ')'),
 
 	_bind: $ => choice(
 	    $.valbind,
@@ -129,19 +150,19 @@ export default grammar({
 
 	valbind: $ => choice(
 	    seq('(', 'val',
-		field('val_id', $.id),
-		field('val_exp', $._exp),
+		field('id', $.id),
+		field('exp', $._exp),
 		')'),
 	    seq('(', 'val', '(',
-		field('val_id', $.id),
-		':', field('val_type', $._type),
+		field('id', $.id),
+		':', field('type', $._type),
 		')',
-		field('val_exp', $._exp),
+		field('exp', $._exp),
 		')')),
 
 	funbind: $ => choice(
 	    seq('(', 'fun', '(',
-		field('fun_id', $.id),
+		field('id', $.id),
 		$.args,
 		optional(
 		    seq(':', field('ret_type', $._type))),
@@ -149,7 +170,7 @@ export default grammar({
 		field('body', $._exp),
 		')'),
 	    seq('(', 'fun', '(', '@',
-		field('fun_id', $.id),
+		field('id', $.id),
 		choice(
 		    seq('(',
 			field('tvars', repeat1($._tvar)),
@@ -169,7 +190,7 @@ export default grammar({
 
 	tfunbind: $ => seq(
 	    '(', 't-fun','(',
-	    field('fun_id', $.id),
+	    field('id', $.id),
 	    '(', repeat1( field('tvars', $._tvar)), ')',
 	    optional(
 		seq(':', field('ret_type', $._type))),
@@ -179,7 +200,7 @@ export default grammar({
 
 	ifunbind: $ => seq(
 	    '(', 'i-fun', '(',
-	    field('fun_id', $.id),
+	    field('id', $.id),
 	    '(', repeat1(field('ivars', $._ispace_var)), ')',
 	    optional(
 		seq(':', field('ret_type', $._type))),
@@ -187,7 +208,7 @@ export default grammar({
 	    field('body', $._exp),
 	    ')'),
 
-	typebind: $ => seq('(', 'type', field('type_id', $._tvar), field('type', $._type), ')'),
+	typebind: $ => seq('(', 'type', field('id', $._tvar), field('type', $._type), ')'),
 
 	ispacebind: $ => seq('(', 'ispace', field('ispacevar', $._ispace_var), field('ispace', $._ispace),')'),
 
@@ -277,6 +298,8 @@ export default grammar({
 	id: $ => /[a-zA-Z_]+[a-zA-Z0-9_]*/,
 	filename: $ => /[a-z_.]+/,
 	nat: $ => /\d+/,
-	string: $ => 'string'         // /^"/	
+	boollit: $ => choice('#t', '#f'),
+        typelit: $ => choice('int', 'float'),
+	string: $ => /[^"]*/,
     }
 });

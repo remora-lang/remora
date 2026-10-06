@@ -196,8 +196,28 @@
         "required": true,
         "types": [
           {
-            "type": "atom",
-            "named": false
+            "type": "boxatom",
+            "named": true
+          },
+          {
+            "type": "fnatom",
+            "named": true
+          },
+          {
+            "type": "ifnatom",
+            "named": true
+          },
+          {
+            "type": "litatom",
+            "named": true
+          },
+          {
+            "type": "tfnatom",
+            "named": true
+          },
+          {
+            "type": "typeatom",
+            "named": true
           }
         ]
       },
@@ -563,7 +583,37 @@
   {
     "type": "atomexp",
     "named": true,
-    "fields": {}
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "boxatom",
+          "named": true
+        },
+        {
+          "type": "fnatom",
+          "named": true
+        },
+        {
+          "type": "ifnatom",
+          "named": true
+        },
+        {
+          "type": "litatom",
+          "named": true
+        },
+        {
+          "type": "tfnatom",
+          "named": true
+        },
+        {
+          "type": "typeatom",
+          "named": true
+        }
+      ]
+    }
   },
   {
     "type": "atshape",
@@ -575,6 +625,163 @@
         "types": [
           {
             "type": "id",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "boollit",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "boxatom",
+    "named": true,
+    "fields": {
+      "exp": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "applicationexp",
+            "named": true
+          },
+          {
+            "type": "arrayexpatom",
+            "named": true
+          },
+          {
+            "type": "arrayexptype",
+            "named": true
+          },
+          {
+            "type": "atappexp",
+            "named": true
+          },
+          {
+            "type": "atomexp",
+            "named": true
+          },
+          {
+            "type": "bracketsexp",
+            "named": true
+          },
+          {
+            "type": "frameexpexp",
+            "named": true
+          },
+          {
+            "type": "frameexptype",
+            "named": true
+          },
+          {
+            "type": "iappexp",
+            "named": true
+          },
+          {
+            "type": "idexp",
+            "named": true
+          },
+          {
+            "type": "letexp",
+            "named": true
+          },
+          {
+            "type": "stringexp",
+            "named": true
+          },
+          {
+            "type": "tappexp",
+            "named": true
+          },
+          {
+            "type": "unboxexp",
+            "named": true
+          }
+        ]
+      },
+      "ispace": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "atshape",
+            "named": true
+          },
+          {
+            "type": "dimsshape",
+            "named": true
+          },
+          {
+            "type": "dollardim",
+            "named": true
+          },
+          {
+            "type": "ispaceshape",
+            "named": true
+          },
+          {
+            "type": "minusdim",
+            "named": true
+          },
+          {
+            "type": "natdim",
+            "named": true
+          },
+          {
+            "type": "plusdim",
+            "named": true
+          },
+          {
+            "type": "plusplusshape",
+            "named": true
+          },
+          {
+            "type": "timesdim",
+            "named": true
+          }
+        ]
+      },
+      "type": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "arraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "functiontype",
+            "named": true
+          },
+          {
+            "type": "id",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
             "named": true
           }
         ]
@@ -772,7 +979,7 @@
           }
         ]
       },
-      "entry_id": {
+      "id": {
         "multiple": false,
         "required": true,
         "types": [
@@ -783,6 +990,126 @@
         ]
       },
       "return_type": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "arraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "functiontype",
+            "named": true
+          },
+          {
+            "type": "id",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "fnatom",
+    "named": true,
+    "fields": {
+      "arg": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      },
+      "body": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "applicationexp",
+            "named": true
+          },
+          {
+            "type": "arrayexpatom",
+            "named": true
+          },
+          {
+            "type": "arrayexptype",
+            "named": true
+          },
+          {
+            "type": "atappexp",
+            "named": true
+          },
+          {
+            "type": "atomexp",
+            "named": true
+          },
+          {
+            "type": "bracketsexp",
+            "named": true
+          },
+          {
+            "type": "frameexpexp",
+            "named": true
+          },
+          {
+            "type": "frameexptype",
+            "named": true
+          },
+          {
+            "type": "iappexp",
+            "named": true
+          },
+          {
+            "type": "idexp",
+            "named": true
+          },
+          {
+            "type": "letexp",
+            "named": true
+          },
+          {
+            "type": "stringexp",
+            "named": true
+          },
+          {
+            "type": "tappexp",
+            "named": true
+          },
+          {
+            "type": "unboxexp",
+            "named": true
+          }
+        ]
+      },
+      "type": {
         "multiple": true,
         "required": false,
         "types": [
@@ -1094,7 +1421,7 @@
           }
         ]
       },
-      "fun_id": {
+      "id": {
         "multiple": false,
         "required": true,
         "types": [
@@ -1288,7 +1615,7 @@
     "type": "iappexp",
     "named": true,
     "fields": {
-      "exp": {
+      "fnexp": {
         "multiple": false,
         "required": true,
         "types": [
@@ -1397,16 +1724,103 @@
   {
     "type": "idexp",
     "named": true,
-    "fields": {},
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "id",
-          "named": true
-        }
-      ]
+    "fields": {
+      "id": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "ifnatom",
+    "named": true,
+    "fields": {
+      "body": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "applicationexp",
+            "named": true
+          },
+          {
+            "type": "arrayexpatom",
+            "named": true
+          },
+          {
+            "type": "arrayexptype",
+            "named": true
+          },
+          {
+            "type": "atappexp",
+            "named": true
+          },
+          {
+            "type": "atomexp",
+            "named": true
+          },
+          {
+            "type": "bracketsexp",
+            "named": true
+          },
+          {
+            "type": "frameexpexp",
+            "named": true
+          },
+          {
+            "type": "frameexptype",
+            "named": true
+          },
+          {
+            "type": "iappexp",
+            "named": true
+          },
+          {
+            "type": "idexp",
+            "named": true
+          },
+          {
+            "type": "letexp",
+            "named": true
+          },
+          {
+            "type": "stringexp",
+            "named": true
+          },
+          {
+            "type": "tappexp",
+            "named": true
+          },
+          {
+            "type": "unboxexp",
+            "named": true
+          }
+        ]
+      },
+      "ivar": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "$",
+            "named": false
+          },
+          {
+            "type": "@",
+            "named": false
+          },
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {
@@ -1475,7 +1889,7 @@
           }
         ]
       },
-      "fun_id": {
+      "id": {
         "multiple": false,
         "required": true,
         "types": [
@@ -1774,6 +2188,22 @@
           },
           {
             "type": "unboxexp",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "litatom",
+    "named": true,
+    "fields": {
+      "lit": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "boollit",
             "named": true
           }
         ]
@@ -2082,23 +2512,24 @@
   {
     "type": "stringexp",
     "named": true,
-    "fields": {},
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "string",
-          "named": true
-        }
-      ]
+    "fields": {
+      "string": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "string",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {
     "type": "tappexp",
     "named": true,
     "fields": {
-      "exp": {
+      "fnexp": {
         "multiple": false,
         "required": true,
         "types": [
@@ -2205,6 +2636,92 @@
     }
   },
   {
+    "type": "tfnatom",
+    "named": true,
+    "fields": {
+      "body": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "applicationexp",
+            "named": true
+          },
+          {
+            "type": "arrayexpatom",
+            "named": true
+          },
+          {
+            "type": "arrayexptype",
+            "named": true
+          },
+          {
+            "type": "atappexp",
+            "named": true
+          },
+          {
+            "type": "atomexp",
+            "named": true
+          },
+          {
+            "type": "bracketsexp",
+            "named": true
+          },
+          {
+            "type": "frameexpexp",
+            "named": true
+          },
+          {
+            "type": "frameexptype",
+            "named": true
+          },
+          {
+            "type": "iappexp",
+            "named": true
+          },
+          {
+            "type": "idexp",
+            "named": true
+          },
+          {
+            "type": "letexp",
+            "named": true
+          },
+          {
+            "type": "stringexp",
+            "named": true
+          },
+          {
+            "type": "tappexp",
+            "named": true
+          },
+          {
+            "type": "unboxexp",
+            "named": true
+          }
+        ]
+      },
+      "tvar": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "tfunbind",
     "named": true,
     "fields": {
@@ -2270,7 +2787,7 @@
           }
         ]
       },
-      "fun_id": {
+      "id": {
         "multiple": false,
         "required": true,
         "types": [
@@ -2375,9 +2892,43 @@
     }
   },
   {
+    "type": "typeatom",
+    "named": true,
+    "fields": {
+      "type": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "typelit",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "typebind",
     "named": true,
     "fields": {
+      "id": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "&",
+            "named": false
+          },
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      },
       "type": {
         "multiple": true,
         "required": true,
@@ -2419,26 +2970,13 @@
             "named": true
           }
         ]
-      },
-      "type_id": {
-        "multiple": true,
-        "required": true,
-        "types": [
-          {
-            "type": "&",
-            "named": false
-          },
-          {
-            "type": "*",
-            "named": false
-          },
-          {
-            "type": "id",
-            "named": true
-          }
-        ]
       }
     }
+  },
+  {
+    "type": "typelit",
+    "named": true,
+    "fields": {}
   },
   {
     "type": "unboxexp",
@@ -2602,7 +3140,7 @@
     "type": "valbind",
     "named": true,
     "fields": {
-      "val_exp": {
+      "exp": {
         "multiple": false,
         "required": true,
         "types": [
@@ -2664,7 +3202,7 @@
           }
         ]
       },
-      "val_id": {
+      "id": {
         "multiple": false,
         "required": true,
         "types": [
@@ -2674,7 +3212,7 @@
           }
         ]
       },
-      "val_type": {
+      "type": {
         "multiple": true,
         "required": false,
         "types": [
@@ -2720,6 +3258,14 @@
   },
   {
     "type": "\"",
+    "named": false
+  },
+  {
+    "type": "#f",
+    "named": false
+  },
+  {
+    "type": "#t",
     "named": false
   },
   {
@@ -2811,7 +3357,7 @@
     "named": false
   },
   {
-    "type": "atom",
+    "type": "box",
     "named": false
   },
   {
@@ -2836,6 +3382,14 @@
     "named": true
   },
   {
+    "type": "float",
+    "named": false
+  },
+  {
+    "type": "fn",
+    "named": false
+  },
+  {
     "type": "frame",
     "named": false
   },
@@ -2845,6 +3399,10 @@
   },
   {
     "type": "i-app",
+    "named": false
+  },
+  {
+    "type": "i-fn",
     "named": false
   },
   {
@@ -2860,7 +3418,15 @@
     "named": false
   },
   {
+    "type": "int",
+    "named": false
+  },
+  {
     "type": "ispace",
+    "named": false
+  },
+  {
+    "type": "iλ",
     "named": false
   },
   {
@@ -2880,11 +3446,19 @@
     "named": false
   },
   {
+    "type": "t-fn",
+    "named": false
+  },
+  {
     "type": "t-fun",
     "named": false
   },
   {
     "type": "type",
+    "named": false
+  },
+  {
+    "type": "tλ",
     "named": false
   },
   {
@@ -2901,6 +3475,10 @@
   },
   {
     "type": "Σ",
+    "named": false
+  },
+  {
+    "type": "λ",
     "named": false
   },
   {

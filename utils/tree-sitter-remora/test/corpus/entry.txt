@@ -8,11 +8,11 @@ Entry Declarations basic
 
 (program
   (entry
-    entry_id: (id)
+    id: (id)
     args: (args
       arg: (id)
       type: (immedtype))
-    body: (exp)))
+    body: (atomexp (litatom lit: (boollit)))))
 
 ================
 Entry Declarations multiple args
@@ -24,13 +24,13 @@ Entry Declarations multiple args
 
 (program
   (entry
-    entry_id: (id)
+    id: (id)
     args: (args
       arg: (id)
       type: (immedtype)
       arg: (id)
       type: (immedtype))
-    body: (exp)))
+    body: (atomexp (litatom lit: (boollit)))))
 
 ================
 Entry Declarations return type
@@ -42,14 +42,14 @@ Entry Declarations return type
 
 (program
   (entry
-    entry_id: (id)
+    id: (id)
     args: (args
       arg: (id)
       type: (immedtype)
       arg: (id)
       type: (immedtype))
     return_type: (immedtype)
-    body: (exp)))
+    body: (atomexp (litatom lit: (boollit)))))
 
 ================
 Entry Declarations no args
@@ -61,6 +61,6 @@ Entry Declarations no args
 
 (program
   (entry
-    entry_id: (id)
+    id: (id)
     args: (args)
-    body: (exp)))
+    body: (atomexp (litatom lit: (boollit)))))
