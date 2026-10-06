@@ -1,5 +1,99 @@
 [
   {
+    "type": "aarraytype",
+    "named": true,
+    "fields": {
+      "ispace": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "atshape",
+            "named": true
+          },
+          {
+            "type": "dimsshape",
+            "named": true
+          },
+          {
+            "type": "dollardim",
+            "named": true
+          },
+          {
+            "type": "ispaceshape",
+            "named": true
+          },
+          {
+            "type": "minusdim",
+            "named": true
+          },
+          {
+            "type": "natdim",
+            "named": true
+          },
+          {
+            "type": "plusdim",
+            "named": true
+          },
+          {
+            "type": "plusplusshape",
+            "named": true
+          },
+          {
+            "type": "timesdim",
+            "named": true
+          }
+        ]
+      },
+      "type": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "aarraytype",
+            "named": true
+          },
+          {
+            "type": "attvar",
+            "named": true
+          },
+          {
+            "type": "bracketarraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "generalfntype",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "applicationexp",
     "named": true,
     "fields": {
@@ -148,15 +242,15 @@
         "required": false,
         "types": [
           {
-            "type": "&",
-            "named": false
+            "type": "aarraytype",
+            "named": true
           },
           {
-            "type": "*",
-            "named": false
+            "type": "attvar",
+            "named": true
           },
           {
-            "type": "arraytype",
+            "type": "bracketarraytype",
             "named": true
           },
           {
@@ -164,11 +258,7 @@
             "named": true
           },
           {
-            "type": "functiontype",
-            "named": true
-          },
-          {
-            "type": "id",
+            "type": "generalfntype",
             "named": true
           },
           {
@@ -181,6 +271,14 @@
           },
           {
             "type": "sigmatype",
+            "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
             "named": true
           }
         ]
@@ -248,19 +346,19 @@
         ]
       },
       "type": {
-        "multiple": true,
+        "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "&",
-            "named": false
+            "type": "aarraytype",
+            "named": true
           },
           {
-            "type": "*",
-            "named": false
+            "type": "attvar",
+            "named": true
           },
           {
-            "type": "arraytype",
+            "type": "bracketarraytype",
             "named": true
           },
           {
@@ -268,11 +366,7 @@
             "named": true
           },
           {
-            "type": "functiontype",
-            "named": true
-          },
-          {
-            "type": "id",
+            "type": "generalfntype",
             "named": true
           },
           {
@@ -286,84 +380,17 @@
           {
             "type": "sigmatype",
             "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
+            "named": true
           }
         ]
       }
-    }
-  },
-  {
-    "type": "arraytype",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "arraytype",
-          "named": true
-        },
-        {
-          "type": "atshape",
-          "named": true
-        },
-        {
-          "type": "dimsshape",
-          "named": true
-        },
-        {
-          "type": "dollardim",
-          "named": true
-        },
-        {
-          "type": "foralltype",
-          "named": true
-        },
-        {
-          "type": "functiontype",
-          "named": true
-        },
-        {
-          "type": "id",
-          "named": true
-        },
-        {
-          "type": "immedtype",
-          "named": true
-        },
-        {
-          "type": "ispaceshape",
-          "named": true
-        },
-        {
-          "type": "minusdim",
-          "named": true
-        },
-        {
-          "type": "natdim",
-          "named": true
-        },
-        {
-          "type": "pitype",
-          "named": true
-        },
-        {
-          "type": "plusdim",
-          "named": true
-        },
-        {
-          "type": "plusplusshape",
-          "named": true
-        },
-        {
-          "type": "sigmatype",
-          "named": true
-        },
-        {
-          "type": "timesdim",
-          "named": true
-        }
-      ]
     }
   },
   {
@@ -541,15 +568,15 @@
         "required": false,
         "types": [
           {
-            "type": "&",
-            "named": false
+            "type": "aarraytype",
+            "named": true
           },
           {
-            "type": "*",
-            "named": false
+            "type": "attvar",
+            "named": true
           },
           {
-            "type": "arraytype",
+            "type": "bracketarraytype",
             "named": true
           },
           {
@@ -557,11 +584,7 @@
             "named": true
           },
           {
-            "type": "functiontype",
-            "named": true
-          },
-          {
-            "type": "id",
+            "type": "generalfntype",
             "named": true
           },
           {
@@ -575,13 +598,21 @@
           {
             "type": "sigmatype",
             "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
+            "named": true
           }
         ]
       }
     }
   },
   {
-    "type": "atomexp",
+    "type": "atispacevar",
     "named": true,
     "fields": {},
     "children": {
@@ -589,46 +620,76 @@
       "required": true,
       "types": [
         {
-          "type": "boxatom",
-          "named": true
-        },
-        {
-          "type": "fnatom",
-          "named": true
-        },
-        {
-          "type": "ifnatom",
-          "named": true
-        },
-        {
-          "type": "litatom",
-          "named": true
-        },
-        {
-          "type": "tfnatom",
-          "named": true
-        },
-        {
-          "type": "typeatom",
+          "type": "id",
           "named": true
         }
       ]
     }
   },
   {
-    "type": "atshape",
+    "type": "atomexp",
     "named": true,
     "fields": {
-      "id": {
+      "atom": {
         "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "id",
+            "type": "boxatom",
+            "named": true
+          },
+          {
+            "type": "fnatom",
+            "named": true
+          },
+          {
+            "type": "ifnatom",
+            "named": true
+          },
+          {
+            "type": "litatom",
+            "named": true
+          },
+          {
+            "type": "tfnatom",
+            "named": true
+          },
+          {
+            "type": "typeatom",
             "named": true
           }
         ]
       }
+    }
+  },
+  {
+    "type": "atshape",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "id",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "attvar",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "id",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -745,19 +806,19 @@
         ]
       },
       "type": {
-        "multiple": true,
+        "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "&",
-            "named": false
+            "type": "aarraytype",
+            "named": true
           },
           {
-            "type": "*",
-            "named": false
+            "type": "attvar",
+            "named": true
           },
           {
-            "type": "arraytype",
+            "type": "bracketarraytype",
             "named": true
           },
           {
@@ -765,11 +826,7 @@
             "named": true
           },
           {
-            "type": "functiontype",
-            "named": true
-          },
-          {
-            "type": "id",
+            "type": "generalfntype",
             "named": true
           },
           {
@@ -782,6 +839,108 @@
           },
           {
             "type": "sigmatype",
+            "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "bracketarraytype",
+    "named": true,
+    "fields": {
+      "ispace": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "atshape",
+            "named": true
+          },
+          {
+            "type": "dimsshape",
+            "named": true
+          },
+          {
+            "type": "dollardim",
+            "named": true
+          },
+          {
+            "type": "ispaceshape",
+            "named": true
+          },
+          {
+            "type": "minusdim",
+            "named": true
+          },
+          {
+            "type": "natdim",
+            "named": true
+          },
+          {
+            "type": "plusdim",
+            "named": true
+          },
+          {
+            "type": "plusplusshape",
+            "named": true
+          },
+          {
+            "type": "timesdim",
+            "named": true
+          }
+        ]
+      },
+      "type": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "aarraytype",
+            "named": true
+          },
+          {
+            "type": "attvar",
+            "named": true
+          },
+          {
+            "type": "bracketarraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "generalfntype",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
             "named": true
           }
         ]
@@ -857,6 +1016,42 @@
     }
   },
   {
+    "type": "defdecl",
+    "named": true,
+    "fields": {
+      "bind": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "funbind",
+            "named": true
+          },
+          {
+            "type": "ifunbind",
+            "named": true
+          },
+          {
+            "type": "ispacebind",
+            "named": true
+          },
+          {
+            "type": "tfunbind",
+            "named": true
+          },
+          {
+            "type": "typebind",
+            "named": true
+          },
+          {
+            "type": "valbind",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "dimsshape",
     "named": true,
     "fields": {
@@ -904,7 +1099,22 @@
     }
   },
   {
-    "type": "entry",
+    "type": "dollarispacevar",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "id",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "entrydecl",
     "named": true,
     "fields": {
       "args": {
@@ -990,19 +1200,19 @@
         ]
       },
       "return_type": {
-        "multiple": true,
+        "multiple": false,
         "required": false,
         "types": [
           {
-            "type": "&",
-            "named": false
+            "type": "aarraytype",
+            "named": true
           },
           {
-            "type": "*",
-            "named": false
+            "type": "attvar",
+            "named": true
           },
           {
-            "type": "arraytype",
+            "type": "bracketarraytype",
             "named": true
           },
           {
@@ -1010,11 +1220,7 @@
             "named": true
           },
           {
-            "type": "functiontype",
-            "named": true
-          },
-          {
-            "type": "id",
+            "type": "generalfntype",
             "named": true
           },
           {
@@ -1027,6 +1233,14 @@
           },
           {
             "type": "sigmatype",
+            "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
             "named": true
           }
         ]
@@ -1114,15 +1328,15 @@
         "required": false,
         "types": [
           {
-            "type": "&",
-            "named": false
+            "type": "aarraytype",
+            "named": true
           },
           {
-            "type": "*",
-            "named": false
+            "type": "attvar",
+            "named": true
           },
           {
-            "type": "arraytype",
+            "type": "bracketarraytype",
             "named": true
           },
           {
@@ -1130,11 +1344,7 @@
             "named": true
           },
           {
-            "type": "functiontype",
-            "named": true
-          },
-          {
-            "type": "id",
+            "type": "generalfntype",
             "named": true
           },
           {
@@ -1147,6 +1357,14 @@
           },
           {
             "type": "sigmatype",
+            "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
             "named": true
           }
         ]
@@ -1158,19 +1376,19 @@
     "named": true,
     "fields": {
       "returntype": {
-        "multiple": true,
+        "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "&",
-            "named": false
+            "type": "aarraytype",
+            "named": true
           },
           {
-            "type": "*",
-            "named": false
+            "type": "attvar",
+            "named": true
           },
           {
-            "type": "arraytype",
+            "type": "bracketarraytype",
             "named": true
           },
           {
@@ -1178,11 +1396,7 @@
             "named": true
           },
           {
-            "type": "functiontype",
-            "named": true
-          },
-          {
-            "type": "id",
+            "type": "generalfntype",
             "named": true
           },
           {
@@ -1196,23 +1410,27 @@
           {
             "type": "sigmatype",
             "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
+            "named": true
           }
         ]
       },
-      "tvars": {
+      "tvar": {
         "multiple": true,
         "required": true,
         "types": [
           {
-            "type": "&",
-            "named": false
+            "type": "attvar",
+            "named": true
           },
           {
-            "type": "*",
-            "named": false
-          },
-          {
-            "type": "id",
+            "type": "startvar",
             "named": true
           }
         ]
@@ -1312,19 +1530,19 @@
         ]
       },
       "type": {
-        "multiple": true,
+        "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "&",
-            "named": false
+            "type": "aarraytype",
+            "named": true
           },
           {
-            "type": "*",
-            "named": false
+            "type": "attvar",
+            "named": true
           },
           {
-            "type": "arraytype",
+            "type": "bracketarraytype",
             "named": true
           },
           {
@@ -1332,11 +1550,7 @@
             "named": true
           },
           {
-            "type": "functiontype",
-            "named": true
-          },
-          {
-            "type": "id",
+            "type": "generalfntype",
             "named": true
           },
           {
@@ -1349,6 +1563,14 @@
           },
           {
             "type": "sigmatype",
+            "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
             "named": true
           }
         ]
@@ -1436,33 +1658,29 @@
         "required": false,
         "types": [
           {
-            "type": "$",
-            "named": false
+            "type": "atispacevar",
+            "named": true
           },
           {
-            "type": "@",
-            "named": false
-          },
-          {
-            "type": "id",
+            "type": "dollarispacevar",
             "named": true
           }
         ]
       },
       "ret_type": {
-        "multiple": true,
+        "multiple": false,
         "required": false,
         "types": [
           {
-            "type": "&",
-            "named": false
+            "type": "aarraytype",
+            "named": true
           },
           {
-            "type": "*",
-            "named": false
+            "type": "attvar",
+            "named": true
           },
           {
-            "type": "arraytype",
+            "type": "bracketarraytype",
             "named": true
           },
           {
@@ -1470,11 +1688,7 @@
             "named": true
           },
           {
-            "type": "functiontype",
-            "named": true
-          },
-          {
-            "type": "id",
+            "type": "generalfntype",
             "named": true
           },
           {
@@ -1488,6 +1702,14 @@
           {
             "type": "sigmatype",
             "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
+            "named": true
           }
         ]
       },
@@ -1496,15 +1718,11 @@
         "required": false,
         "types": [
           {
-            "type": "&",
-            "named": false
+            "type": "attvar",
+            "named": true
           },
           {
-            "type": "*",
-            "named": false
-          },
-          {
-            "type": "id",
+            "type": "startvar",
             "named": true
           }
         ]
@@ -1522,7 +1740,7 @@
     }
   },
   {
-    "type": "functiontype",
+    "type": "generalfntype",
     "named": true,
     "fields": {
       "argtype": {
@@ -1530,15 +1748,15 @@
         "required": false,
         "types": [
           {
-            "type": "&",
-            "named": false
+            "type": "aarraytype",
+            "named": true
           },
           {
-            "type": "*",
-            "named": false
+            "type": "attvar",
+            "named": true
           },
           {
-            "type": "arraytype",
+            "type": "bracketarraytype",
             "named": true
           },
           {
@@ -1546,11 +1764,7 @@
             "named": true
           },
           {
-            "type": "functiontype",
-            "named": true
-          },
-          {
-            "type": "id",
+            "type": "generalfntype",
             "named": true
           },
           {
@@ -1563,24 +1777,32 @@
           },
           {
             "type": "sigmatype",
+            "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
             "named": true
           }
         ]
       },
       "returntype": {
-        "multiple": true,
+        "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "&",
-            "named": false
+            "type": "aarraytype",
+            "named": true
           },
           {
-            "type": "*",
-            "named": false
+            "type": "attvar",
+            "named": true
           },
           {
-            "type": "arraytype",
+            "type": "bracketarraytype",
             "named": true
           },
           {
@@ -1588,11 +1810,7 @@
             "named": true
           },
           {
-            "type": "functiontype",
-            "named": true
-          },
-          {
-            "type": "id",
+            "type": "generalfntype",
             "named": true
           },
           {
@@ -1605,6 +1823,14 @@
           },
           {
             "type": "sigmatype",
+            "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
             "named": true
           }
         ]
@@ -1808,15 +2034,11 @@
         "required": false,
         "types": [
           {
-            "type": "$",
-            "named": false
+            "type": "atispacevar",
+            "named": true
           },
           {
-            "type": "@",
-            "named": false
-          },
-          {
-            "type": "id",
+            "type": "dollarispacevar",
             "named": true
           }
         ]
@@ -1904,33 +2126,29 @@
         "required": true,
         "types": [
           {
-            "type": "$",
-            "named": false
+            "type": "atispacevar",
+            "named": true
           },
           {
-            "type": "@",
-            "named": false
-          },
-          {
-            "type": "id",
+            "type": "dollarispacevar",
             "named": true
           }
         ]
       },
       "ret_type": {
-        "multiple": true,
+        "multiple": false,
         "required": false,
         "types": [
           {
-            "type": "&",
-            "named": false
+            "type": "aarraytype",
+            "named": true
           },
           {
-            "type": "*",
-            "named": false
+            "type": "attvar",
+            "named": true
           },
           {
-            "type": "arraytype",
+            "type": "bracketarraytype",
             "named": true
           },
           {
@@ -1938,11 +2156,7 @@
             "named": true
           },
           {
-            "type": "functiontype",
-            "named": true
-          },
-          {
-            "type": "id",
+            "type": "generalfntype",
             "named": true
           },
           {
@@ -1955,6 +2169,14 @@
           },
           {
             "type": "sigmatype",
+            "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
             "named": true
           }
         ]
@@ -2029,19 +2251,15 @@
         ]
       },
       "ispacevar": {
-        "multiple": true,
+        "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "$",
-            "named": false
+            "type": "atispacevar",
+            "named": true
           },
           {
-            "type": "@",
-            "named": false
-          },
-          {
-            "type": "id",
+            "type": "dollarispacevar",
             "named": true
           }
         ]
@@ -2261,20 +2479,34 @@
     "type": "pitype",
     "named": true,
     "fields": {
-      "returntype": {
+      "ivar": {
         "multiple": true,
         "required": true,
         "types": [
           {
-            "type": "&",
-            "named": false
+            "type": "atispacevar",
+            "named": true
           },
           {
-            "type": "*",
-            "named": false
+            "type": "dollarispacevar",
+            "named": true
+          }
+        ]
+      },
+      "returntype": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "aarraytype",
+            "named": true
           },
           {
-            "type": "arraytype",
+            "type": "attvar",
+            "named": true
+          },
+          {
+            "type": "bracketarraytype",
             "named": true
           },
           {
@@ -2282,11 +2514,7 @@
             "named": true
           },
           {
-            "type": "functiontype",
-            "named": true
-          },
-          {
-            "type": "id",
+            "type": "generalfntype",
             "named": true
           },
           {
@@ -2300,23 +2528,13 @@
           {
             "type": "sigmatype",
             "named": true
-          }
-        ]
-      },
-      "tvars": {
-        "multiple": true,
-        "required": true,
-        "types": [
-          {
-            "type": "$",
-            "named": false
           },
           {
-            "type": "@",
-            "named": false
+            "type": "simplefntype",
+            "named": true
           },
           {
-            "type": "id",
+            "type": "startvar",
             "named": true
           }
         ]
@@ -2393,35 +2611,15 @@
       "required": false,
       "types": [
         {
-          "type": "entry",
+          "type": "defdecl",
           "named": true
         },
         {
-          "type": "funbind",
-          "named": true
-        },
-        {
-          "type": "ifunbind",
+          "type": "entrydecl",
           "named": true
         },
         {
           "type": "import",
-          "named": true
-        },
-        {
-          "type": "ispacebind",
-          "named": true
-        },
-        {
-          "type": "tfunbind",
-          "named": true
-        },
-        {
-          "type": "typebind",
-          "named": true
-        },
-        {
-          "type": "valbind",
           "named": true
         }
       ]
@@ -2447,20 +2645,34 @@
     "type": "sigmatype",
     "named": true,
     "fields": {
-      "returntype": {
+      "ivar": {
         "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "atispacevar",
+            "named": true
+          },
+          {
+            "type": "dollarispacevar",
+            "named": true
+          }
+        ]
+      },
+      "returntype": {
+        "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "&",
-            "named": false
+            "type": "aarraytype",
+            "named": true
           },
           {
-            "type": "*",
-            "named": false
+            "type": "attvar",
+            "named": true
           },
           {
-            "type": "arraytype",
+            "type": "bracketarraytype",
             "named": true
           },
           {
@@ -2468,11 +2680,7 @@
             "named": true
           },
           {
-            "type": "functiontype",
-            "named": true
-          },
-          {
-            "type": "id",
+            "type": "generalfntype",
             "named": true
           },
           {
@@ -2486,27 +2694,130 @@
           {
             "type": "sigmatype",
             "named": true
-          }
-        ]
-      },
-      "tvars": {
-        "multiple": true,
-        "required": false,
-        "types": [
-          {
-            "type": "$",
-            "named": false
           },
           {
-            "type": "@",
-            "named": false
+            "type": "simplefntype",
+            "named": true
           },
           {
-            "type": "id",
+            "type": "startvar",
             "named": true
           }
         ]
       }
+    }
+  },
+  {
+    "type": "simplefntype",
+    "named": true,
+    "fields": {
+      "argtype": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "aarraytype",
+            "named": true
+          },
+          {
+            "type": "attvar",
+            "named": true
+          },
+          {
+            "type": "bracketarraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "generalfntype",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
+            "named": true
+          }
+        ]
+      },
+      "returntype": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "aarraytype",
+            "named": true
+          },
+          {
+            "type": "attvar",
+            "named": true
+          },
+          {
+            "type": "bracketarraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "generalfntype",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "startvar",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "id",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -2596,15 +2907,15 @@
         "required": false,
         "types": [
           {
-            "type": "&",
-            "named": false
+            "type": "aarraytype",
+            "named": true
           },
           {
-            "type": "*",
-            "named": false
+            "type": "attvar",
+            "named": true
           },
           {
-            "type": "arraytype",
+            "type": "bracketarraytype",
             "named": true
           },
           {
@@ -2612,11 +2923,7 @@
             "named": true
           },
           {
-            "type": "functiontype",
-            "named": true
-          },
-          {
-            "type": "id",
+            "type": "generalfntype",
             "named": true
           },
           {
@@ -2629,6 +2936,14 @@
           },
           {
             "type": "sigmatype",
+            "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
             "named": true
           }
         ]
@@ -2706,15 +3021,11 @@
         "required": false,
         "types": [
           {
-            "type": "&",
-            "named": false
+            "type": "attvar",
+            "named": true
           },
           {
-            "type": "*",
-            "named": false
-          },
-          {
-            "type": "id",
+            "type": "startvar",
             "named": true
           }
         ]
@@ -2798,19 +3109,19 @@
         ]
       },
       "ret_type": {
-        "multiple": true,
+        "multiple": false,
         "required": false,
         "types": [
           {
-            "type": "&",
-            "named": false
+            "type": "aarraytype",
+            "named": true
           },
           {
-            "type": "*",
-            "named": false
+            "type": "attvar",
+            "named": true
           },
           {
-            "type": "arraytype",
+            "type": "bracketarraytype",
             "named": true
           },
           {
@@ -2818,11 +3129,7 @@
             "named": true
           },
           {
-            "type": "functiontype",
-            "named": true
-          },
-          {
-            "type": "id",
+            "type": "generalfntype",
             "named": true
           },
           {
@@ -2836,6 +3143,14 @@
           {
             "type": "sigmatype",
             "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
+            "named": true
           }
         ]
       },
@@ -2844,15 +3159,11 @@
         "required": true,
         "types": [
           {
-            "type": "&",
-            "named": false
+            "type": "attvar",
+            "named": true
           },
           {
-            "type": "*",
-            "named": false
-          },
-          {
-            "type": "id",
+            "type": "startvar",
             "named": true
           }
         ]
@@ -2912,37 +3223,33 @@
     "named": true,
     "fields": {
       "id": {
-        "multiple": true,
+        "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "&",
-            "named": false
+            "type": "attvar",
+            "named": true
           },
           {
-            "type": "*",
-            "named": false
-          },
-          {
-            "type": "id",
+            "type": "startvar",
             "named": true
           }
         ]
       },
       "type": {
-        "multiple": true,
+        "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "&",
-            "named": false
+            "type": "aarraytype",
+            "named": true
           },
           {
-            "type": "*",
-            "named": false
+            "type": "attvar",
+            "named": true
           },
           {
-            "type": "arraytype",
+            "type": "bracketarraytype",
             "named": true
           },
           {
@@ -2950,11 +3257,7 @@
             "named": true
           },
           {
-            "type": "functiontype",
-            "named": true
-          },
-          {
-            "type": "id",
+            "type": "generalfntype",
             "named": true
           },
           {
@@ -2967,6 +3270,14 @@
           },
           {
             "type": "sigmatype",
+            "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
             "named": true
           }
         ]
@@ -3121,15 +3432,11 @@
         "required": true,
         "types": [
           {
-            "type": "$",
-            "named": false
+            "type": "atispacevar",
+            "named": true
           },
           {
-            "type": "@",
-            "named": false
-          },
-          {
-            "type": "id",
+            "type": "dollarispacevar",
             "named": true
           }
         ]
@@ -3213,19 +3520,19 @@
         ]
       },
       "type": {
-        "multiple": true,
+        "multiple": false,
         "required": false,
         "types": [
           {
-            "type": "&",
-            "named": false
+            "type": "aarraytype",
+            "named": true
           },
           {
-            "type": "*",
-            "named": false
+            "type": "attvar",
+            "named": true
           },
           {
-            "type": "arraytype",
+            "type": "bracketarraytype",
             "named": true
           },
           {
@@ -3233,11 +3540,7 @@
             "named": true
           },
           {
-            "type": "functiontype",
-            "named": true
-          },
-          {
-            "type": "id",
+            "type": "generalfntype",
             "named": true
           },
           {
@@ -3250,6 +3553,14 @@
           },
           {
             "type": "sigmatype",
+            "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
             "named": true
           }
         ]

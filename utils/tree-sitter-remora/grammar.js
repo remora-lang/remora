@@ -21,20 +21,6 @@ export default grammar({
 	global: $ => ['fn', 't-fn', 'tλ', 'i-fn', 'iλ', 'box'],
     },
 
-    supertypes: ($) => [
-	// $.decl,
-	// $.exp,
-	// $.atom,
-	// $.bind,
-	// $.type,
-	// $.dim,
-	// $.shape,
-	// $.ispace,
-	// $.tvar,
-	// $.ispace_var,
-	// $.shape_lit
-    ],
-
     rules: {
 	program: $ => seq(
 	    repeat($.import),
@@ -49,12 +35,9 @@ export default grammar({
 	),
 
 	_decl: $ => choice(
-	    $.entry,
-	    seq('(', 'def',
-		$._bind,
-		')')),
-
-	entry: $ => seq(
+	    $.entrydecl,
+	    $.defdecl),
+	entrydecl: $ => seq(
 	    '(',
 	    'entry',
 	    '(', field('id', $.id),
@@ -69,6 +52,9 @@ export default grammar({
 	    field('body', $._exp),
 	    ')'
 	),
+	defdecl: $ => seq('(', 'def',
+			  field('bind', $._bind),
+			  ')'),
 
 	args: $ => choice(	// allows for ()
 	    seq('(', ')'),
@@ -97,7 +83,7 @@ export default grammar({
 	    $.atappexp,
 	    $.unboxexp,
 	    $.letexp),
-	atomexp: $ => $._atom,
+	atomexp: $ => field('atom', $._atom),
 	bracketsexp: $ => seq('[', repeat(field('exp', $._exp)), ']'),
 	idexp: $ => field('id', $.id),
 	stringexp: $ => seq('"', field('string', $.string), '"'),
@@ -215,8 +201,8 @@ export default grammar({
 	_type: $ => choice(
 	    $._tvar,
 	    $.immedtype,
-	    $.arraytype, 
-	    $.functiontype,
+	    $._arraytype, 
+	    $._functiontype,
 	    $.foralltype,
 	    $.pitype,
 	    $.sigmatype
@@ -227,21 +213,23 @@ export default grammar({
 	    'Bool',
 	    'Float'),
 
-	arraytype: $ => choice(
-	    seq('[', $._type, repeat1($._ispace), ']'),
-	    seq('(', 'A', $._type, $._ispace, ')'),
-	),
+	_arraytype: $ => choice(
+	    $.bracketarraytype,
+	    $.aarraytype),
+	bracketarraytype: $ => seq('[', field('type', $._type), repeat1(field('ispace', $._ispace)), ']'),
+	aarraytype: $ => seq('(', 'A', field('type', $._type), field('ispace', $._ispace), ')'),
 
-	functiontype: $ => choice(
-	    seq('(', $._rightarrow, '(', repeat(field('argtype', $._type)), ')', field('returntype', $._type), ')'),
-	    seq('(', $._rightarrow, field('argtype', $._type), field('returntype', $._type), ')')
-	),
+	_functiontype: $ => choice(
+	    $.generalfntype,
+	    $.simplefntype),
+	generalfntype: $ => seq('(', $._rightarrow, '(', repeat(field('argtype', $._type)), ')', field('returntype', $._type), ')'),
+	simplefntype: $ => seq('(', $._rightarrow, field('argtype', $._type), field('returntype', $._type), ')'),
 
-	foralltype: $ => seq('(', $._forall, '(', field('tvars', repeat1($._tvar)), ')', field('returntype', $._type), ')'),
+	foralltype: $ => seq('(', $._forall, '(', repeat1(field('tvar', $._tvar)), ')', field('returntype', $._type), ')'),
 
-	pitype: $ => seq('(', $._pi, '(', field('tvars', repeat1($._ispace_var)), ')', field('returntype', $._type), ')'),
+	pitype: $ => seq('(', $._pi, '(', repeat1(field('ivar', $._ispace_var)), ')', field('returntype', $._type), ')'),
 
-	sigmatype: $ => seq('(', $._sigma, '(', field('tvars', repeat($._ispace_var)), ')', field('returntype', $._type), ')'),
+	sigmatype: $ => seq('(', $._sigma, '(', repeat(field('ivar', $._ispace_var)), ')', field('returntype', $._type), ')'),
 
 	_dim: $ => choice(
 	    $.dollardim,
@@ -260,7 +248,7 @@ export default grammar({
 	    $.dimsshape,
 	    $.plusplusshape,
 	    $.ispaceshape),
-	atshape: $ => seq('@', field('id', $.id)),
+	atshape: $ => seq('@', $.id),
 	dimsshape: $ => seq('(', 'dims', repeat1(field('dim', $._dim)), ')'),
 	plusplusshape: $ => prec.left(seq('(', '++', repeat1(field('shape', $._shape)), ')')),
 	ispaceshape: $ => seq('[', repeat(field('ispace', $._ispace)), ']'),
@@ -268,14 +256,18 @@ export default grammar({
 	_ispace: $ => choice(
 	    $._dim,
 	    $._shape),
-
+	
 	_tvar: $ => choice(
-	    seq('&', $.id),
-	    seq('*', $.id)),
-
+	    $.attvar,
+	    $.startvar),
+	attvar: $ => seq('&', $.id),
+	startvar: $ => seq('*', $.id),
+	
 	_ispace_var: $ => choice(
-	    seq('$', $.id),
-	    seq('@', $.id)),
+	    $.dollarispacevar,
+	    $.atispacevar),
+	dollarispacevar: $ => seq('$', $.id),
+	atispacevar: $ => seq('@', $.id),
 
 	shape_lit : $ => seq('[', repeat(field('num', $.nat)), ']'),
 

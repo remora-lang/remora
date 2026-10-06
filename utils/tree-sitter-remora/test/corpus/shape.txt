@@ -7,10 +7,10 @@ Shape at
 ---
 
 (program
- (ispacebind
-  ispacevar: (id)
-  ispace: (atshape
-	   id: (id))))
+ (defdecl
+   bind: (ispacebind
+	  ispacevar: (dollarispacevar (id))
+	  ispace: (atshape (id)))))
 
 ================
 Shape dims
@@ -21,11 +21,12 @@ Shape dims
 ---
 
 (program
- (ispacebind
-  ispacevar: (id)
-  ispace: (dimsshape
-	   dim: (dollardim (id))
-	   dim: (natdim (nat)))))
+ (defdecl
+   bind: (ispacebind
+	  ispacevar: (dollarispacevar (id))
+	  ispace: (dimsshape
+		   dim: (dollardim (id))
+		   dim: (natdim (nat))))))
 
 ================
 Shape plusplus
@@ -36,11 +37,11 @@ Shape plusplus
 ---
 
 (program
- (ispacebind
-  ispacevar: (id)
-  ispace: (plusplusshape
-	   shape: (atshape
-		   id: (id)))))
+ (defdecl
+   bind: (ispacebind
+	  ispacevar: (dollarispacevar (id))
+	  ispace: (plusplusshape
+		   shape: (atshape (id))))))
 
 ================
 Shape array
@@ -51,9 +52,9 @@ Shape array
 ---
 
 (program
- (ispacebind
-  ispacevar: (id)
-  ispace: (ispaceshape
-	   ispace: (dollardim (id))
-	   ispace: (atshape
-		    id: (id)))))
+ (defdecl
+   bind: (ispacebind
+	  ispacevar: (dollarispacevar (id))
+	  ispace: (ispaceshape
+		   ispace: (dollardim (id))
+		   ispace: (atshape (id))))))

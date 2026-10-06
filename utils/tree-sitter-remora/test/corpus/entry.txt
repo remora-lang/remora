@@ -7,12 +7,12 @@ Entry Declarations basic
 ---
 
 (program
-  (entry
+  (entrydecl
     id: (id)
     args: (args
       arg: (id)
       type: (immedtype))
-    body: (atomexp (litatom lit: (boollit)))))
+    body: (atomexp atom: (litatom lit: (boollit)))))
 
 ================
 Entry Declarations multiple args
@@ -23,14 +23,14 @@ Entry Declarations multiple args
 ---
 
 (program
-  (entry
+  (entrydecl
     id: (id)
     args: (args
       arg: (id)
       type: (immedtype)
       arg: (id)
       type: (immedtype))
-    body: (atomexp (litatom lit: (boollit)))))
+    body: (atomexp atom: (litatom lit: (boollit)))))
 
 ================
 Entry Declarations return type
@@ -41,7 +41,7 @@ Entry Declarations return type
 ---
 
 (program
-  (entry
+  (entrydecl
     id: (id)
     args: (args
       arg: (id)
@@ -49,7 +49,7 @@ Entry Declarations return type
       arg: (id)
       type: (immedtype))
     return_type: (immedtype)
-    body: (atomexp (litatom lit: (boollit)))))
+    body: (atomexp atom: (litatom lit: (boollit)))))
 
 ================
 Entry Declarations no args
@@ -60,7 +60,7 @@ Entry Declarations no args
 ---
 
 (program
-  (entry
+  (entrydecl
     id: (id)
     args: (args)
-    body: (atomexp (litatom lit: (boollit)))))
+    body: (atomexp atom: (litatom lit: (boollit)))))

@@ -7,9 +7,10 @@ Atom literal
 ---
 
 (program
- (valbind
-  id: (id)
-  exp: (atomexp (litatom lit: (boollit)))))
+ (defdecl
+   bind: (valbind
+	  id: (id)
+	  exp: (atomexp atom: (litatom lit: (boollit))))))
 
 ================
 Atom type
@@ -20,9 +21,10 @@ Atom type
 ---
 
 (program
- (valbind
-  id: (id)
-  exp: (atomexp (typeatom type: (typelit)))))
+ (defdecl
+   bind: (valbind
+	  id: (id)
+	  exp: (atomexp atom: (typeatom type: (typelit))))))
 
 ================
 Atom type
@@ -33,9 +35,10 @@ Atom type
 ---
 
 (program
- (valbind
-  id: (id)
-  exp: (atomexp (typeatom type: (typelit)))))
+ (defdecl
+   bind: (valbind
+	  id: (id)
+	  exp: (atomexp atom: (typeatom type: (typelit))))))
 
 ================
 Atom fn
@@ -46,12 +49,13 @@ Atom fn
 ---
 
 (program
- (valbind
-  id: (id)
-  exp: (atomexp (fnatom
-       		 arg: (id)
-		 type: (immedtype)
-		 body: (atomexp (litatom lit: (boollit)))))))
+ (defdecl
+   bind: (valbind
+	  id: (id)
+	  exp: (atomexp atom: (fnatom
+       			       arg: (id)
+			       type: (immedtype)
+			       body: (atomexp atom: (litatom lit: (boollit))))))))
 
 ================
 Atom t-fn
@@ -62,12 +66,13 @@ Atom t-fn
 ---
 
 (program
- (valbind
-  id: (id)
-  exp: (atomexp (tfnatom
-       		 tvar: (id)
-		 tvar: (id)
-		 body: (atomexp (litatom lit: (boollit)))))))
+ (defdecl
+   bind: (valbind
+	  id: (id)
+	  exp: (atomexp atom: (tfnatom
+       			       tvar: (startvar (id))
+			       tvar: (attvar (id))
+			       body: (atomexp atom: (litatom lit: (boollit))))))))
 
 ================
 Atom i-fn
@@ -78,12 +83,13 @@ Atom i-fn
 ---
 
 (program
- (valbind
-  id: (id)
-  exp: (atomexp (ifnatom
-       		 ivar: (id)
-		 ivar: (id)
-		 body: (atomexp (litatom lit: (boollit)))))))
+ (defdecl
+   bind: (valbind
+	  id: (id)
+	  exp: (atomexp atom:  (ifnatom
+       			 ivar: (dollarispacevar (id))
+			 ivar: (atispacevar (id))
+			 body: (atomexp atom: (litatom lit: (boollit))))))))
 
 
 ================
@@ -95,10 +101,11 @@ Atom box
 ---
 
 (program
- (valbind
-  id: (id)
-  exp: (atomexp (boxatom
-		 ispace: (dollardim (id))
-		 ispace: (atshape id: (id))
-		 exp: (atomexp (litatom lit: (boollit)))
-		 type: (immedtype)))))
+ (defdecl
+   bind: (valbind
+	  id: (id)
+	  exp: (atomexp atom: (boxatom
+			       ispace: (dollardim (id))
+			       ispace: (atshape (id))
+			       exp: (atomexp atom: (litatom lit: (boollit)))
+			       type: (immedtype))))))

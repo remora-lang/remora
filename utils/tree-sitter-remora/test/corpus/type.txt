@@ -7,7 +7,7 @@ Types immediate
 ---
 
 (program
-  (entry
+  (entrydecl
     id: (id)
     args: (args
       arg: (id)
@@ -16,7 +16,7 @@ Types immediate
       type: (immedtype)
       arg: (id)
       type: (immedtype))
-    body: (atomexp (litatom lit: (boollit)))))
+    body: (atomexp atom: (litatom lit: (boollit)))))
 
 ================
 Types amp or star id
@@ -27,14 +27,14 @@ Types amp or star id
 ---
 
 (program
-  (entry
+  (entrydecl
     id: (id)
     args: (args
       arg: (id)
-      type: (id)
+      type: (attvar (id))
       arg: (id)
-      type: (id))
-    body: (atomexp (litatom lit: (boollit)))))
+      type: (startvar (id)))
+    body: (atomexp atom: (litatom lit: (boollit)))))
 
 ================
 Types array
@@ -45,20 +45,18 @@ Types array
 ---
 
 (program
-  (entry
+  (entrydecl
     id: (id)
     args: (args
       arg: (id)
-      type: (arraytype
-             (immedtype)
-             (atshape
-              id: (id)))
+      type: (bracketarraytype
+             type: (immedtype)
+             ispace: (atshape (id)))
       arg: (id)
-      type: (arraytype
-             (immedtype)
-             (atshape
-              id: (id))))
-    body: (atomexp (litatom lit: (boollit)))))
+      type: (aarraytype
+             type: (immedtype)
+             ispace: (atshape (id))))
+    body: (atomexp atom: (litatom lit: (boollit)))))
 
 ================
 Types functions
@@ -69,22 +67,22 @@ Types functions
 ---
 
 (program
-  (entry
+  (entrydecl
     id: (id)
     args: (args
       arg: (id)
-      type: (functiontype
+      type: (generalfntype
+             argtype: (immedtype)
+             returntype: (immedtype))
+      arg: (id)
+      type: (generalfntype
         argtype: (immedtype)
         returntype: (immedtype))
       arg: (id)
-      type: (functiontype
-        argtype: (immedtype)
-        returntype: (immedtype))
-      arg: (id)
-      type: (functiontype
+      type: (simplefntype
         argtype: (immedtype)
         returntype: (immedtype)))
-    body: (atomexp (litatom lit: (boollit)))))
+    body: (atomexp atom: (litatom lit: (boollit)))))
 
 ================
 Types forall
@@ -95,19 +93,19 @@ Types forall
 ---
 
 (program
-  (entry
+  (entrydecl
     id: (id)
     args: (args
       arg: (id)
       type: (foralltype
-        tvars: (id)
+        tvar: (attvar (id))
         returntype: (immedtype))
       arg: (id)
       type: (foralltype
-        tvars: (id)
-	tvars: (id)
+        tvar: (startvar (id))
+	tvar: (attvar (id))
         returntype: (immedtype)))
-    body: (atomexp (litatom lit: (boollit)))))
+    body: (atomexp atom: (litatom lit: (boollit)))))
 
 ================
 Types pitype
@@ -118,19 +116,19 @@ Types pitype
 ---
 
 (program
-  (entry
+  (entrydecl
     id: (id)
     args: (args
       arg: (id)
       type: (pitype
-        tvars: (id)
-	tvars: (id)
+        ivar: (dollarispacevar (id))
+	ivar: (atispacevar (id))
         returntype: (immedtype))
       arg: (id)
       type: (pitype
-        tvars: (id)
+        ivar: (dollarispacevar (id))
         returntype: (immedtype)))
-    body: (atomexp (litatom lit: (boollit)))))
+    body: (atomexp atom: (litatom lit: (boollit)))))
 
 ================
 Types sigmatype
@@ -141,16 +139,16 @@ Types sigmatype
 ---
 
 (program
-  (entry
+  (entrydecl
     id: (id)
     args: (args
       arg: (id)
       type: (sigmatype
-        tvars: (id)
-	tvars: (id)
+        ivar: (dollarispacevar (id))
+	ivar: (atispacevar (id))
         returntype: (immedtype))
       arg: (id)
       type: (sigmatype
-        tvars: (id)
+        ivar: (dollarispacevar (id))
         returntype: (immedtype)))
-    body: (atomexp (litatom lit: (boollit)))))
+    body: (atomexp atom: (litatom lit: (boollit)))))

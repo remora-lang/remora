@@ -7,9 +7,10 @@ Bind val 1
 ---
 
 (program
- (valbind
-  id: (id)
-  exp: (atomexp (litatom lit: (boollit)))))
+ (defdecl
+   bind: (valbind
+	  id: (id)
+	  exp: (atomexp atom: (litatom lit: (boollit))))))
 
 ================
 Bind val 2
@@ -20,10 +21,11 @@ Bind val 2
 ---
 
 (program
- (valbind
-  id: (id)
-  type: (immedtype)
-  exp: (atomexp (litatom lit: (boollit)))))
+ (defdecl
+   bind: (valbind
+	  id: (id)
+	  type: (immedtype)
+	  exp: (atomexp atom: (litatom lit: (boollit))))))
 
 ================
 Bind fun 1
@@ -34,13 +36,14 @@ Bind fun 1
 ---
 
 (program
- (funbind
-  id: (id)
-  (args
-   arg: (id)
-   type: (immedtype))
-  ret_type: (immedtype)
-  body: (atomexp (litatom lit: (boollit)))))
+ (defdecl
+   bind: (funbind
+	  id: (id)
+	  (args
+	   arg: (id)
+	   type: (immedtype))
+	  ret_type: (immedtype)
+	  body: (atomexp atom: (litatom lit: (boollit))))))
 
 ================
 Bind fun 2
@@ -51,15 +54,16 @@ Bind fun 2
 ---
 
 (program
- (funbind
-  id: (id)
-  tvars: (id)
-  ivars: (id)
-  (args
-   arg: (id)
-   type: (immedtype))
-  ret_type: (immedtype)
-  body: (atomexp (litatom lit: (boollit)))))
+ (defdecl
+   bind: (funbind
+	  id: (id)
+	  tvars: (attvar (id))
+	  ivars: (dollarispacevar (id))
+	  (args
+	   arg: (id)
+	   type: (immedtype))
+	  ret_type: (immedtype)
+	  body: (atomexp atom: (litatom lit: (boollit))))))
 
 ================
 Bind fun 3
@@ -70,15 +74,16 @@ Bind fun 3
 ---
 
 (program
- (funbind
-  id: (id)
-  ivars: (id)
-  ivars: (id)
-  (args
-   arg: (id)
-   type: (immedtype))
-  ret_type: (immedtype)
-  body: (atomexp (litatom lit: (boollit)))))
+ (defdecl
+   bind: (funbind
+	  id: (id)
+	  ivars: (dollarispacevar (id))
+	  ivars: (dollarispacevar (id))
+	  (args
+	   arg: (id)
+	   type: (immedtype))
+	  ret_type: (immedtype)
+	  body: (atomexp atom: (litatom lit: (boollit))))))
 
 ================
 Bind t-fun 1
@@ -89,11 +94,12 @@ Bind t-fun 1
 ---
 
 (program
- (tfunbind
-  id: (id)
-  tvars: (id)
-  ret_type: (immedtype)
-  body: (atomexp (litatom lit: (boollit)))))
+ (defdecl
+   bind: (tfunbind
+	  id: (id)
+	  tvars: (attvar (id))
+	  ret_type: (immedtype)
+	  body: (atomexp atom: (litatom lit: (boollit))))))
 
 ================
 Bind t-fun 2
@@ -104,11 +110,12 @@ Bind t-fun 2
 ---
 
 (program
- (tfunbind
-  id: (id)
-  tvars: (id)
-  tvars: (id)
-  body: (atomexp (litatom lit: (boollit)))))
+ (defdecl
+   bind: (tfunbind
+	  id: (id)
+	  tvars: (startvar (id))
+	  tvars: (attvar (id))
+	  body: (atomexp atom: (litatom lit: (boollit))))))
 
 ================
 Bind i-fun 
@@ -119,12 +126,13 @@ Bind i-fun
 ---
 
 (program
- (ifunbind
-  id: (id)
-  ivars: (id)
-  ivars: (id)
-  ret_type: (immedtype)
-  body: (atomexp (litatom lit: (boollit)))))
+ (defdecl
+   bind: (ifunbind
+	  id: (id)
+	  ivars: (dollarispacevar (id))
+	  ivars: (atispacevar (id))
+	  ret_type: (immedtype)
+	  body: (atomexp atom: (litatom lit: (boollit))))))
 
 ================
 Bind type 1
@@ -135,9 +143,10 @@ Bind type 1
 ---
 
 (program
- (typebind
-  id: (id)
-  type: (immedtype)))
+ (defdecl
+   bind: (typebind
+	  id: (attvar (id))
+	  type: (immedtype))))
 
 ================
 Bind type 2
@@ -148,12 +157,13 @@ Bind type 2
 ---
 
 (program
- (typebind
-  id: (id)
-  type: (functiontype
-	 argtype: (immedtype)
-	 argtype: (immedtype)
-	 returntype: (immedtype))))
+ (defdecl
+   bind: (typebind
+	  id: (startvar (id))
+	  type: (generalfntype
+		 argtype: (immedtype)
+		 argtype: (immedtype)
+		 returntype: (immedtype)))))
 
 ================
 Bind ispace 
@@ -164,6 +174,7 @@ Bind ispace
 ---
 
 (program
- (ispacebind
-  ispacevar: (id)
-  ispace: (dollardim (id))))
+ (defdecl
+   bind: (ispacebind
+	  ispacevar: (dollarispacevar (id))
+	  ispace: (dollardim (id)))))

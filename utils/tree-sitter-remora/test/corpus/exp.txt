@@ -7,9 +7,10 @@ Exp atom
 ---
 
 (program
- (valbind
-  id: (id)
-  exp: (atomexp (litatom lit: (boollit)))))
+ (defdecl
+   bind: (valbind
+	  id: (id)
+	  exp: (atomexp atom: (litatom lit: (boollit))))))
 
 ================
 Exp brackets
@@ -20,11 +21,12 @@ Exp brackets
 ---
 
 (program
- (valbind
-  id: (id)
-  exp: (bracketsexp
-	exp: (atomexp (litatom lit: (boollit)))
-	exp: (atomexp (litatom lit: (boollit))))))
+ (defdecl
+   bind: (valbind
+	  id: (id)
+	  exp: (bracketsexp
+		exp: (atomexp atom: (litatom lit: (boollit)))
+		exp: (atomexp atom: (litatom lit: (boollit)))))))
 
 
 ================
@@ -36,10 +38,11 @@ Exp id
 ---
 
 (program
- (valbind
-  id: (id)
-  exp: (idexp
-	id: (id))))
+ (defdecl
+   bind: (valbind
+	  id: (id)
+	  exp: (idexp
+		id: (id)))))
 
 ================
 Exp string
@@ -50,10 +53,11 @@ Exp string
 ---
 
 (program
- (valbind
-  id: (id)
-  exp: (stringexp
-	string: (string))))
+ (defdecl
+   bind: (valbind
+	  id: (id)
+	  exp: (stringexp
+		string: (string)))))
 
 ================
 Exp array atom
@@ -64,14 +68,15 @@ Exp array atom
 ---
 
 (program
- (valbind
-  id: (id)
-  exp: (arrayexpatom
-	shape: (shape_lit
-		num: (nat)
-		num: (nat))
-	atom: (litatom
-	       lit: (boollit)))))
+ (defdecl
+   bind: (valbind
+	  id: (id)
+	  exp: (arrayexpatom
+		shape: (shape_lit
+			num: (nat)
+			num: (nat))
+		atom: (litatom
+		       lit: (boollit))))))
 
 
 ================
@@ -83,14 +88,14 @@ Exp array type
 ---
 
 (program
- (valbind
-  id: (id)
-  exp: (arrayexptype
-	shape: (shape_lit
-		num: (nat)
-		num: (nat))
-	type: (immedtype))))
-
+ (defdecl
+   bind: (valbind
+	  id: (id)
+	  exp: (arrayexptype
+		shape: (shape_lit
+			num: (nat)
+			num: (nat))
+		type: (immedtype)))))
 
 ================
 Exp frame exp
@@ -101,13 +106,14 @@ Exp frame exp
 ---
 
 (program
- (valbind
-  id: (id)
-  exp: (frameexpexp
-	shape: (shape_lit
-		num: (nat)
-		num: (nat))
-	exp: (atomexp (litatom lit: (boollit))))))
+ (defdecl
+   bind: (valbind
+	  id: (id)
+	  exp: (frameexpexp
+		shape: (shape_lit
+			num: (nat)
+			num: (nat))
+		exp: (atomexp atom: (litatom lit: (boollit)))))))
 
 ================
 Exp frame type
@@ -118,13 +124,14 @@ Exp frame type
 ---
 
 (program
- (valbind
-  id: (id)
-  exp: (frameexptype
-	shape: (shape_lit
-		num: (nat)
-		num: (nat))
-	type: (immedtype))))
+ (defdecl
+   bind: (valbind
+	  id: (id)
+	  exp: (frameexptype
+		shape: (shape_lit
+			num: (nat)
+			num: (nat))
+		type: (immedtype)))))
 
 ================
 Exp application
@@ -135,11 +142,12 @@ Exp application
 ---
 
 (program
- (valbind
-  id: (id)
-  exp: (applicationexp
-	fnexp: (idexp id: (id))
-	param: (idexp id: (id)))))
+ (defdecl
+   bind: (valbind
+	  id: (id)
+	  exp: (applicationexp
+		fnexp: (idexp id: (id))
+		param: (idexp id: (id))))))
 
 ================
 Exp t-app
@@ -150,12 +158,13 @@ Exp t-app
 ---
 
 (program
- (valbind
-  id: (id)
-  exp: (tappexp
-	fnexp: (idexp id: (id))
-	type: (immedtype)
-	type: (immedtype))))
+ (defdecl
+   bind: (valbind
+	  id: (id)
+	  exp: (tappexp
+		fnexp: (idexp id: (id))
+		type: (immedtype)
+		type: (immedtype)))))
 
 ================
 Exp i-app
@@ -166,12 +175,13 @@ Exp i-app
 ---
 
 (program
- (valbind
-  id: (id)
-  exp: (iappexp
-	fnexp: (idexp id: (id))
-	ispace: (natdim (nat))
-	ispace: (natdim (nat)))))
+ (defdecl
+   bind: (valbind
+	  id: (id)
+	  exp: (iappexp
+		fnexp: (idexp id: (id))
+		ispace: (natdim (nat))
+		ispace: (natdim (nat))))))
 
 
 ================
@@ -183,15 +193,16 @@ Exp at application
 ---
 
 (program
- (valbind
-  id: (id)
-  exp: (atappexp
-	fnexp: (idexp id: (id))
-	type: (immedtype)
-	type: (immedtype)
-	ispace: (natdim (nat))
-	ispace: (natdim (nat))
-	param: (atomexp (litatom lit: (boollit))))))
+ (defdecl
+   bind: (valbind
+	  id: (id)
+	  exp: (atappexp
+		fnexp: (idexp id: (id))
+		type: (immedtype)
+		type: (immedtype)
+		ispace: (natdim (nat))
+		ispace: (natdim (nat))
+		param: (atomexp atom: (litatom lit: (boollit)))))))
 
 ================
 Exp unbox
@@ -202,16 +213,17 @@ Exp unbox
 ---
 
 (program
- (valbind
-  id: (id)
-  exp: (unboxexp
-	ispace_var: (id)
-	ispace_var: (id)
-	id: (id)
-	exp1: (applicationexp
-	       fnexp: (idexp id: (id))
-	       param: (idexp id: (id)))
-	exp2: (atomexp (litatom lit: (boollit))))))
+ (defdecl
+   bind: (valbind
+	  id: (id)
+	  exp: (unboxexp
+		ispace_var: (dollarispacevar (id))
+		ispace_var: (atispacevar (id))
+		id: (id)
+		exp1: (applicationexp
+		       fnexp: (idexp id: (id))
+		       param: (idexp id: (id)))
+		exp2: (atomexp atom: (litatom lit: (boollit)))))))
 
 ================
 Exp let
@@ -222,12 +234,13 @@ Exp let
 ---
 
 (program
- (valbind
-  id: (id)
-  exp: (letexp
-	bind: (valbind
-	       id: (id)
-	       exp: (applicationexp
-		     fnexp: (idexp id: (id))
-		     param: (idexp id: (id))))
-	exp: (atomexp (litatom lit: (boollit))))))
+ (defdecl
+   bind: (valbind
+	  id: (id)
+	  exp: (letexp
+		bind: (valbind
+		       id: (id)
+		       exp: (applicationexp
+			     fnexp: (idexp id: (id))
+			     param: (idexp id: (id))))
+		exp: (atomexp atom: (litatom lit: (boollit)))))))
