@@ -54,7 +54,7 @@
             "named": true
           },
           {
-            "type": "attvar",
+            "type": "amptvar",
             "named": true
           },
           {
@@ -91,6 +91,21 @@
           }
         ]
       }
+    }
+  },
+  {
+    "type": "amptvar",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "ampid",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -224,68 +239,6 @@
     }
   },
   {
-    "type": "args",
-    "named": true,
-    "fields": {
-      "arg": {
-        "multiple": true,
-        "required": false,
-        "types": [
-          {
-            "type": "id",
-            "named": true
-          }
-        ]
-      },
-      "type": {
-        "multiple": true,
-        "required": false,
-        "types": [
-          {
-            "type": "aarraytype",
-            "named": true
-          },
-          {
-            "type": "attvar",
-            "named": true
-          },
-          {
-            "type": "bracketarraytype",
-            "named": true
-          },
-          {
-            "type": "foralltype",
-            "named": true
-          },
-          {
-            "type": "generalfntype",
-            "named": true
-          },
-          {
-            "type": "immedtype",
-            "named": true
-          },
-          {
-            "type": "pitype",
-            "named": true
-          },
-          {
-            "type": "sigmatype",
-            "named": true
-          },
-          {
-            "type": "simplefntype",
-            "named": true
-          },
-          {
-            "type": "startvar",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
     "type": "arrayexpatom",
     "named": true,
     "fields": {
@@ -298,6 +251,10 @@
             "named": true
           },
           {
+            "type": "floatatom",
+            "named": true
+          },
+          {
             "type": "fnatom",
             "named": true
           },
@@ -306,15 +263,15 @@
             "named": true
           },
           {
+            "type": "intatom",
+            "named": true
+          },
+          {
             "type": "litatom",
             "named": true
           },
           {
             "type": "tfnatom",
-            "named": true
-          },
-          {
-            "type": "typeatom",
             "named": true
           }
         ]
@@ -354,7 +311,7 @@
             "named": true
           },
           {
-            "type": "attvar",
+            "type": "amptvar",
             "named": true
           },
           {
@@ -503,7 +460,7 @@
       },
       "param": {
         "multiple": true,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "applicationexp",
@@ -572,7 +529,215 @@
             "named": true
           },
           {
-            "type": "attvar",
+            "type": "amptvar",
+            "named": true
+          },
+          {
+            "type": "bracketarraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "generalfntype",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "atfunbind",
+    "named": true,
+    "fields": {
+      "arg": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      },
+      "body": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "applicationexp",
+            "named": true
+          },
+          {
+            "type": "arrayexpatom",
+            "named": true
+          },
+          {
+            "type": "arrayexptype",
+            "named": true
+          },
+          {
+            "type": "atappexp",
+            "named": true
+          },
+          {
+            "type": "atomexp",
+            "named": true
+          },
+          {
+            "type": "bracketsexp",
+            "named": true
+          },
+          {
+            "type": "frameexpexp",
+            "named": true
+          },
+          {
+            "type": "frameexptype",
+            "named": true
+          },
+          {
+            "type": "iappexp",
+            "named": true
+          },
+          {
+            "type": "idexp",
+            "named": true
+          },
+          {
+            "type": "letexp",
+            "named": true
+          },
+          {
+            "type": "stringexp",
+            "named": true
+          },
+          {
+            "type": "tappexp",
+            "named": true
+          },
+          {
+            "type": "unboxexp",
+            "named": true
+          }
+        ]
+      },
+      "id": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "atid",
+            "named": true
+          }
+        ]
+      },
+      "ivar": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "atispacevar",
+            "named": true
+          },
+          {
+            "type": "dollarispacevar",
+            "named": true
+          }
+        ]
+      },
+      "ret_type": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "aarraytype",
+            "named": true
+          },
+          {
+            "type": "amptvar",
+            "named": true
+          },
+          {
+            "type": "bracketarraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "generalfntype",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
+            "named": true
+          }
+        ]
+      },
+      "tvar": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "amptvar",
+            "named": true
+          },
+          {
+            "type": "startvar",
+            "named": true
+          }
+        ]
+      },
+      "type": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "aarraytype",
+            "named": true
+          },
+          {
+            "type": "amptvar",
             "named": true
           },
           {
@@ -620,7 +785,7 @@
       "required": true,
       "types": [
         {
-          "type": "id",
+          "type": "atid",
           "named": true
         }
       ]
@@ -629,37 +794,40 @@
   {
     "type": "atomexp",
     "named": true,
-    "fields": {
-      "atom": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "boxatom",
-            "named": true
-          },
-          {
-            "type": "fnatom",
-            "named": true
-          },
-          {
-            "type": "ifnatom",
-            "named": true
-          },
-          {
-            "type": "litatom",
-            "named": true
-          },
-          {
-            "type": "tfnatom",
-            "named": true
-          },
-          {
-            "type": "typeatom",
-            "named": true
-          }
-        ]
-      }
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "boxatom",
+          "named": true
+        },
+        {
+          "type": "floatatom",
+          "named": true
+        },
+        {
+          "type": "fnatom",
+          "named": true
+        },
+        {
+          "type": "ifnatom",
+          "named": true
+        },
+        {
+          "type": "intatom",
+          "named": true
+        },
+        {
+          "type": "litatom",
+          "named": true
+        },
+        {
+          "type": "tfnatom",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -671,22 +839,7 @@
       "required": true,
       "types": [
         {
-          "type": "id",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "attvar",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "id",
+          "type": "atid",
           "named": true
         }
       ]
@@ -814,7 +967,7 @@
             "named": true
           },
           {
-            "type": "attvar",
+            "type": "amptvar",
             "named": true
           },
           {
@@ -859,7 +1012,7 @@
     "fields": {
       "ispace": {
         "multiple": true,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "atshape",
@@ -908,7 +1061,7 @@
             "named": true
           },
           {
-            "type": "attvar",
+            "type": "amptvar",
             "named": true
           },
           {
@@ -1024,7 +1177,7 @@
         "required": true,
         "types": [
           {
-            "type": "funbind",
+            "type": "atfunbind",
             "named": true
           },
           {
@@ -1036,6 +1189,10 @@
             "named": true
           },
           {
+            "type": "regfunbind",
+            "named": true
+          },
+          {
             "type": "tfunbind",
             "named": true
           },
@@ -1044,7 +1201,11 @@
             "named": true
           },
           {
-            "type": "valbind",
+            "type": "valnotypebind",
+            "named": true
+          },
+          {
+            "type": "valtypebind",
             "named": true
           }
         ]
@@ -1092,7 +1253,7 @@
       "required": true,
       "types": [
         {
-          "type": "id",
+          "type": "dollid",
           "named": true
         }
       ]
@@ -1107,7 +1268,7 @@
       "required": true,
       "types": [
         {
-          "type": "id",
+          "type": "dollid",
           "named": true
         }
       ]
@@ -1117,12 +1278,12 @@
     "type": "entrydecl",
     "named": true,
     "fields": {
-      "args": {
-        "multiple": false,
-        "required": true,
+      "arg": {
+        "multiple": true,
+        "required": false,
         "types": [
           {
-            "type": "args",
+            "type": "id",
             "named": true
           }
         ]
@@ -1208,7 +1369,7 @@
             "named": true
           },
           {
-            "type": "attvar",
+            "type": "amptvar",
             "named": true
           },
           {
@@ -1241,6 +1402,68 @@
           },
           {
             "type": "startvar",
+            "named": true
+          }
+        ]
+      },
+      "type": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "aarraytype",
+            "named": true
+          },
+          {
+            "type": "amptvar",
+            "named": true
+          },
+          {
+            "type": "bracketarraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "generalfntype",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "floatatom",
+    "named": true,
+    "fields": {
+      "float": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "float",
             "named": true
           }
         ]
@@ -1332,7 +1555,7 @@
             "named": true
           },
           {
-            "type": "attvar",
+            "type": "amptvar",
             "named": true
           },
           {
@@ -1384,7 +1607,7 @@
             "named": true
           },
           {
-            "type": "attvar",
+            "type": "amptvar",
             "named": true
           },
           {
@@ -1426,7 +1649,7 @@
         "required": true,
         "types": [
           {
-            "type": "attvar",
+            "type": "amptvar",
             "named": true
           },
           {
@@ -1538,7 +1761,7 @@
             "named": true
           },
           {
-            "type": "attvar",
+            "type": "amptvar",
             "named": true
           },
           {
@@ -1575,168 +1798,6 @@
           }
         ]
       }
-    }
-  },
-  {
-    "type": "funbind",
-    "named": true,
-    "fields": {
-      "body": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "applicationexp",
-            "named": true
-          },
-          {
-            "type": "arrayexpatom",
-            "named": true
-          },
-          {
-            "type": "arrayexptype",
-            "named": true
-          },
-          {
-            "type": "atappexp",
-            "named": true
-          },
-          {
-            "type": "atomexp",
-            "named": true
-          },
-          {
-            "type": "bracketsexp",
-            "named": true
-          },
-          {
-            "type": "frameexpexp",
-            "named": true
-          },
-          {
-            "type": "frameexptype",
-            "named": true
-          },
-          {
-            "type": "iappexp",
-            "named": true
-          },
-          {
-            "type": "idexp",
-            "named": true
-          },
-          {
-            "type": "letexp",
-            "named": true
-          },
-          {
-            "type": "stringexp",
-            "named": true
-          },
-          {
-            "type": "tappexp",
-            "named": true
-          },
-          {
-            "type": "unboxexp",
-            "named": true
-          }
-        ]
-      },
-      "id": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "id",
-            "named": true
-          }
-        ]
-      },
-      "ivars": {
-        "multiple": true,
-        "required": false,
-        "types": [
-          {
-            "type": "atispacevar",
-            "named": true
-          },
-          {
-            "type": "dollarispacevar",
-            "named": true
-          }
-        ]
-      },
-      "ret_type": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "aarraytype",
-            "named": true
-          },
-          {
-            "type": "attvar",
-            "named": true
-          },
-          {
-            "type": "bracketarraytype",
-            "named": true
-          },
-          {
-            "type": "foralltype",
-            "named": true
-          },
-          {
-            "type": "generalfntype",
-            "named": true
-          },
-          {
-            "type": "immedtype",
-            "named": true
-          },
-          {
-            "type": "pitype",
-            "named": true
-          },
-          {
-            "type": "sigmatype",
-            "named": true
-          },
-          {
-            "type": "simplefntype",
-            "named": true
-          },
-          {
-            "type": "startvar",
-            "named": true
-          }
-        ]
-      },
-      "tvars": {
-        "multiple": true,
-        "required": false,
-        "types": [
-          {
-            "type": "attvar",
-            "named": true
-          },
-          {
-            "type": "startvar",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "args",
-          "named": true
-        }
-      ]
     }
   },
   {
@@ -1752,7 +1813,7 @@
             "named": true
           },
           {
-            "type": "attvar",
+            "type": "amptvar",
             "named": true
           },
           {
@@ -1798,7 +1859,7 @@
             "named": true
           },
           {
-            "type": "attvar",
+            "type": "amptvar",
             "named": true
           },
           {
@@ -2121,9 +2182,9 @@
           }
         ]
       },
-      "ivars": {
+      "ivar": {
         "multiple": true,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "atispacevar",
@@ -2144,7 +2205,7 @@
             "named": true
           },
           {
-            "type": "attvar",
+            "type": "amptvar",
             "named": true
           },
           {
@@ -2198,6 +2259,22 @@
         "types": [
           {
             "type": "filename",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "intatom",
+    "named": true,
+    "fields": {
+      "int": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "int",
             "named": true
           }
         ]
@@ -2323,7 +2400,7 @@
         "required": true,
         "types": [
           {
-            "type": "funbind",
+            "type": "atfunbind",
             "named": true
           },
           {
@@ -2335,6 +2412,10 @@
             "named": true
           },
           {
+            "type": "regfunbind",
+            "named": true
+          },
+          {
             "type": "tfunbind",
             "named": true
           },
@@ -2343,7 +2424,11 @@
             "named": true
           },
           {
-            "type": "valbind",
+            "type": "valnotypebind",
+            "named": true
+          },
+          {
+            "type": "valtypebind",
             "named": true
           }
         ]
@@ -2434,7 +2519,7 @@
     "fields": {
       "dim": {
         "multiple": true,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "dollardim",
@@ -2502,7 +2587,7 @@
             "named": true
           },
           {
-            "type": "attvar",
+            "type": "amptvar",
             "named": true
           },
           {
@@ -2547,7 +2632,7 @@
     "fields": {
       "dim": {
         "multiple": true,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "dollardim",
@@ -2626,6 +2711,186 @@
     }
   },
   {
+    "type": "regfunbind",
+    "named": true,
+    "fields": {
+      "arg": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      },
+      "body": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "applicationexp",
+            "named": true
+          },
+          {
+            "type": "arrayexpatom",
+            "named": true
+          },
+          {
+            "type": "arrayexptype",
+            "named": true
+          },
+          {
+            "type": "atappexp",
+            "named": true
+          },
+          {
+            "type": "atomexp",
+            "named": true
+          },
+          {
+            "type": "bracketsexp",
+            "named": true
+          },
+          {
+            "type": "frameexpexp",
+            "named": true
+          },
+          {
+            "type": "frameexptype",
+            "named": true
+          },
+          {
+            "type": "iappexp",
+            "named": true
+          },
+          {
+            "type": "idexp",
+            "named": true
+          },
+          {
+            "type": "letexp",
+            "named": true
+          },
+          {
+            "type": "stringexp",
+            "named": true
+          },
+          {
+            "type": "tappexp",
+            "named": true
+          },
+          {
+            "type": "unboxexp",
+            "named": true
+          }
+        ]
+      },
+      "id": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      },
+      "ret_type": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "aarraytype",
+            "named": true
+          },
+          {
+            "type": "amptvar",
+            "named": true
+          },
+          {
+            "type": "bracketarraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "generalfntype",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
+            "named": true
+          }
+        ]
+      },
+      "type": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "aarraytype",
+            "named": true
+          },
+          {
+            "type": "amptvar",
+            "named": true
+          },
+          {
+            "type": "bracketarraytype",
+            "named": true
+          },
+          {
+            "type": "foralltype",
+            "named": true
+          },
+          {
+            "type": "generalfntype",
+            "named": true
+          },
+          {
+            "type": "immedtype",
+            "named": true
+          },
+          {
+            "type": "pitype",
+            "named": true
+          },
+          {
+            "type": "sigmatype",
+            "named": true
+          },
+          {
+            "type": "simplefntype",
+            "named": true
+          },
+          {
+            "type": "startvar",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "shape_lit",
     "named": true,
     "fields": {
@@ -2647,7 +2912,7 @@
     "fields": {
       "ivar": {
         "multiple": true,
-        "required": false,
+        "required": true,
         "types": [
           {
             "type": "atispacevar",
@@ -2668,7 +2933,7 @@
             "named": true
           },
           {
-            "type": "attvar",
+            "type": "amptvar",
             "named": true
           },
           {
@@ -2720,7 +2985,7 @@
             "named": true
           },
           {
-            "type": "attvar",
+            "type": "amptvar",
             "named": true
           },
           {
@@ -2766,7 +3031,7 @@
             "named": true
           },
           {
-            "type": "attvar",
+            "type": "amptvar",
             "named": true
           },
           {
@@ -2814,7 +3079,7 @@
       "required": true,
       "types": [
         {
-          "type": "id",
+          "type": "starid",
           "named": true
         }
       ]
@@ -2911,7 +3176,7 @@
             "named": true
           },
           {
-            "type": "attvar",
+            "type": "amptvar",
             "named": true
           },
           {
@@ -3021,7 +3286,7 @@
         "required": false,
         "types": [
           {
-            "type": "attvar",
+            "type": "amptvar",
             "named": true
           },
           {
@@ -3117,7 +3382,7 @@
             "named": true
           },
           {
-            "type": "attvar",
+            "type": "amptvar",
             "named": true
           },
           {
@@ -3154,12 +3419,12 @@
           }
         ]
       },
-      "tvars": {
+      "tvar": {
         "multiple": true,
-        "required": true,
+        "required": false,
         "types": [
           {
-            "type": "attvar",
+            "type": "amptvar",
             "named": true
           },
           {
@@ -3176,7 +3441,7 @@
     "fields": {
       "dim": {
         "multiple": true,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "dollardim",
@@ -3203,22 +3468,6 @@
     }
   },
   {
-    "type": "typeatom",
-    "named": true,
-    "fields": {
-      "type": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "typelit",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
     "type": "typebind",
     "named": true,
     "fields": {
@@ -3227,7 +3476,7 @@
         "required": true,
         "types": [
           {
-            "type": "attvar",
+            "type": "amptvar",
             "named": true
           },
           {
@@ -3245,7 +3494,7 @@
             "named": true
           },
           {
-            "type": "attvar",
+            "type": "amptvar",
             "named": true
           },
           {
@@ -3283,11 +3532,6 @@
         ]
       }
     }
-  },
-  {
-    "type": "typelit",
-    "named": true,
-    "fields": {}
   },
   {
     "type": "unboxexp",
@@ -3444,7 +3688,85 @@
     }
   },
   {
-    "type": "valbind",
+    "type": "valnotypebind",
+    "named": true,
+    "fields": {
+      "exp": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "applicationexp",
+            "named": true
+          },
+          {
+            "type": "arrayexpatom",
+            "named": true
+          },
+          {
+            "type": "arrayexptype",
+            "named": true
+          },
+          {
+            "type": "atappexp",
+            "named": true
+          },
+          {
+            "type": "atomexp",
+            "named": true
+          },
+          {
+            "type": "bracketsexp",
+            "named": true
+          },
+          {
+            "type": "frameexpexp",
+            "named": true
+          },
+          {
+            "type": "frameexptype",
+            "named": true
+          },
+          {
+            "type": "iappexp",
+            "named": true
+          },
+          {
+            "type": "idexp",
+            "named": true
+          },
+          {
+            "type": "letexp",
+            "named": true
+          },
+          {
+            "type": "stringexp",
+            "named": true
+          },
+          {
+            "type": "tappexp",
+            "named": true
+          },
+          {
+            "type": "unboxexp",
+            "named": true
+          }
+        ]
+      },
+      "id": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "id",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "valtypebind",
     "named": true,
     "fields": {
       "exp": {
@@ -3521,14 +3843,14 @@
       },
       "type": {
         "multiple": false,
-        "required": false,
+        "required": true,
         "types": [
           {
             "type": "aarraytype",
             "named": true
           },
           {
-            "type": "attvar",
+            "type": "amptvar",
             "named": true
           },
           {
@@ -3577,14 +3899,6 @@
   },
   {
     "type": "#t",
-    "named": false
-  },
-  {
-    "type": "$",
-    "named": false
-  },
-  {
-    "type": "&",
     "named": false
   },
   {
@@ -3664,8 +3978,16 @@
     "named": false
   },
   {
+    "type": "ampid",
+    "named": true
+  },
+  {
     "type": "array",
     "named": false
+  },
+  {
+    "type": "atid",
+    "named": true
   },
   {
     "type": "box",
@@ -3685,6 +4007,10 @@
     "named": false
   },
   {
+    "type": "dollid",
+    "named": true
+  },
+  {
     "type": "entry",
     "named": false
   },
@@ -3694,7 +4020,7 @@
   },
   {
     "type": "float",
-    "named": false
+    "named": true
   },
   {
     "type": "fn",
@@ -3730,7 +4056,7 @@
   },
   {
     "type": "int",
-    "named": false
+    "named": true
   },
   {
     "type": "ispace",
@@ -3746,6 +4072,10 @@
   },
   {
     "type": "nat",
+    "named": true
+  },
+  {
+    "type": "starid",
     "named": true
   },
   {

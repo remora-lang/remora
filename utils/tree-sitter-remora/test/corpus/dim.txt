@@ -9,8 +9,8 @@ Dim dollar
 (program
  (defdecl
    bind: (ispacebind
-	  ispacevar: (dollarispacevar (id))
-	  ispace: (dollardim (id)))))
+	  ispacevar: (dollarispacevar (dollid))
+	  ispace: (dollardim (dollid)))))
 
 ================
 Dim nat
@@ -23,7 +23,7 @@ Dim nat
 (program
  (defdecl
    bind: (ispacebind
-	  ispacevar: (dollarispacevar (id))
+	  ispacevar: (dollarispacevar (dollid))
 	  ispace: (natdim (nat)))))
 
 ================
@@ -37,9 +37,9 @@ Dim plusdim
 (program
  (defdecl
    bind: (ispacebind
-	  ispacevar: (dollarispacevar (id))
+	  ispacevar: (dollarispacevar (dollid))
 	  ispace: (plusdim
-		   dim: (dollardim (id))))))
+		   dim: (dollardim (dollid))))))
 
 
 ================
@@ -53,7 +53,7 @@ Dim timesdim
 (program
  (defdecl
    bind: (ispacebind
-	  ispacevar: (dollarispacevar (id))
+	  ispacevar: (dollarispacevar (dollid))
 	  ispace: (timesdim
 		   dim: (natdim (nat))))))
 
@@ -68,8 +68,8 @@ Dim minusdim
 (program
  (defdecl
    bind: (ispacebind
-	  ispacevar: (dollarispacevar (id))
+	  ispacevar: (dollarispacevar (dollid))
 	  ispace: (minusdim
 		   dim: (plusdim
-			 dim: (dollardim (id))
+			 dim: (dollardim (dollid))
 			 dim: (natdim (nat)))))))

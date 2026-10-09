@@ -9,8 +9,8 @@ Shape at
 (program
  (defdecl
    bind: (ispacebind
-	  ispacevar: (dollarispacevar (id))
-	  ispace: (atshape (id)))))
+	  ispacevar: (dollarispacevar (dollid))
+	  ispace: (atshape (atid)))))
 
 ================
 Shape dims
@@ -23,9 +23,9 @@ Shape dims
 (program
  (defdecl
    bind: (ispacebind
-	  ispacevar: (dollarispacevar (id))
+	  ispacevar: (dollarispacevar (dollid))
 	  ispace: (dimsshape
-		   dim: (dollardim (id))
+		   dim: (dollardim (dollid))
 		   dim: (natdim (nat))))))
 
 ================
@@ -39,9 +39,9 @@ Shape plusplus
 (program
  (defdecl
    bind: (ispacebind
-	  ispacevar: (dollarispacevar (id))
+	  ispacevar: (dollarispacevar (dollid))
 	  ispace: (plusplusshape
-		   shape: (atshape (id))))))
+		   shape: (atshape (atid))))))
 
 ================
 Shape array
@@ -54,7 +54,7 @@ Shape array
 (program
  (defdecl
    bind: (ispacebind
-	  ispacevar: (dollarispacevar (id))
+	  ispacevar: (dollarispacevar (dollid))
 	  ispace: (ispaceshape
-		   ispace: (dollardim (id))
-		   ispace: (atshape (id))))))
+		   ispace: (dollardim (dollid))
+		   ispace: (atshape (atid))))))

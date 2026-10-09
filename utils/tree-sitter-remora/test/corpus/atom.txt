@@ -8,37 +8,74 @@ Atom literal
 
 (program
  (defdecl
-   bind: (valbind
+   bind: (valnotypebind
 	  id: (id)
-	  exp: (atomexp atom: (litatom lit: (boollit))))))
+	  exp: (atomexp (litatom lit: (boollit))))))
 
 ================
-Atom type
+Atom with Comments
 ================
 
-(def (val x int))
+(def (val x #t)) ; this is a comment
+;; this is another comment
+(def (val y #f))
 
 ---
 
 (program
  (defdecl
-   bind: (valbind
+   bind: (valnotypebind
 	  id: (id)
-	  exp: (atomexp atom: (typeatom type: (typelit))))))
+	  exp: (atomexp (litatom lit: (boollit)))))
+ (comment)
+ (comment)
+ (defdecl
+   bind: (valnotypebind
+	  id: (id)
+	  exp: (atomexp (litatom lit: (boollit))))))
+
 
 ================
-Atom type
+Atom int
 ================
 
-(def (val x int))
+(def (val x 42))
 
 ---
 
 (program
  (defdecl
-   bind: (valbind
+   bind: (valnotypebind
 	  id: (id)
-	  exp: (atomexp atom: (typeatom type: (typelit))))))
+	  exp: (atomexp (intatom int: (int))))))
+
+================
+Atom float 1
+================
+
+(def (val x 42.123))
+
+---
+
+(program
+ (defdecl
+   bind: (valnotypebind
+	  id: (id)
+	  exp: (atomexp (floatatom float: (float))))))
+
+================
+Atom float 2
+================
+
+(def (val x 42.0e30))
+
+---
+
+(program
+ (defdecl
+   bind: (valnotypebind
+	  id: (id)
+	  exp: (atomexp (floatatom float: (float))))))
 
 ================
 Atom fn
@@ -50,12 +87,12 @@ Atom fn
 
 (program
  (defdecl
-   bind: (valbind
+   bind: (valnotypebind
 	  id: (id)
-	  exp: (atomexp atom: (fnatom
-       			       arg: (id)
-			       type: (immedtype)
-			       body: (atomexp atom: (litatom lit: (boollit))))))))
+	  exp: (atomexp (fnatom
+			 arg: (id)
+			 type: (immedtype)
+			 body: (atomexp (litatom lit: (boollit))))))))
 
 ================
 Atom t-fn
@@ -67,12 +104,12 @@ Atom t-fn
 
 (program
  (defdecl
-   bind: (valbind
+   bind: (valnotypebind
 	  id: (id)
-	  exp: (atomexp atom: (tfnatom
-       			       tvar: (startvar (id))
-			       tvar: (attvar (id))
-			       body: (atomexp atom: (litatom lit: (boollit))))))))
+	  exp: (atomexp (tfnatom
+       			 tvar: (startvar (starid))
+			 tvar: (amptvar (ampid))
+			 body: (atomexp (litatom lit: (boollit))))))))
 
 ================
 Atom i-fn
@@ -84,12 +121,12 @@ Atom i-fn
 
 (program
  (defdecl
-   bind: (valbind
+   bind: (valnotypebind
 	  id: (id)
-	  exp: (atomexp atom:  (ifnatom
-       			 ivar: (dollarispacevar (id))
-			 ivar: (atispacevar (id))
-			 body: (atomexp atom: (litatom lit: (boollit))))))))
+	  exp: (atomexp (ifnatom
+       			 ivar: (dollarispacevar (dollid))
+			 ivar: (atispacevar (atid))
+			 body: (atomexp (litatom lit: (boollit))))))))
 
 
 ================
@@ -102,10 +139,10 @@ Atom box
 
 (program
  (defdecl
-   bind: (valbind
+   bind: (valnotypebind
 	  id: (id)
-	  exp: (atomexp atom: (boxatom
-			       ispace: (dollardim (id))
-			       ispace: (atshape (id))
-			       exp: (atomexp atom: (litatom lit: (boollit)))
-			       type: (immedtype))))))
+	  exp: (atomexp (boxatom
+			 ispace: (dollardim (dollid))
+			 ispace: (atshape (atid))
+			 exp: (atomexp (litatom lit: (boollit)))
+			 type: (immedtype))))))

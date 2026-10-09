@@ -16,7 +16,7 @@ export default grammar({
 	$.comment
     ],
 
-    word: $ => $.id,
+    // word: $ => $.id,
     reserved: {
 	global: $ => ['fn', 't-fn', 'tλ', 'i-fn', 'iλ', 'box'],
     },
@@ -41,13 +41,8 @@ export default grammar({
 	    '(',
 	    'entry',
 	    '(', field('id', $.id),
-	    field('args', $.args),
-	    optional(
-		seq(
-		    ':',
-		    field('return_type', $._type)
-		)
-	    ),
+	    repeat(seq('(', field('arg', $.id), field('type', $._type), ')')),
+	    optional(seq(':', field('return_type', $._type))),
 	    ')',
 	    field('body', $._exp),
 	    ')'
@@ -55,18 +50,6 @@ export default grammar({
 	defdecl: $ => seq('(', 'def',
 			  field('bind', $._bind),
 			  ')'),
-
-	args: $ => choice(	// allows for ()
-	    seq('(', ')'),
-	    repeat1(
-		seq(
-		    '(',
-		    field('arg', $.id),
-		    field('type', $._type),
-		    ')'
-		)
-	    )
-	),
 
 	_exp: $ => choice(
 	    $.atomexp,
@@ -83,7 +66,7 @@ export default grammar({
 	    $.atappexp,
 	    $.unboxexp,
 	    $.letexp),
-	atomexp: $ => field('atom', $._atom),
+	atomexp: $ => $._atom,
 	bracketsexp: $ => seq('[', repeat(field('exp', $._exp)), ']'),
 	idexp: $ => field('id', $.id),
 	stringexp: $ => seq('"', field('string', $.string), '"'),
@@ -99,7 +82,7 @@ export default grammar({
 				  '_'),
 			   choice(seq('(', repeat1(field('ispace', $._ispace)), ')'),
 				  '_'),
-			   repeat1(field('param', $._exp)), ')'),
+			   repeat(field('param', $._exp)), ')'),
 	unboxexp: $ => seq('(', 'unbox', '(', repeat1(field('ispace_var', $._ispace_var)),
 			   field('id', $.id),
 			   field('exp1', $._exp), ')',
@@ -108,14 +91,16 @@ export default grammar({
 
 	_atom: $ => choice(
 	    $.litatom,
-	    $.typeatom,
+	    $.intatom,
+	    $.floatatom,
 	    $.fnatom,
 	    $.tfnatom,
 	    $.ifnatom,
 	    $.boxatom,
 	),
 	litatom: $ => field('lit', $.boollit),
-	typeatom: $ => field('type', $.typelit),
+	intatom: $ => field('int', $.int),
+	floatatom: $ => field('float', $.float),
 	fnatom: $ => seq('(', choice('fn', 'λ' ), '(',
 			 repeat(seq('(', field('arg', $.id), field('type', $._type), ')')), ')',
 			 field('body', $._exp), ')'),
@@ -127,59 +112,47 @@ export default grammar({
 			  field('exp', $._exp), field('type', $._type), ')'),
 
 	_bind: $ => choice(
-	    $.valbind,
-	    $.funbind,
+	    $._valbind,
+	    $._funbind,
 	    $.tfunbind,
 	    $.ifunbind,
 	    $.typebind,
 	    $.ispacebind),
 
-	valbind: $ => choice(
-	    seq('(', 'val',
-		field('id', $.id),
-		field('exp', $._exp),
-		')'),
-	    seq('(', 'val', '(',
-		field('id', $.id),
-		':', field('type', $._type),
-		')',
-		field('exp', $._exp),
-		')')),
+	_valbind: $ => choice($.valnotypebind, $.valtypebind),
+	valnotypebind: $ => seq('(', 'val', field('id', $.id), field('exp', $._exp), ')'),
+	valtypebind: $ => seq('(', 'val', '(', field('id', $.id), ':', field('type', $._type), ')',
+			      field('exp', $._exp),
+			      ')'),
 
-	funbind: $ => choice(
-	    seq('(', 'fun', '(',
-		field('id', $.id),
-		$.args,
-		optional(
-		    seq(':', field('ret_type', $._type))),
-		')',
-		field('body', $._exp),
-		')'),
-	    seq('(', 'fun', '(', '@',
-		field('id', $.id),
+	_funbind: $ => choice($.regfunbind, $.atfunbind),
+	regfunbind: $ => seq('(', 'fun', '(',
+			     field('id', $.id),
+			     repeat(seq('(', field('arg', $.id), field('type', $._type), ')')),
+			     optional(seq(':', field('ret_type', $._type))),
+			     ')',
+			     field('body', $._exp),
+			     ')'),
+	atfunbind: $ => seq('(', 'fun', '(',
+		field('id', $.atid),
 		choice(
-		    seq('(',
-			field('tvars', repeat1($._tvar)),
-			')'),
+		    seq('(', repeat(field('tvar', $._tvar)), ')'),
 		    '_'),
 		choice(
-		    seq('(',
-			field('ivars', repeat1($._ispace_var)),
-			')'),
+		    seq('(', repeat1(field('ivar', $._ispace_var)), ')'),
 		    '_'),
-		$.args,
+		repeat(seq('(', field('arg', $.id), field('type', $._type), ')')),
 		':',
 		field('ret_type', $._type),
 		')',
 		field('body', $._exp),
-		')')),
+		')'),
 
 	tfunbind: $ => seq(
 	    '(', 't-fun','(',
 	    field('id', $.id),
-	    '(', repeat1( field('tvars', $._tvar)), ')',
-	    optional(
-		seq(':', field('ret_type', $._type))),
+	    '(', repeat(field('tvar', $._tvar)), ')',
+	    optional(seq(':', field('ret_type', $._type))),
 	    ')',
 	    field('body', $._exp),
 	    ')'),
@@ -187,7 +160,7 @@ export default grammar({
 	ifunbind: $ => seq(
 	    '(', 'i-fun', '(',
 	    field('id', $.id),
-	    '(', repeat1(field('ivars', $._ispace_var)), ')',
+	    '(', repeat(field('ivar', $._ispace_var)), ')',
 	    optional(
 		seq(':', field('ret_type', $._type))),
 	    ')',
@@ -216,7 +189,7 @@ export default grammar({
 	_arraytype: $ => choice(
 	    $.bracketarraytype,
 	    $.aarraytype),
-	bracketarraytype: $ => seq('[', field('type', $._type), repeat1(field('ispace', $._ispace)), ']'),
+	bracketarraytype: $ => seq('[', field('type', $._type), repeat(field('ispace', $._ispace)), ']'),
 	aarraytype: $ => seq('(', 'A', field('type', $._type), field('ispace', $._ispace), ')'),
 
 	_functiontype: $ => choice(
@@ -229,7 +202,7 @@ export default grammar({
 
 	pitype: $ => seq('(', $._pi, '(', repeat1(field('ivar', $._ispace_var)), ')', field('returntype', $._type), ')'),
 
-	sigmatype: $ => seq('(', $._sigma, '(', repeat(field('ivar', $._ispace_var)), ')', field('returntype', $._type), ')'),
+	sigmatype: $ => seq('(', $._sigma, '(', repeat1(field('ivar', $._ispace_var)), ')', field('returntype', $._type), ')'),
 
 	_dim: $ => choice(
 	    $.dollardim,
@@ -237,18 +210,18 @@ export default grammar({
 	    $.plusdim,
 	    $.timesdim,
 	    $.minusdim),
-	dollardim: $ => seq('$', $.id),
+	dollardim: $ => $.dollid,
 	natdim: $ => $.nat,
-	plusdim: $ => seq('(', '+', repeat1(field('dim', $._dim)), ')'),
-	timesdim: $ => seq('(', '*', repeat1(field('dim', $._dim)), ')'),
-	minusdim: $ => seq('(', '-', repeat1(field('dim', $._dim)), ')'),
+	plusdim: $ => seq('(', '+', repeat(field('dim', $._dim)), ')'),
+	timesdim: $ => seq('(', '*', repeat(field('dim', $._dim)), ')'),
+	minusdim: $ => seq('(', '-', repeat(field('dim', $._dim)), ')'),
 
 	_shape: $ => choice(
 	    $.atshape,
 	    $.dimsshape,
 	    $.plusplusshape,
 	    $.ispaceshape),
-	atshape: $ => seq('@', $.id),
+	atshape: $ => $.atid,
 	dimsshape: $ => seq('(', 'dims', repeat1(field('dim', $._dim)), ')'),
 	plusplusshape: $ => prec.left(seq('(', '++', repeat1(field('shape', $._shape)), ')')),
 	ispaceshape: $ => seq('[', repeat(field('ispace', $._ispace)), ']'),
@@ -258,16 +231,16 @@ export default grammar({
 	    $._shape),
 	
 	_tvar: $ => choice(
-	    $.attvar,
+	    $.amptvar,
 	    $.startvar),
-	attvar: $ => seq('&', $.id),
-	startvar: $ => seq('*', $.id),
+	amptvar: $ => $.ampid,
+	startvar: $ => $.starid,
 	
 	_ispace_var: $ => choice(
 	    $.dollarispacevar,
 	    $.atispacevar),
-	dollarispacevar: $ => seq('$', $.id),
-	atispacevar: $ => seq('@', $.id),
+	dollarispacevar: $ => $.dollid,
+	atispacevar: $ => $.atid,
 
 	shape_lit : $ => seq('[', repeat(field('num', $.nat)), ']'),
 
@@ -286,12 +259,24 @@ export default grammar({
 	_sigma: $ => choice(
 	    'Sigma',
 	    'Σ'),
-
-	id: $ => /[a-zA-Z_]+[a-zA-Z0-9_]*/,
+	id: $ => token(seq(choice(new RustRegex('[A-Za-z]'), '-', '+', '*', '/'),
+			   repeat(choice(new RustRegex('[A-Za-z0-9_]'), '/', '-', '+', '*', '.')))),
+	atid: $ => token(seq('@', seq(choice(new RustRegex('[A-Za-z]'), '-', '+', '*', '/'),
+			   repeat(choice(new RustRegex('[A-Za-z0-9_]'), '/', '-', '+', '*', '.'))))),
+	ampid: $ => token(seq('&', seq(choice(new RustRegex('[A-Za-z]'), '-', '+', '*', '/'),
+			   repeat(choice(new RustRegex('[A-Za-z0-9_]'), '/', '-', '+', '*', '.'))))),
+	dollid: $ => token(seq('$', seq(choice(new RustRegex('[A-Za-z]'), '-', '+', '*', '/'),
+			   repeat(choice(new RustRegex('[A-Za-z0-9_]'), '/', '-', '+', '*', '.'))))),
+	starid: $ => token(seq('*', seq(choice(new RustRegex('[A-Za-z]'), '-', '+', '*', '/'),
+			   repeat(choice(new RustRegex('[A-Za-z0-9_]'), '/', '-', '+', '*', '.'))))),
+	// _id_start: $ => /[!$%&*+.:<=>?A-Z^_a-z]/,
+	// _id_continue: $ => /[!$%&*+.:<=>?A-Z^_a-z\-0-9]/,
+	// id: $ => /[^0-9\(\)\[\]{}",'`;#\|\@][^\(\)\[\]{}",'`;#\|\@]*/,
 	filename: $ => /[a-z_.]+/,
 	nat: $ => /\d+/,
+	int: $ => /-?\d+/,
+	float: $ => /-?\d+\.?[\de]+/,
 	boollit: $ => choice('#t', '#f'),
-        typelit: $ => choice('int', 'float'),
 	string: $ => /[^"]*/,
     }
 });

@@ -8,9 +8,9 @@ Exp atom
 
 (program
  (defdecl
-   bind: (valbind
+   bind: (valnotypebind
 	  id: (id)
-	  exp: (atomexp atom: (litatom lit: (boollit))))))
+	  exp: (atomexp (litatom lit: (boollit))))))
 
 ================
 Exp brackets
@@ -22,15 +22,15 @@ Exp brackets
 
 (program
  (defdecl
-   bind: (valbind
+   bind: (valnotypebind
 	  id: (id)
 	  exp: (bracketsexp
-		exp: (atomexp atom: (litatom lit: (boollit)))
-		exp: (atomexp atom: (litatom lit: (boollit)))))))
+		exp: (atomexp (litatom lit: (boollit)))
+		exp: (atomexp (litatom lit: (boollit)))))))
 
 
 ================
-Exp id
+Exp id 1
 ================
 
 (def (val x y))
@@ -39,7 +39,23 @@ Exp id
 
 (program
  (defdecl
-   bind: (valbind
+   bind: (valnotypebind
+	  id: (id)
+	  exp: (idexp
+		id: (id)))))
+
+
+================
+Exp id 2
+================
+
+(def (val x *))
+
+---
+
+(program
+ (defdecl
+   bind: (valnotypebind
 	  id: (id)
 	  exp: (idexp
 		id: (id)))))
@@ -54,7 +70,7 @@ Exp string
 
 (program
  (defdecl
-   bind: (valbind
+   bind: (valnotypebind
 	  id: (id)
 	  exp: (stringexp
 		string: (string)))))
@@ -69,7 +85,7 @@ Exp array atom
 
 (program
  (defdecl
-   bind: (valbind
+   bind: (valnotypebind
 	  id: (id)
 	  exp: (arrayexpatom
 		shape: (shape_lit
@@ -89,7 +105,7 @@ Exp array type
 
 (program
  (defdecl
-   bind: (valbind
+   bind: (valnotypebind
 	  id: (id)
 	  exp: (arrayexptype
 		shape: (shape_lit
@@ -107,13 +123,13 @@ Exp frame exp
 
 (program
  (defdecl
-   bind: (valbind
+   bind: (valnotypebind
 	  id: (id)
 	  exp: (frameexpexp
 		shape: (shape_lit
 			num: (nat)
 			num: (nat))
-		exp: (atomexp atom: (litatom lit: (boollit)))))))
+		exp: (atomexp (litatom lit: (boollit)))))))
 
 ================
 Exp frame type
@@ -125,7 +141,7 @@ Exp frame type
 
 (program
  (defdecl
-   bind: (valbind
+   bind: (valnotypebind
 	  id: (id)
 	  exp: (frameexptype
 		shape: (shape_lit
@@ -143,7 +159,7 @@ Exp application
 
 (program
  (defdecl
-   bind: (valbind
+   bind: (valnotypebind
 	  id: (id)
 	  exp: (applicationexp
 		fnexp: (idexp id: (id))
@@ -159,7 +175,7 @@ Exp t-app
 
 (program
  (defdecl
-   bind: (valbind
+   bind: (valnotypebind
 	  id: (id)
 	  exp: (tappexp
 		fnexp: (idexp id: (id))
@@ -176,7 +192,7 @@ Exp i-app
 
 (program
  (defdecl
-   bind: (valbind
+   bind: (valnotypebind
 	  id: (id)
 	  exp: (iappexp
 		fnexp: (idexp id: (id))
@@ -194,7 +210,7 @@ Exp at application
 
 (program
  (defdecl
-   bind: (valbind
+   bind: (valnotypebind
 	  id: (id)
 	  exp: (atappexp
 		fnexp: (idexp id: (id))
@@ -202,7 +218,7 @@ Exp at application
 		type: (immedtype)
 		ispace: (natdim (nat))
 		ispace: (natdim (nat))
-		param: (atomexp atom: (litatom lit: (boollit)))))))
+		param: (atomexp (litatom lit: (boollit)))))))
 
 ================
 Exp unbox
@@ -214,16 +230,16 @@ Exp unbox
 
 (program
  (defdecl
-   bind: (valbind
+   bind: (valnotypebind
 	  id: (id)
 	  exp: (unboxexp
-		ispace_var: (dollarispacevar (id))
-		ispace_var: (atispacevar (id))
+		ispace_var: (dollarispacevar (dollid))
+		ispace_var: (atispacevar (atid))
 		id: (id)
 		exp1: (applicationexp
 		       fnexp: (idexp id: (id))
 		       param: (idexp id: (id)))
-		exp2: (atomexp atom: (litatom lit: (boollit)))))))
+		exp2: (atomexp (litatom lit: (boollit)))))))
 
 ================
 Exp let
@@ -235,12 +251,12 @@ Exp let
 
 (program
  (defdecl
-   bind: (valbind
+   bind: (valnotypebind
 	  id: (id)
 	  exp: (letexp
-		bind: (valbind
+		bind: (valnotypebind
 		       id: (id)
 		       exp: (applicationexp
 			     fnexp: (idexp id: (id))
 			     param: (idexp id: (id))))
-		exp: (atomexp atom: (litatom lit: (boollit)))))))
+		exp: (atomexp (litatom lit: (boollit)))))))
