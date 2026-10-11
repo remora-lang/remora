@@ -1,11 +1,11 @@
 # remora-ts-mode -- a major mode for editing Remora programs
 
-## installation
+## Installation
 
 First of all, you need a modern emacs (30+) with treesitter support
 built in.
 
-### install libtree-sitter-remora.so Remora grammar
+### Install libtree-sitter-remora.so Remora grammar
 
 Add the following to your .emacs:
 ```
@@ -31,20 +31,20 @@ To check whether the library is successfully installed, visit the
 `*scratch*` buffer and type `(treesit-languate-available-p 'remora)`
 and execute the line by hitting `C-j`.
 
-### install remora-ts-mode emacs mode
+### Install remora-ts-mode emacs mode
 
 The `remora-ts-mode.el` file can be found at 
-`https://github.com/remora-lang/remora/blob/main/utils/remora-ts-mode/remora-ts-mode.el`
+[`https://github.com/remora-lang/remora/blob/main/utils/remora-ts-mode/remora-ts-mode.el`](https://github.com/remora-lang/remora/blob/main/utils/remora-ts-mode/remora-ts-mode.el)
 
 Copy that file to somewhere in .emacs' load-path
-To see what emacs' load-path is, do `C-h v load-path`
+To see what emacs' load-path is, do `C-h v load-path`.
 In your `~/.emacs` file, add
 
 ```
 (load-library 'remora-ts-mode)
 ```
 
-## exploring syntax tree
+## Exploring the syntax tree
 
 `M-x treesit-explore` will display a parse tree. Clicking on the links
 in the tree will highlight the corresponding source file text.
