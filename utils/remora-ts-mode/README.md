@@ -41,7 +41,8 @@ To see what emacs' load-path is, do `C-h v load-path`.
 In your `~/.emacs` file, add
 
 ```
-(load-library 'remora-ts-mode)
+(add-to-list 'auto-mode-alist '("\\.remora\\'" . remora-ts-mode))
+(autoload 'remora-ts-mode "remora-ts-mode" "Remora mode" t)
 ```
 
 ## Exploring the syntax tree
