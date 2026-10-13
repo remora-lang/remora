@@ -9,14 +9,15 @@ built in.
 
 Add the following to your .emacs:
 ```
-(append '((remora "https://github.com/remora-lang/remora" :source-dir "utils/tree-sitter-remora"))
+(append '((remora "https://github.com/remora-lang/remora" :source-dir "utils/tree-sitter-remora/src"))
 	treesit-language-source-alist)
 ```
 
 If the variable `treesit-language-source-alist` does not exist (`C-h v treesit-language-source-alist`), then
 instead add the following to your .emacs file:
 ```
-(setq treesit-language-source-alist '((remora "https://github.com/remora-lang/remora/utils/tree-sitter-remora")))
+(setq treesit-language-source-alist '((remora
+"https://github.com/remora-lang/remora" :source-dir "utils/tree-sitter-remora/src")))
 ```
 
 Then, to build and install the tree-sitter grammar, do:
