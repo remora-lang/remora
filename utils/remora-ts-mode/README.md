@@ -9,7 +9,7 @@ built in.
 
 Add the following to your .emacs:
 ```
-(append '((remora "https://github.com/remora-lang/remora/utils/tree-sitter-remora"))
+(append '((remora "https://github.com/remora-lang/remora" :source-dir "utils/tree-sitter-remora"))
 	treesit-language-source-alist)
 ```
 
