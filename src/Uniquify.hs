@@ -194,8 +194,8 @@ uniquifyTypeExp (TEArray t s pos) =
 uniquifyTypeExp (TEArrow t1 t2 pos) =
   TEArrow <$> uniquifyTypeExp t1 <*> uniquifyTypeExp t2 <*> pure pos
 uniquifyTypeExp (TEForall params t pos) =
-  bindsNE withTypeParamExp params $ \params' ->
-    TEForall params' <$> uniquifyTypeExp t <*> pure pos
+  bindsNE (\p k -> withSourceTypeParam1 p (curry k)) params $ \params' ->
+    forallTypeExp pos params' <$> uniquifyTypeExp t
 uniquifyTypeExp (TEPi params t pos) =
   bindsNE withISpaceParam params $ \params' ->
     TEPi params' <$> uniquifyTypeExp t <*> pure pos
@@ -206,3 +206,19 @@ uniquifyTypeExp (TERecord s pos) = do
   let (fs, ts) = Data.Functor.unzip s
   ts' <- mapM uniquifyTypeExp ts
   pure $ TERecord (NE.zip fs ts') pos
+
+-- | Build the type @∀ ps. t@ from type parameters whose array type
+-- parameters have been split into an atom type parameter and a shape
+-- variable. As in the expansion of a 'TLambda', each shape variable is bound
+-- by a Π right after its atom type parameter. A run of atom type parameters
+-- shares one ∀.
+forallTypeExp ::
+  SourcePos -> NonEmpty (TypeParam VName, [VName]) -> TypeExp VName -> TypeExp VName
+forallTypeExp pos params t = close $ foldr step ([], t) params
+  where
+    step (p, []) (ps, body) = (p : ps, body)
+    step (p, s : ss) (ps, body) =
+      ([p], TEPi (fmap ShapeParam (s :| ss)) (close (ps, body)) pos)
+    close ([], body) = body
+    close (p : ps, body) =
+      TEForall (fmap (TEAtomTypeParam . unTypeParam) (p :| ps)) body pos
