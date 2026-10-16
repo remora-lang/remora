@@ -236,8 +236,8 @@ checkExp' expr@(IApp f i _ pos) = do
             prettyText expr
           ]
 checkExp' expr@(Unbox ep x_e box body _ pos) = do
-  withISpaceParam ep $ \ep' -> do
-    box' <- checkExp' box
+  box' <- checkExp' box
+  withISpaceParam ep $ \ep' ->
     case typeOf box' of
       ArrayType boxt
         | Just t' <- unboxType ep' boxt ->

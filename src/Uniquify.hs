@@ -78,8 +78,8 @@ uniquifyExp' (IApp f i _ pos) = do
   i' <- mapISpace (fmap Dim . uniquifyDim) (fmap Shape . uniquifyShape) i
   pure $ IApp f' i' NoInfo pos
 uniquifyExp' (Unbox ep x_e box body _ pos) = do
-  withISpaceParam ep $ \ep' -> do
-    box' <- uniquifyExp' box
+  box' <- uniquifyExp' box
+  withISpaceParam ep $ \ep' ->
     withParam x_e $ \x_e' -> do
       body' <- uniquifyExp' body
       pure $ Unbox ep' x_e' box' body' NoInfo pos
