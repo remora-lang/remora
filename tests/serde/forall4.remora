@@ -1,0 +1,7 @@
+;; A Forall type over two array type variables, in a type annotation.
+;; ==
+;; output { [3 4 5] }
+(entry (main)
+  (let ((val (k : (Forall (*s *t) (-> (*s *t) *t)))
+          (t-fn (*s *t) (fn ((x *s) (y *t)) y))))
+    ((t-app k (A Int 2) (A Int 3)) [1 2] [3 4 5])))
