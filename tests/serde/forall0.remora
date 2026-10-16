@@ -1,0 +1,7 @@
+;; A Forall type over an atom type variable, in a type annotation.
+;; ==
+;; output { [1 2 3] }
+(entry (main)
+  (let ((val (id : (Forall (&t) (-> &t &t)))
+          (t-fn (&t) (fn ((x &t)) x))))
+    ((t-app id Int) [1 2 3])))

@@ -1,0 +1,6 @@
+;; A Pi type in a type annotation.
+;; ==
+;; output { 0 }
+(entry (main)
+  (let ((val (f : (Pi ($m) Int)) (i-fn ($m) 0)))
+    (i-app f 3)))
