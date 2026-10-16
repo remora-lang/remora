@@ -1,0 +1,8 @@
+;; A Forall type over an array type variable and then an atom type
+;; variable, in a type annotation.
+;; ==
+;; output { 5 }
+(entry (main)
+  (let ((val (k : (Forall (*s &a) (-> (*s &a) &a)))
+          (t-fn (*s &a) (fn ((x *s) (y &a)) y))))
+    ((t-app k (A Int 3) Int) [1 2 3] 5)))
