@@ -200,34 +200,6 @@ withArrayTypeParam v m = do
     )
     $ m et_vname s_vname
 
--- | Bind a source type parameter expression into a local environment.
-withTypeParamExp ::
-  (MonadUniquify m) =>
-  TypeParamExp Text -> (TypeParamExp VName -> m a) -> m a
-withTypeParamExp (TEAtomTypeParam v) m = do
-  vname <- newVName v
-  local
-    ( \env ->
-        env
-          { vnameEnvAtomTypeVars =
-              M.insert v vname $ vnameEnvAtomTypeVars env
-          }
-    )
-    $ m (TEAtomTypeParam vname)
-withTypeParamExp (TEArrayTypeParam v) m = do
-  vname <- newVName v
-  et_vname <- newVName v
-  s_vname <- newVName v
-  local
-    ( \env ->
-        env
-          { vnameEnvArrayTypeVarBundles =
-              M.insert v (ArrayTypeVarBundle vname et_vname s_vname) $
-                vnameEnvArrayTypeVarBundles env
-          }
-    )
-    $ m (TEArrayTypeParam vname)
-
 -- | Bind a source type parameter into a local environment.
 withISpaceParam ::
   (MonadUniquify m) =>
