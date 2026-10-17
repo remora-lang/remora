@@ -117,13 +117,25 @@ withBind (BindFun f params mt body _ pos) m = do
       pure (params', body')
   withParam f $ \f' ->
     m $ pure $ BindFun f' params' mt' body' NoInfo pos
+-- As in a curried 't-fn', the shape variable of an array type parameter is
+-- bound right after its atom type parameter. The binding keeps the
+-- parameters up to the first array type parameter, the rest become nested
+-- abstractions in its body, and the result type annotation is wrapped to
+-- match.
 withBind (BindTFun f params mt body _ pos) m =
-  withSourceTypeParams params $ \atoms shapes -> do
+  bindsNE (\p k -> withSourceTypeParam1 p (curry k)) params $ \params' -> do
     body' <- uniquifyExp' body
     mt' <- uniquifyMaybeTypeExp mt
-    let body'' = foldr (\s b -> mkScalar (ILambda (ShapeParam s) b NoInfo pos)) body' shapes
+    let ((atoms, shapes), rest) = splitTypeParams params'
+        iLambdas ss b = foldr (\s b' -> mkScalar (ILambda (ShapeParam s) b' NoInfo pos)) b ss
+        tLambda (p, ss) b = mkScalar (TLambda p (iLambdas ss b) NoInfo pos)
+        body'' = iLambdas shapes $ foldr tLambda body' rest
+        piTypeExp [] t = t
+        piTypeExp (s : ss) t = TEPi (fmap ShapeParam (s :| ss)) t pos
+        restType t = maybe t (\ps -> forallTypeExp pos ps t) (NE.nonEmpty rest)
+        mt'' = piTypeExp shapes . restType <$> mt'
     withParam f $ \f' ->
-      m $ pure $ BindTFun f' atoms mt' body'' NoInfo pos
+      m $ pure $ BindTFun f' atoms mt'' body'' NoInfo pos
 withBind (BindIFun f params mt body _ pos) m =
   bindsNE withISpaceParam params $ \params' -> do
     body' <- uniquifyExp' body
@@ -222,3 +234,19 @@ forallTypeExp pos params t = close $ foldr step ([], t) params
     close ([], body) = body
     close (p : ps, body) =
       TEForall (fmap (TEAtomTypeParam . unTypeParam) (p :| ps)) body pos
+
+-- | Split type parameters whose array type parameters have been split into
+-- an atom type parameter and a shape variable. The result is the parameters
+-- up to and including the first one with a shape variable, that shape
+-- variable, and the remaining parameters.
+splitTypeParams ::
+  NonEmpty (TypeParam VName, [VName]) ->
+  ((NonEmpty (TypeParam VName), [VName]), [(TypeParam VName, [VName])])
+splitTypeParams ((p, ss) :| rest)
+  | not (null ss) = ((p :| [], ss), rest)
+  | otherwise =
+      case NE.nonEmpty rest of
+        Nothing -> ((p :| [], []), [])
+        Just rest' ->
+          let ((ps, ss'), rest'') = splitTypeParams rest'
+           in ((NE.cons p ps, ss'), rest'')

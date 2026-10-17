@@ -1,0 +1,7 @@
+;; A t-fun binding over an array type variable, with a result type that
+;; does not mention it.
+;; ==
+;; output { 0 }
+(entry (main)
+  (let ((t-fun (k (*s) : Int) 0))
+    (t-app k (A Int 3))))

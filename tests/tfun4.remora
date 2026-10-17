@@ -1,0 +1,7 @@
+;; A t-fun binding over an array and then an atom type variable, with a
+;; result type.
+;; ==
+;; output { 5 }
+(entry (main)
+  (let ((t-fun (k (*s &a) : (-> (*s &a) &a)) (fn ((x *s) (y &a)) y)))
+    ((t-app k (A Int 3) Int) [1 2 3] 5)))

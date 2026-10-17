@@ -166,16 +166,6 @@ withSourceTypeParam (TEAtomTypeParam v) m = do
 withSourceTypeParam (TEArrayTypeParam _) _ =
   error "Uniquify.withSourceTypeParam: array type parameter binders not yet desugared"
 
--- | Bind a list of source term type parameters.
-withSourceTypeParams ::
-  (MonadUniquify m) =>
-  NonEmpty (TypeParamExp Text) -> (NonEmpty (TypeParam VName) -> [VName] -> m a) -> m a
-withSourceTypeParams (p :| []) k =
-  withSourceTypeParam1 p $ \a ss -> k (a :| []) ss
-withSourceTypeParams (p :| (q : ps)) k =
-  withSourceTypeParam1 p $ \a ss ->
-    withSourceTypeParams (q :| ps) $ \as sss -> k (NE.cons a as) (ss <> sss)
-
 withSourceTypeParam1 ::
   (MonadUniquify m) =>
   TypeParamExp Text -> (TypeParam VName -> [VName] -> m a) -> m a

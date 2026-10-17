@@ -1,0 +1,6 @@
+;; A t-fun binding over an atom type variable, with a result type.
+;; ==
+;; output { 5 }
+(entry (main)
+  (let ((t-fun (k (&a) : (-> &a &a)) (fn ((x &a)) x)))
+    ((t-app k Int) 5)))

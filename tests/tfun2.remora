@@ -1,0 +1,7 @@
+;; A t-fun binding over an array type variable, with a result type that
+;; mentions it.
+;; ==
+;; output { [1 2 3] }
+(entry (main)
+  (let ((t-fun (id (*t) : (-> *t *t)) (fn ((x *t)) x)))
+    ((t-app id (A Int 3)) [1 2 3])))
