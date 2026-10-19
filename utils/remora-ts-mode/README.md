@@ -13,21 +13,20 @@ followed by C-j to execute. Should return `t`.
 
 Add the following to your .emacs file:
 ```
-(add-to-list 'treesit-language-source-alist '(remora "https://github.com/remora-lang/remora" :source-dir "utils/tree-sitter-remora/src"))
+(add-to-list 'treesit-language-source-alist '(remora "https://github.com/remora-lang/tree-sitter-remora"))
 ```
 
 If the variable `treesit-language-source-alist` does not exist (`C-h v treesit-language-source-alist`), then
 instead add the following to your .emacs file:
 ```
-(setq treesit-language-source-alist '((remora
-"https://github.com/remora-lang/remora" :source-dir "utils/tree-sitter-remora/src")))
+(setq treesit-language-source-alist '((remora "https://github.com/remora-lang/tree-sitter-remora")))
 ```
 
 Then, to build and install the tree-sitter grammar, do:
 ```
 M-x treesit-install-language-grammar
 ```
-and answer `remora`.
+and answer `remora` at the prompt.
 
 This should build `libtree-sitter-remora.so` and install it in `~/.emacs.d/treesitter/`.
 
