@@ -3,11 +3,15 @@
 ## Installation
 
 First of all, you need a modern emacs (30+) with treesitter support
-built in.
+built in. In your `*scratch*` buffer, type 
+```
+(treesit-available-p)
+```
+followed by C-j to execute. Should return `t`.
 
 ### Install libtree-sitter-remora.so Remora grammar
 
-Add the following to your .emacs:
+Add the following to your .emacs file:
 ```
 (add-to-list 'treesit-language-source-alist '(remora "https://github.com/remora-lang/remora" :source-dir "utils/tree-sitter-remora/src"))
 ```
