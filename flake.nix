@@ -32,6 +32,13 @@
         (pkgs.extend futhark.overlays.default).haskellPackages.override (old: {
           overrides = pkgs.lib.composeExtensions (old.overrides or (_: _: { })) (
             hself: hsuper: {
+              # This flag requires GHC 9.12, but Futhark otherwise builds fine
+              # with the default GHC.
+              futhark-lib = hsuper.futhark-lib.overrideAttrs (attrs: {
+                postPatch = (attrs.postPatch or "") + ''
+                  sed -i 's/-fexpose-overloaded-unfoldings//' futhark.cabal
+                '';
+              });
               futhark = hself.futhark-lib;
               sbv = pkgs.haskell.lib.dontCheck hsuper.sbv_14_0;
               remora = pkgs.haskell.lib.dontCheck (hself.callCabal2nix "remora" ./. { });
@@ -62,7 +69,10 @@
             version = "0.1";
             src = ./.;
             nativeBuildInputs = [ pkgs.sphinx ];
-            phases = [ "buildPhase" "installPhase" ];
+            phases = [
+              "buildPhase"
+              "installPhase"
+            ];
             buildPhase = ''
               mkdir -p "docs/_build/html"
               sphinx-build -b html "$src/docs" "docs/_build/html"
