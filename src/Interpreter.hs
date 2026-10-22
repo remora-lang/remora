@@ -252,7 +252,7 @@ intExp (Array shape as _ _) =
 intExp (EmptyArray shape _ _ _) =
   pure $ ValArray shape mempty
 intExp (Frame shape es _ _) =
-  ValArray shape . NE.toList <$> mapM intExp es
+  collapse . ValArray shape . NE.toList <$> mapM intExp es
 intExp (EmptyFrame shape _ _ _) =
   pure $ ValArray shape mempty
 intExp expr@(App f e (Info (_, pframe)) _) = do
