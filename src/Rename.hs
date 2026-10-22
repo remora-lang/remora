@@ -69,12 +69,13 @@ instance
     TApp <$> rename e <*> applyRename te <*> applyRename t <*> pure pos
   rename (IApp e isp t pos) =
     IApp <$> rename e <*> applyRename isp <*> applyRename t <*> pure pos
-  rename (Unbox ip x box body t pos) =
+  rename (Unbox ip x box body t pos) = do
+    box' <- rename box
     withRenamedBinders (unISpaceParam ip : [x]) $
       Unbox
         <$> traverse applyRename ip
         <*> applyRename x
-        <*> rename box
+        <*> pure box'
         <*> rename body
         <*> applyRename t
         <*> pure pos

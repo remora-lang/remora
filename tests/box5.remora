@@ -1,0 +1,8 @@
+;; ==
+;; tags { existential }
+;; modes { interpret }
+;; output { 3 }
+(entry (main)
+  (let ((ispace $n 3))
+    (unbox ($n xs (box ($n) (@iota/static _ ([$n])) (Sigma ($m) [Int $m])))
+      (@length (Int) ($n []) xs))))
