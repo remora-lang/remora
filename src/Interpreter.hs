@@ -341,7 +341,7 @@ intExp expr@(Struct s (Info (_, pframe)) _) = do
           ValArray inShp vs -> do
             let splitVs = split (product inShp `div` product shp') (product shp') vs
             let replFactor = pcnt `div` (product inShp `div` product shp')
-            pure $ concat $ replicate replFactor $ map (ValArray shp') splitVs
+            pure $ rep replFactor $ map (ValArray shp') splitVs
           _ ->
             error $
               unlines
