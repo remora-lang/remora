@@ -77,14 +77,10 @@ compileExp' (Struct fs (Info (_, pframe)) _) =
 
     field (_, cell, e) = do
       ses <- compileExp' e
-      let fieldRank = length (intShape $ shapeOf e) - length (intShape cell)
-      mapM (replicateOver $ take (length frame - fieldRank) frame) ses
-
-    replicateOver [] se = pure se
-    replicateOver ds se =
-      F.letSubExp "replicate" $
-        F.BasicOp $
-          F.Replicate (F.Shape $ map constInt64 ds) se
+      let shape = intShape $ shapeOf e
+          fieldFrame = take (length shape - length (intShape cell)) shape
+      withMapNest frame (arrayTypeOf e) [Arg $ SExpArg fieldFrame ses $ arrayTypeOf e] $
+        \args _ -> pure [se | Arg arg <- args, se <- argSExps arg]
 compileExp' e@(FieldProj x f _ _) =
   case arrayTypeOf x of
     Record fs :@ _
