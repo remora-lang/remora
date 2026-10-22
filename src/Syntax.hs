@@ -585,14 +585,19 @@ flattenExp :: ExpBase te tp f v -> ExpBase te tp f v
 flattenExp (Frame shape es t pos) =
   case NE.head es' of
     Frame shape' _ _ _
-      | Just ess' <- traverse frameElems es' ->
+      | Just ess' <- traverse frameElems es',
+        all (hasShape shape') es' ->
           Frame (shape <> shape') (foldr1 (<>) ess') t pos
     Array shape' _ _ _
-      | Just ass' <- traverse arrayElems es' ->
+      | Just ass' <- traverse arrayElems es',
+        all (hasShape shape') es' ->
           Array (shape <> shape') (foldr1 (<>) ass') t pos
     _ -> Frame shape es' t pos
   where
     es' = fmap flattenExp es
+    hasShape s (Frame s' _ _ _) = s == s'
+    hasShape s (Array s' _ _ _) = s == s'
+    hasShape _ _ = False
 flattenExp e = e
 
 arrayifyType :: Type VName -> Type VName
