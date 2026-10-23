@@ -7,11 +7,10 @@
         ]
       },
       "locked": {
-        "lastModified": 1789581041,
-        "narHash": "sha256-3NIVsk9ZwssBRPrwSDK1dlgq9ZqFxACnYMPHeDqUk80=",
+        "lastModified": 1792521629,
         "owner": "diku-dk",
         "repo": "futhark",
-        "rev": "48d855417f6e2bfaa9ab9644bbdbf025bdf2528d",
+        "rev": "16c6e619d1cc1a0fc2497a3da4573a89209ae0b9",
         "type": "github"
       },
       "original": {
