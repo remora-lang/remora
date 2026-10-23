@@ -1,8 +1,8 @@
-# remora-ts-mode -- a major mode for editing Remora programs
+# remora-ts-mode -- a major mode for editing Remora programs, based on tree-sitter
 
 ## Installation
 
-First of all, you need a modern emacs (30+) with treesitter support
+First of all, you need a modern emacs (30.1+) with treesitter support
 built in. In your `*scratch*` buffer, type 
 ```
 (treesit-available-p)
@@ -13,13 +13,8 @@ followed by C-j to execute. Should return `t`.
 
 Add the following to your .emacs file:
 ```
+(require 'treesit)
 (add-to-list 'treesit-language-source-alist '(remora "https://github.com/remora-lang/tree-sitter-remora"))
-```
-
-If the variable `treesit-language-source-alist` does not exist (`C-h v treesit-language-source-alist`), then
-instead add the following to your .emacs file:
-```
-(setq treesit-language-source-alist '((remora "https://github.com/remora-lang/tree-sitter-remora")))
 ```
 
 Then, to build and install the tree-sitter grammar, do:
