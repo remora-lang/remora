@@ -1,0 +1,9 @@
+;; a polymorphic definition whose body calls head and reverse, and a call of
+;; it; none of the three calls gives its type or index arguments
+;; ==
+;; output { 6 }
+(def (fun (@my-last (&t) ($n) (v [&t (+ 1 $n)]) : &t)
+       (head (reverse v))))
+
+(entry (main)
+  (my-last [4 5 6]))

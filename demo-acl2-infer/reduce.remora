@@ -1,0 +1,6 @@
+;; reduce, curried: ACL2's inference cannot do this one yet, because reduce's
+;; first argument (the operator) does not determine the vector's length
+;; ==
+;; output { 10 }
+(entry (main)
+  ((reduce +) [1 2 3 4]))
