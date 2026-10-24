@@ -2,6 +2,7 @@
 
 module CLI (main) where
 
+import ACL2Infer qualified
 import CLI.Futhark (FutharkBackend (..), Input (..), compileAndRun, compileBackend)
 import CLI.REPL qualified
 import CLI.Test qualified
@@ -37,6 +38,7 @@ data RemoraMode
       { file :: Maybe FilePath,
         expr :: Maybe String,
         entry :: Maybe String,
+        acl2_infer :: Bool,
         args :: [String]
       }
   | Futhark
@@ -47,6 +49,7 @@ data RemoraMode
         entry :: Maybe String,
         asts :: Bool,
         asts_dir :: Maybe FilePath,
+        acl2_infer :: Bool,
         args :: [String]
       }
   | Parse
@@ -102,13 +105,31 @@ interpret =
           &= name "entry"
           &= help "Entry point to run. Defaults to main."
           &= typ "NAME",
+      acl2_infer =
+        False
+          &= explicit
+          &= name "acl2-infer"
+          &= help "If type or index applications are missing, have ACL2 infer them.",
       args = [] &= CmdArgs.args
     }
     &= details
-      [ "Interpret a remora program or expression.",
-        "",
-        "If neither -f nor -e is passed, will read input from stdin."
-      ]
+      ( [ "Interpret a remora program or expression.",
+          "",
+          "If neither -f nor -e is passed, will read input from stdin."
+        ]
+          <> acl2InferDetails
+      )
+
+acl2InferDetails :: [String]
+acl2InferDetails =
+  [ "",
+    "With --acl2-infer, a program in a file (-f) that is missing type or index",
+    "applications is sent to ACL2, which infers them. The elaborated program is",
+    "written next to the original, prog.remora becoming prog-typed.remora, and",
+    "is then used instead. ACL2 is started with the command in $ACL2, or with",
+    "acl2 from the search path; it needs the book kestrel/remora/elaborator:",
+    "> ACL2=\"docker run --rm -i remora-acl2:v3 acl2\" remora interpret --acl2-infer -f prog.remora"
+  ]
 
 futhark :: RemoraMode
 futhark =
@@ -142,10 +163,15 @@ futhark =
           &= name "asts-dir"
           &= help "Directory for --asts output. Defaults to the current directory."
           &= typDir,
+      acl2_infer =
+        False
+          &= explicit
+          &= name "acl2-infer"
+          &= help "If type or index applications are missing, have ACL2 infer them.",
       args = [] &= CmdArgs.args
     }
     &= details
-      [ "Turn a Remora program into Futhark.",
+      ( [ "Turn a Remora program into Futhark.",
         "",
         "If neither -f nor -e is passed, will read input from stdin.",
         "",
@@ -160,7 +186,9 @@ futhark =
         "parse.json, uniquify.json, typecheck.json, etc. With -f the names",
         "are prefixed with the source basename: prog-parse.json, etc. Files",
         "are created in the current directory unless --asts-dir says otherwise."
-      ]
+        ]
+          <> acl2InferDetails
+      )
 
 test :: RemoraMode
 test =
@@ -279,18 +307,19 @@ main = do
 
     run :: RemoraMode -> ExceptT Error IO ()
     run REPL = liftIO CLI.REPL.repl
-    run (Interpret mfile mexpr mentry margs) = do
-      input <- parseInput mfile mexpr
-      v <-
-        except $
-          either
-            Pipeline.interpretExp
-            ( \prog ->
-                flip (Pipeline.interpret $ entryPoint mentry) prog
-                  =<< mapM evalArg margs
-            )
-            input
-      liftIO $ T.putStrLn $ prettyText v
+    run (Interpret mfile mexpr mentry infer margs) =
+      withACL2Infer infer mfile $ \mfile' -> do
+        input <- parseInput mfile' mexpr
+        v <-
+          except $
+            either
+              Pipeline.interpretExp
+              ( \prog ->
+                  flip (Pipeline.interpret $ entryPoint mentry) prog
+                    =<< mapM evalArg margs
+              )
+              input
+        liftIO $ T.putStrLn $ prettyText v
     run (Test test_paths mbackend mmodes mentries mtags mexclude minterpret mcompile) = do
       test_modes <- except $ traverse CLI.Test.readMode $ concatMap words mmodes
       let tagList = map T.pack . concatMap words
@@ -348,7 +377,56 @@ main = do
         putResult
           | json = B.putStr . (<> "\n") . encodePretty
           | otherwise = T.putStrLn . prettyText
-    run (Futhark mfile mexpr mbackend do_run mentry masts masts_dir margs) = do
+    run (Futhark mfile mexpr mbackend do_run mentry masts masts_dir infer margs) =
+      withACL2Infer infer mfile $ \mfile' ->
+        runFuthark mfile' mexpr mbackend do_run mentry masts masts_dir margs
+    run (Parse mfile mexpr) = do
+      input <- parseInput mfile mexpr
+      liftIO $ either (problem . prettyText) (T.putStrLn . prettyText) input
+
+    -- With --acl2-infer, if the program is missing type or index applications,
+    -- have ACL2 infer them and run again on the elaborated program, which is
+    -- written to prog-typed.remora. Without it, say that the option exists.
+    withACL2Infer ::
+      Bool ->
+      Maybe FilePath ->
+      (Maybe FilePath -> ExceptT Error IO a) ->
+      ExceptT Error IO a
+    withACL2Infer infer mfile k = do
+      first <- liftIO $ runExceptT $ k mfile
+      case first of
+        Right x -> pure x
+        Left err
+          | not (ACL2Infer.isMissingApplication err) -> throwE err
+          | not infer ->
+              throwE $ T.stripEnd err <> "\nHint: with --acl2-infer, ACL2 infers the missing applications."
+          | Just path <- mfile -> do
+              result <- liftIO $ ACL2Infer.inferWithACL2 path
+              case result of
+                Left why -> throwE $ T.stripEnd err <> "\n--acl2-infer: " <> why
+                Right typed -> do
+                  liftIO $
+                    T.hPutStrLn stderr $
+                      "remora: "
+                        <> T.pack path
+                        <> " is missing type or index applications;"
+                        <> " ACL2 inferred them, in "
+                        <> T.pack typed
+                  k $ Just typed
+          | otherwise ->
+              throwE $ T.stripEnd err <> "\n--acl2-infer: needs the program in a file, given with -f."
+
+    runFuthark ::
+      Maybe FilePath ->
+      Maybe String ->
+      Maybe FutharkBackend ->
+      Bool ->
+      Maybe String ->
+      Bool ->
+      Maybe FilePath ->
+      [String] ->
+      ExceptT Error IO ()
+    runFuthark mfile mexpr mbackend do_run mentry masts masts_dir margs = do
       input <- parseInput mfile mexpr
       unless do_run $ do
         unless (null margs) $
@@ -400,9 +478,6 @@ main = do
         writePassAST p =
           B.writeFile (astFile $ Pipeline.passName p) $
             encodePretty (Pipeline.passJSON p) <> "\n"
-    run (Parse mfile mexpr) = do
-      input <- parseInput mfile mexpr
-      liftIO $ either (problem . prettyText) (T.putStrLn . prettyText) input
 
     parseInput ::
       Maybe FilePath ->

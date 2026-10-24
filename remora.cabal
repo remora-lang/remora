@@ -22,6 +22,7 @@ common common
 library
     import:           common
     exposed-modules:
+      ACL2Infer
       Binds
       CLI
       CLI.Futhark

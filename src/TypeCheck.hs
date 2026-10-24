@@ -1,4 +1,4 @@
-module TypeCheck (check, checkExp) where
+module TypeCheck (check, checkExp, missingApplication) where
 
 import Control.Monad
 import Control.Monad.Error.Class
@@ -38,6 +38,21 @@ checkExp e =
             checkExp' e
       )
       initEnv
+
+-- | The start of the error for a polymorphic function (one whose type is a ∀
+-- or a Π) applied to an argument without its type or index arguments.
+-- remora --acl2-infer recognizes the error by it.
+missingApplication :: T.Text
+missingApplication = "Missing type or index application"
+
+-- | Whether a function with this type has to be given type or index
+-- arguments before it can be applied.
+needsApplication :: Type VName -> Bool
+needsApplication (ArrayType (Forall {} :@ _)) = True
+needsApplication (ArrayType (Pi {} :@ _)) = True
+needsApplication (AtomType Forall {}) = True
+needsApplication (AtomType Pi {}) = True
+needsApplication _ = False
 
 checkProg :: (MonadCheck m) => UniqueProg -> m Prog
 checkProg (Prog decs) = binds withDecl decs $ pure . Prog
@@ -173,13 +188,23 @@ checkExp' expr@(App f arg _ pos) = do
         Just principal ->
           let ret' = arrayOf (ArrayType ret) principal
            in pure $ App f' arg' (Info (ret', principal)) pos
-    t ->
-      throwErrorPos pos $
-        T.unlines
-          [ "Expected an array of functions in application: ",
-            prettyText expr,
-            prettyText t
-          ]
+    t
+      | needsApplication t ->
+          throwErrorPos pos $
+            T.unlines
+              [ missingApplication
+                  <> ": this function is polymorphic, so it must be given its type"
+                  <> " or index arguments (t-app, i-app or @) before it is applied:",
+                prettyText expr,
+                prettyText t
+              ]
+      | otherwise ->
+          throwErrorPos pos $
+            T.unlines
+              [ "Expected an array of functions in application: ",
+                prettyText expr,
+                prettyText t
+              ]
 checkExp' expr@(TApp f t _ pos) = do
   f' <- checkExp' f
   t' <- checkTypeExp t
